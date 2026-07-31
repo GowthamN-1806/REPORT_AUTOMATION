@@ -269,11 +269,12 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           </p>
                         </div>
 
-                        <div className="shrink-0 text-center">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-red-600 text-white flex flex-col items-center justify-center p-1 border-2 border-amber-300 shadow-sm mx-auto">
-                            <span className="text-[11px] font-extrabold leading-none">A+</span>
-                            <span className="text-[5px] font-bold tracking-widest mt-0.5">NAAC</span>
-                          </div>
+                        <div className="w-16 h-14 shrink-0 flex items-center justify-center">
+                          <img
+                            src="/nba_logo.png"
+                            alt="National Board of Accreditation Logo"
+                            className="w-full h-full object-contain"
+                          />
                         </div>
                       </div>
 
