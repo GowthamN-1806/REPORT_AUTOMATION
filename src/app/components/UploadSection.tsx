@@ -162,107 +162,19 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
       </div>
 
-      {/* Upload Summary Card */}
+      {/* Step 2: Download All Student Reports Section */}
       {summary && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
           
-          {/* Card Title Header */}
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shadow-sm">
-              <FileText className="w-4 h-4" />
-            </div>
-            <h3 className="text-xs font-black text-blue-950 uppercase tracking-wider font-poppins">
-              Upload Summary
-            </h3>
-          </div>
-
-          {/* Key Value Items matching clean format */}
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> File Name
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-bold text-blue-950 font-mono text-right truncate max-w-[160px]">
-                {summary.fileName}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Total Students
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-extrabold text-slate-900 text-right">
-                {summary.totalStudents}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Subjects (Per Student)
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-bold text-slate-900 text-right">
-                {summary.subjectsPerStudent}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Reports (One Per Student)
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-bold text-slate-900 text-right">
-                {summary.totalStudents}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Template Used
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-mono font-bold text-slate-900 text-right">
-                {summary.templateUsed}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center py-1">
-              <span className="text-slate-600 font-medium flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Uploaded On
-              </span>
-              <span className="text-slate-400">:</span>
-              <span className="font-bold text-slate-800 text-right">
-                30 Jul 2026, 10:24 AM
-              </span>
-            </div>
-          </div>
-
-          {/* Bottom Green Status Pill Banner */}
-          <div className="mt-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-emerald-950 text-xs font-bold shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>All student reports are ready to be downloaded.</span>
-          </div>
-
-        </div>
-      )}
-
-      {/* Step 3: Download All Student Reports Section */}
-      {summary && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
-          
-          {/* Step 3 Badge Header */}
+          {/* Step 2 Badge Header */}
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md ring-4 ring-blue-50 shrink-0">
-              3
+              2
             </div>
             <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
               Download All Student Reports
             </h3>
           </div>
-
-
 
           <div className="flex flex-row gap-3">
             {/* Button 1: Download Word */}

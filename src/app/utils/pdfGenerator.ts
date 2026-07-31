@@ -1,6 +1,16 @@
 import { jsPDF } from 'jspdf';
 import { StudentRecord } from '../types';
 
+const loadImg = (src: string): Promise<HTMLImageElement | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+};
+
 export const generateCombinedPDF = async (
   students: StudentRecord[],
   reportContainerElement?: HTMLElement | null,
@@ -16,6 +26,10 @@ export const generateCombinedPDF = async (
   const pageHeight = pdf.internal.pageSize.getHeight(); // 841.89 pt
   const margin = 35;
   const contentWidth = pageWidth - margin * 2;
+
+  const jitLogoImg = await loadImg('/jit_logo.png');
+  const naacLogoImg = await loadImg('/naac_logo.png');
+  const nbaLogoImg = await loadImg('/nba_logo.png');
 
   const getSemValue = (map: Record<string, any> | undefined, semKey: string, fallback: string): string => {
     if (!map) return fallback;
@@ -43,20 +57,31 @@ export const generateCombinedPDF = async (
     pdf.rect(18, 18, pageWidth - 36, pageHeight - 36);
     pdf.rect(22, 22, pageWidth - 44, pageHeight - 44);
 
+    // Render Logos
+    if (jitLogoImg) {
+      pdf.addImage(jitLogoImg, 'PNG', 35, 30, 42, 48);
+    }
+    if (naacLogoImg) {
+      pdf.addImage(naacLogoImg, 'PNG', pageWidth - 35 - 85, 32, 36, 40);
+    }
+    if (nbaLogoImg) {
+      pdf.addImage(nbaLogoImg, 'PNG', pageWidth - 35 - 45, 34, 45, 38);
+    }
+
     // Top Header Titles
     pdf.setTextColor(2, 132, 199); // #0284c7
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(16);
+    pdf.setFontSize(15);
     pdf.text('JEPPIAAR INSTITUTE OF TECHNOLOGY', pageWidth / 2, 45, { align: 'center' });
 
     pdf.setTextColor(3, 105, 161); // #0369a1
     pdf.setFont('times', 'bolditalic');
-    pdf.setFontSize(11);
+    pdf.setFontSize(10.5);
     pdf.text('"Self Belief, Self Discipline, Self Respect"', pageWidth / 2, 58, { align: 'center' });
 
     pdf.setTextColor(220, 38, 38); // #dc2626
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(9);
+    pdf.setFontSize(8.5);
     pdf.text('( AN AUTONOMOUS INSTITUTION )', pageWidth / 2, 70, { align: 'center' });
 
     // Greetings Line

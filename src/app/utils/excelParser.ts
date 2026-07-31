@@ -1,16 +1,15 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Subject title lookup dictionary for clean standard display
-const knownSubjectTitles: Record<string, string> = {
+// Known JIT Subject Code / Short Code to Full Title Mapping Dictionary
+const knownTitles: Record<string, string> = {
   NS: 'Network Security',
   OOSE: 'Object Oriented Software Engineering',
   'ESA IOT': 'Embedded Systems & IoT',
-  IOT: 'Internet of Things',
-  MA: 'Mathematics',
-  STA: 'Probability & Statistics',
-  DW: 'Data Warehousing & Mining',
-  OCE351: 'Open Elective (OCE351)',
+  MA: 'Mobile Applications',
+  STA: 'Software Testing & Automation',
+  DW: 'Data Warehousing & Data Mining',
+  OCE351: 'Environment and Social Impact Assessment',
   CS3591: 'Computer Networks',
   CS3501: 'Compiler Design',
   CB3491: 'Cryptography and Cyber Security',
@@ -34,20 +33,72 @@ const knownSubjectTitles: Record<string, string> = {
   SE: 'Software Engineering',
 };
 
+// Non-subject metadata headers to ignore completely
+const nonSubjectHeaders = [
+  's.no', 's.no.', 'sl.no', 'sl.no.', 'sno', 'slno', 'id', 's_no', 'sl_no',
+  'reg.no', 'reg.no.', 'reg no', 'register no', 'register_no', 'register number', 'register number:', 'regno', 'reg_no', 'registration no', 'registration_no', 'roll no', 'rollno',
+  'name', 'student name', 'student_name', 'name of the student', 'name of the student:', 'studentname', 'name_of_the_student',
+  'academic year', 'academic_year', 'academic year:', 'ay', 'year',
+  'date', 'dates', 'date:',
+  'staff name', 'staff names', 'staff_name', 'faculty', 'faculty name', 'staff',
+  'department', 'department name', 'dept', 'branch', 'department:',
+  'regulation', 'regulation:',
+  'gpa', 'cgpa', 'class', 'class obtained', 'class_obtained', 'class_obtained:',
+  'arrears', 'total', 'total marks', 'total_marks', 'percentage', 'result', 'pass/fail', 'passfail', 'status'
+];
+
+// Helper to identify and reject template placeholder tokens or empty strings
+const isPlaceholderToken = (str: string): boolean => {
+  if (!str) return true;
+  const clean = str.trim().toLowerCase();
+  if (
+    clean.startsWith('empty') ||
+    clean.startsWith('__empty') ||
+    clean.includes('register_no') ||
+    clean.includes('register_number') ||
+    clean.includes('student_name') ||
+    clean.includes('university_subject_code') ||
+    clean.includes('university_subject_name') ||
+    clean.includes('university_subject_title') ||
+    clean.includes('university_subject_sem') ||
+    clean.includes('grade_') ||
+    clean.includes('passfail_') ||
+    clean.includes('pass_fail_') ||
+    clean.includes('cie_code_') ||
+    clean.includes('cie_subject_') ||
+    clean.includes('cie_marks_') ||
+    clean.includes('cie_pass_') ||
+    clean.startsWith('{{') ||
+    clean.endsWith('}}')
+  ) {
+    return true;
+  }
+  return false;
+};
+
 // Helper to evaluate Pass/Fail dynamically from grade or mark
-const evaluatePassFail = (markOrGrade: any): 'PASS' | 'FAIL' => {
-  if (markOrGrade === undefined || markOrGrade === null || markOrGrade === '') return 'PASS';
-  const str = String(markOrGrade).trim().toUpperCase();
-  if (str === 'FAIL' || str === 'F' || str === 'RA' || str === 'U' || str === 'AB' || str === 'ABSENT') {
-    return 'FAIL';
+const evaluatePassFail = (markOrGrade: any, gradeStr?: string): 'PASS' | 'FAIL' => {
+  if (markOrGrade !== undefined && markOrGrade !== null && markOrGrade !== '') {
+    const str = String(markOrGrade).trim().toUpperCase();
+    if (str === 'FAIL' || str === 'F' || str === 'RA' || str === 'U' || str === 'AB' || str === 'ABSENT') {
+      return 'FAIL';
+    }
+    if (str === 'PASS' || str === 'P') {
+      return 'PASS';
+    }
+    const num = Number(str);
+    if (!isNaN(num)) {
+      return num >= 50 ? 'PASS' : 'FAIL';
+    }
   }
-  if (str === 'PASS' || str === 'P') {
-    return 'PASS';
+
+  if (gradeStr !== undefined && gradeStr !== null) {
+    const g = String(gradeStr).trim().toUpperCase();
+    if (g === 'RA' || g === 'U' || g === 'F' || g === 'AB' || g === 'FAIL' || g === 'ABSENT') {
+      return 'FAIL';
+    }
   }
-  const num = Number(str);
-  if (!isNaN(num)) {
-    return num >= 50 ? 'PASS' : 'FAIL';
-  }
+
   return 'PASS';
 };
 
@@ -156,8 +207,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawHeader = String(headerRow[c] || '').trim();
           const cleanHeader = rawHeader.toLowerCase();
 
-          // Step 3 requirement: Ignore completely empty columns or columns named __EMPTY, __EMPTY_1, etc.
-          if (!rawHeader || cleanHeader.startsWith('__empty') || cleanHeader.includes('__empty')) {
+          // Ignore completely empty columns, placeholder tokens or columns named __EMPTY, __EMPTY_1, etc.
+          if (!rawHeader || isPlaceholderToken(rawHeader) || cleanHeader.startsWith('__empty') || cleanHeader.includes('__empty')) {
             continue;
           }
 
@@ -166,15 +217,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const isName = c === nameColIndex || /^(name|student|student_name|candidate|name of the student)/i.test(cleanHeader);
           const isDept = c === deptColIndex || /^(dept|department|branch)/i.test(cleanHeader);
           const isRegu = c === reguColIndex || /^(regulation)/i.test(cleanHeader);
-          const isGpaCgpa = /^(gpa|cgpa|arrears|class|result|status|remarks|s\.no|sl\.no|slno|no|id)$/i.test(cleanHeader);
+          const isNonSubHeader = nonSubjectHeaders.some((ik) => {
+            const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+            const cleanK = cleanHeader.replace(/[\s_.-]+/g, '');
+            return cleanK === cleanIk;
+          });
 
-          if (isReg || isName || isDept || isRegu || isGpaCgpa) {
+          if (isReg || isName || isDept || isRegu || isNonSubHeader) {
             continue;
           }
 
           // Valid Subject Column Found!
-          const code = rawHeader;
-          const title = knownSubjectTitles[code.toUpperCase()] || rawHeader;
+          const code = rawHeader.toUpperCase();
+          const title = knownTitles[code] || rawHeader;
           subjectCols.push({ colIndex: c, code, title });
         }
 
@@ -193,8 +248,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
           const rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
 
-          const regNoStr = String(rawRegVal || '').trim();
-          const nameStr = String(rawNameVal || '').trim();
+          let regNoStr = String(rawRegVal || '').trim();
+          let nameStr = String(rawNameVal || '').trim();
+
+          if (isPlaceholderToken(regNoStr)) regNoStr = '';
+          if (isPlaceholderToken(nameStr)) nameStr = '';
 
           // Skip if row doesn't contain a valid student register number or name
           if (!regNoStr && !nameStr) continue;
@@ -209,10 +267,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const universityResults: SubjectResult[] = [];
           const internalEvalResults: InternalEvalResult[] = [];
 
-          let totalMarksSum = 0;
-          let passCount = 0;
-
-          subjectCols.forEach((sub, sIdx) => {
+          subjectCols.forEach((sub) => {
             const cellVal = rowCells[sub.colIndex];
             let markNum = 50;
             let grade = 'B';
@@ -254,9 +309,6 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               grade = 'B+';
               passFail = 'PASS';
             }
-
-            if (passFail === 'PASS') passCount++;
-            totalMarksSum += markNum;
 
             const sem = 'V';
             const code = sub.code;
