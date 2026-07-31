@@ -134,13 +134,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                 Page 2: Acknowledgement
               </button>
             </div>
-
-            <button
-              onClick={() => setShowPlaceholders(!showPlaceholders)}
-              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 transition"
-            >
-              {showPlaceholders ? 'Show Live Data' : 'Show Template Tokens'}
-            </button>
           </div>
         </div>
       )}
