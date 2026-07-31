@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 540" width="100%" height="100%">
+  <defs>
+    <style>
+      .logo-teal { fill: #0096ab; }
+      .logo-stroke { stroke: #0096ab; stroke-width: 6.5; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <!-- Outer Shield Crest Outline -->
+  <path class="logo-stroke" d="M 50 45 L 290 45 L 290 270 C 290 350 170 405 170 405 C 170 405 50 350 50 270 Z" stroke-width="7.5"/>
+
+  <!-- JEPPIAAR Title -->
+  <text x="170" y="102" font-family="'Impact', 'Arial Black', sans-serif" font-size="42" font-weight="900" text-anchor="middle" fill="#0096ab" letter-spacing="2">JEPPIAAR</text>
+  
+  <!-- INSTITUTE OF TECHNOLOGY Subtitle -->
+  <text x="170" y="126" font-family="'Arial Black', 'Segoe UI', sans-serif" font-size="12.5" font-weight="800" text-anchor="middle" fill="#0096ab" letter-spacing="0.5">INSTITUTE OF TECHNOLOGY</text>
+
+  <!-- Monogram JIT -->
+  <g fill="#0096ab">
+    <!-- J -->
+    <path d="M 80 142 L 134 142 L 134 230 C 134 258 114 278 86 278 L 78 278 L 112 226 C 118 214 118 190 118 168 L 80 168 Z" />
+    <!-- I -->
+    <path d="M 148 142 L 190 142 L 190 278 L 148 278 Z" />
+    <!-- T -->
+    <path d="M 202 142 L 260 142 L 260 168 L 240 168 L 240 278 L 216 278 L 216 168 L 202 168 Z" />
+  </g>
+
+  <!-- Lower Diamond Tech Grid -->
+  <g>
+    <polygon points="170,258 226,314 170,370 114,314" fill="#0096ab" stroke="#0096ab" stroke-width="2" />
+    <!-- White Dividers -->
+    <line x1="170" y1="258" x2="170" y2="370" stroke="#ffffff" stroke-width="2.5"/>
+    <line x1="114" y1="314" x2="226" y2="314" stroke="#ffffff" stroke-width="2.5"/>
+    <!-- Center Target Ring -->
+    <circle cx="170" cy="314" r="17" fill="#0096ab" stroke="#ffffff" stroke-width="2.5"/>
+    <circle cx="170" cy="314" r="7" fill="none" stroke="#ffffff" stroke-width="2"/>
+
+    <!-- Icons in 4 Quadrants -->
+    <!-- Top: Laptop -->
+    <rect x="162" y="275" width="16" height="10" rx="1.5" fill="none" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="158" y1="287" x2="182" y2="287" stroke="#ffffff" stroke-width="2"/>
+
+    <!-- Left: Gears -->
+    <circle cx="142" cy="314" r="6.5" fill="none" stroke="#ffffff" stroke-width="1.8"/>
+    <circle cx="142" cy="314" r="2.5" fill="#ffffff"/>
+
+    <!-- Right: Transmission Tower -->
+    <line x1="198" y1="302" x2="198" y2="326" stroke="#ffffff" stroke-width="2"/>
+    <line x1="190" y1="307" x2="206" y2="307" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="192" y1="316" x2="204" y2="316" stroke="#ffffff" stroke-width="1.8"/>
+
+    <!-- Bottom: Microchip -->
+    <rect x="163" y="340" width="14" height="11" rx="1" fill="none" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="159" y1="343" x2="163" y2="343" stroke="#ffffff" stroke-width="1.5"/>
+    <line x1="159" y1="348" x2="163" y2="348" stroke="#ffffff" stroke-width="1.5"/>
+    <line x1="177" y1="343" x2="181" y2="343" stroke="#ffffff" stroke-width="1.5"/>
+    <line x1="177" y1="348" x2="181" y2="348" stroke="#ffffff" stroke-width="1.5"/>
+  </g>
+
+  <!-- Curved Motto Banner Attached Under Shield -->
+  <path d="M 26 275 C 55 385 285 385 314 275 L 294 263 C 270 358 70 358 46 263 Z" fill="#0096ab"/>
+
+  <!-- Banner Stars -->
+  <polygon points="34,258 37,266 45,266 39,271 41,279 34,274 27,279 29,271 23,266 31,266" fill="#0096ab"/>
+  <polygon points="306,258 309,266 317,266 311,271 313,279 306,274 299,279 301,271 295,266 303,266" fill="#0096ab"/>
+
+  <!-- Banner Text: Self Belief | Self Discipline | Self Respect -->
+  <path id="bannerArcPath" d="M 34 286 C 65 378 275 378 306 286" fill="none" stroke="none"/>
+  <text font-family="'Arial Black', sans-serif" font-size="12" font-weight="900" fill="#ffffff" text-anchor="middle">
+    <textPath href="#bannerArcPath" startOffset="50%">
+      Self Belief | Self Discipline | Self Respect
+    </textPath>
+  </text>
+
+  <!-- Bottom Separate Ribbon: SRIPERUMBUDUR ESTD. 2011 -->
+  <!-- Outer Ribbon Ribbon Box -->
+  <path d="M 24 435 Q 170 482 316 435 L 298 490 Q 170 532 42 490 Z" fill="none" stroke="#0096ab" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Left Ribbon Fold -->
+  <path d="M 24 435 L 4 468 L 42 490 Z" fill="#0096ab" opacity="0.25" stroke="#0096ab" stroke-width="3"/>
+  <!-- Right Ribbon Fold -->
+  <path d="M 316 435 L 336 468 L 298 490 Z" fill="#0096ab" opacity="0.25" stroke="#0096ab" stroke-width="3"/>
+
+  <!-- SRIPERUMBUDUR Text -->
+  <path id="ribbonTextPath" d="M 42 472 Q 170 514 298 472" fill="none" stroke="none"/>
+  <text font-family="'Impact', 'Arial Black', sans-serif" font-size="26" font-weight="900" fill="#0096ab" text-anchor="middle" letter-spacing="1">
+    <textPath href="#ribbonTextPath" startOffset="50%">
+      SRIPERUMBUDUR
+    </textPath>
+  </text>
+
+  <!-- ESTD. 2011 Text -->
+  <text x="170" y="514" font-family="'Arial Black', sans-serif" font-size="14" font-weight="900" text-anchor="middle" fill="#0096ab" letter-spacing="1.5">ESTD. 2011</text>
+</svg>
