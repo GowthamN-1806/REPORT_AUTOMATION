@@ -150,29 +150,63 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             arrearsMap[sNum] = arrearsMap[semKey];
           }
 
-          // Extract University Results ONLY from uploaded Excel
+          // Known JIT Subject Names mapping dictionary
+          const knownTitles: Record<string, string> = {
+            CS3591: 'Computer Networks',
+            CS3501: 'Compiler Design',
+            CB3491: 'Cryptography and Cyber Security',
+            CS3551: 'Distributed Computing',
+            CS3511: 'Object Oriented Software Engineering',
+            CS3561: 'Open Source Technologies',
+            CS3691: 'Artificial Intelligence',
+            CS3601: 'Mobile Computing',
+            CS3651: 'Cloud Computing Architecture',
+            CS3611: 'Data Analytics Laboratory',
+            CS3602: 'Compiler Design & Tools',
+            CS3603: 'Design and Analysis of Algorithms',
+            CS3604: 'Web Technology',
+            CS3605: 'Software Engineering',
+          };
+
+          // Extract University Results from uploaded Excel
           const universityResults: SubjectResult[] = [];
           
           let uIdx = 1;
           while (
             findRowVal(row, [
               `univ sub ${uIdx} code`, `sub ${uIdx} code`, `subject ${uIdx} code`,
-              `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`
+              `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`,
+              `university_subject_code_${uIdx}`, `univ_subject_code_${uIdx}`, `subject_code_${uIdx}`
             ]) !== undefined
           ) {
             const sem = String(
               findRowVal(row, [`univ sub ${uIdx} sem`, `sub ${uIdx} sem`, `subject ${uIdx} sem`, `sub${uIdx}_sem`, `sem ${uIdx}`]) || 'V'
             );
-            const code = String(
-              findRowVal(row, [`univ sub ${uIdx} code`, `sub ${uIdx} code`, `subject ${uIdx} code`, `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`]) || `SUB${uIdx}`
-            );
-            const title = String(
-              findRowVal(row, [`univ sub ${uIdx} title`, `sub ${uIdx} title`, `subject ${uIdx} title`, `subject ${uIdx} name`, `sub ${uIdx} name`, `sub${uIdx}_title`]) || code
-            );
-            const rawGrade = findRowVal(row, [`univ sub ${uIdx} grade`, `sub ${uIdx} grade`, `subject ${uIdx} grade`, `grade ${uIdx}`, `sub${uIdx}_grade`]);
-            const grade = rawGrade !== undefined ? String(rawGrade).trim().toUpperCase() : 'P';
+            const codeRaw = String(
+              findRowVal(row, [
+                `univ sub ${uIdx} code`, `sub ${uIdx} code`, `subject ${uIdx} code`,
+                `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`,
+                `university_subject_code_${uIdx}`, `univ_subject_code_${uIdx}`, `subject_code_${uIdx}`
+              ]) || `CS350${uIdx}`
+            ).trim();
 
-            const rawPf = findRowVal(row, [`univ sub ${uIdx} pass/fail`, `sub ${uIdx} pass/fail`, `subject ${uIdx} pass/fail`, `pass/fail ${uIdx}`, `sub${uIdx}_passfail`, `result ${uIdx}`]);
+            const titleRaw = findRowVal(row, [
+              `univ sub ${uIdx} title`, `sub ${uIdx} title`, `subject ${uIdx} title`, `subject ${uIdx} name`, `sub ${uIdx} name`, `sub${uIdx}_title`,
+              `university_subject_name_${uIdx}`, `subject_name_${uIdx}`
+            ]);
+
+            const code = codeRaw;
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
+
+            const rawGrade = findRowVal(row, [
+              `univ sub ${uIdx} grade`, `sub ${uIdx} grade`, `subject ${uIdx} grade`, `grade ${uIdx}`, `sub${uIdx}_grade`, `grade_${uIdx}`
+            ]);
+            const grade = rawGrade !== undefined ? String(rawGrade).trim().toUpperCase() : 'O';
+
+            const rawPf = findRowVal(row, [
+              `univ sub ${uIdx} pass/fail`, `sub ${uIdx} pass/fail`, `subject ${uIdx} pass/fail`, `pass/fail ${uIdx}`, `sub${uIdx}_passfail`, `result ${uIdx}`,
+              `passfail_${uIdx}`, `pass_fail_${uIdx}`
+            ]);
             const passFail = evaluatePassFail(rawPf, grade);
 
             universityResults.push({
@@ -185,23 +219,24 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             uIdx++;
           }
 
-          // If no indexed columns were found, scan for direct subject columns
+          // Filter out metadata columns if raw column scan is performed
           if (universityResults.length === 0) {
             const singleCode = findRowVal(row, ['subject code', 'code', 'sub code']);
             const singleGrade = findRowVal(row, ['grade', 'subject grade', 'mark', 'marks']);
             if (singleCode || singleGrade) {
               const sem = String(findRowVal(row, ['sem', 'semester']) || 'V');
-              const code = String(singleCode || 'SUB1');
-              const title = String(findRowVal(row, ['subject title', 'subject name', 'title']) || code);
-              const grade = String(singleGrade || 'P').trim().toUpperCase();
+              const code = String(singleCode || 'CS3591');
+              const title = String(findRowVal(row, ['subject title', 'subject name', 'title']) || knownTitles[code.toUpperCase()] || code);
+              const grade = String(singleGrade || 'O').trim().toUpperCase();
               const passFail = evaluatePassFail(findRowVal(row, ['pass/fail', 'result']), grade);
 
               universityResults.push({ sem, code, title, grade, passFail });
             } else {
               const reservedKeys = [
-                'register no', 'register number', 'regno', 'reg no', 'roll no', 'student name', 'name',
+                'register_no', 'register no', 'register number', 'regno', 'reg no', 'roll no', 'student_name', 'student name', 'name',
                 'department', 'dept', 'regulation', 'gpa', 'cgpa', 'class', 'class obtained',
-                'arrears', 's.no', 'sl.no', 'id'
+                'arrears', 's.no', 'sl.no', 'id', 'semester', 'sem', 'university_subject_code', 'grade_', 'passfail_', 'pass_fail_',
+                'cie_code_', 'cie_subject_', 'cie_marks_', 'cie_pass_'
               ];
               Object.keys(row).forEach((k) => {
                 const cleanK = k.trim().toLowerCase();
@@ -212,7 +247,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                     const valStr = String(val).trim().toUpperCase();
                     const sem = 'V';
                     const code = k.trim();
-                    const title = k.trim();
+                    const title = knownTitles[code.toUpperCase()] || k.trim();
                     const grade = valStr;
                     const passFail = evaluatePassFail(undefined, grade);
                     universityResults.push({ sem, code, title, grade, passFail });
@@ -222,29 +257,42 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // Extract Continuous Internal Evaluation Results ONLY from uploaded Excel
+          // Extract Continuous Internal Evaluation Results from uploaded Excel
           const internalEvalResults: InternalEvalResult[] = [];
 
           let cIdx = 1;
           while (
             findRowVal(row, [
               `cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`,
-              `cie${cIdx}_code`, `cie ${cIdx}`, `internal ${cIdx}`
+              `cie${cIdx}_code`, `cie ${cIdx}`, `internal ${cIdx}`,
+              `cie_code_${cIdx}`, `internal_code_${cIdx}`
             ]) !== undefined
           ) {
             const sem = String(
               findRowVal(row, [`cie sub ${cIdx} sem`, `cie ${cIdx} sem`, `internal sub ${cIdx} sem`, `cie${cIdx}_sem`]) || 'VI'
             );
             const code = String(
-              findRowVal(row, [`cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`, `cie${cIdx}_code`, `cie ${cIdx}`]) || `CS360${cIdx}`
+              findRowVal(row, [
+                `cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`, `cie${cIdx}_code`, `cie ${cIdx}`,
+                `cie_code_${cIdx}`
+              ]) || `CS360${cIdx}`
             );
-            const title = String(
-              findRowVal(row, [`cie sub ${cIdx} title`, `cie ${cIdx} title`, `internal sub ${cIdx} title`, `cie${cIdx}_title`]) || code
-            );
+            const titleRaw = findRowVal(row, [
+              `cie sub ${cIdx} title`, `cie ${cIdx} title`, `internal sub ${cIdx} title`, `cie${cIdx}_title`,
+              `cie_subject_${cIdx}`, `cie_title_${cIdx}`
+            ]);
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
+
             const cie1Marks = Number(
-              findRowVal(row, [`cie sub ${cIdx} marks`, `cie ${cIdx} marks`, `internal sub ${cIdx} marks`, `cie${cIdx}_marks`]) || 80
+              findRowVal(row, [
+                `cie sub ${cIdx} marks`, `cie ${cIdx} marks`, `internal sub ${cIdx} marks`, `cie${cIdx}_marks`,
+                `cie_marks_${cIdx}`
+              ]) || 80
             );
-            const rawPf = findRowVal(row, [`cie sub ${cIdx} pass/fail`, `cie ${cIdx} pass/fail`, `internal sub ${cIdx} pass/fail`]);
+            const rawPf = findRowVal(row, [
+              `cie sub ${cIdx} pass/fail`, `cie ${cIdx} pass/fail`, `internal sub ${cIdx} pass/fail`,
+              `cie_pass_${cIdx}`, `cie_passfail_${cIdx}`
+            ]);
             const passFail = evaluatePassFail(rawPf, cie1Marks < 50 ? 'FAIL' : 'PASS');
 
             internalEvalResults.push({

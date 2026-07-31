@@ -7,39 +7,43 @@ interface StatsGridProps {
 }
 
 export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
+  const isUploaded = stats.totalStudents > 0 || stats.uploadStatus === 'Success';
+
   const cards = [
     {
       title: 'Total Students',
-      value: stats.totalStudents > 0 ? stats.totalStudents.toString() : '512',
-      subtext: 'In Uploaded File',
+      value: stats.totalStudents.toString(),
+      subtext: isUploaded ? 'In Uploaded File' : 'No File Uploaded',
       icon: Users,
       iconBg: 'bg-gradient-to-tr from-blue-600 to-blue-500 text-white',
       accentColor: 'border-t-blue-500',
     },
     {
       title: 'Total Reports',
-      value: stats.reportsGenerated > 0 ? stats.reportsGenerated.toString() : '512',
-      subtext: 'All Students',
+      value: stats.reportsGenerated.toString(),
+      subtext: isUploaded ? 'All Students' : 'No Reports Generated',
       icon: FileCheck,
       iconBg: 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white',
       accentColor: 'border-t-emerald-500',
     },
     {
       title: 'Total PDF Pages',
-      value: stats.pdfPages > 0 ? stats.pdfPages.toString() : '512',
-      subtext: '(One Page Per Student)',
+      value: stats.pdfPages.toString(),
+      subtext: isUploaded ? '(One Page Per Student)' : 'Pending Excel Upload',
       icon: FileText,
       iconBg: 'bg-gradient-to-tr from-purple-600 to-indigo-500 text-white',
       accentColor: 'border-t-purple-500',
     },
     {
       title: 'Upload Status',
-      value: 'Success',
-      subtext: 'Excel File Uploaded',
+      value: isUploaded ? 'Success' : 'Pending',
+      subtext: isUploaded ? 'Excel File Uploaded' : 'Awaiting Excel File',
       icon: ShieldCheck,
-      iconBg: 'bg-gradient-to-tr from-emerald-600 to-green-500 text-white',
-      valueColor: 'text-emerald-600 font-black',
-      accentColor: 'border-t-emerald-500',
+      iconBg: isUploaded
+        ? 'bg-gradient-to-tr from-emerald-600 to-green-500 text-white'
+        : 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white',
+      valueColor: isUploaded ? 'text-emerald-600 font-black' : 'text-amber-600 font-black',
+      accentColor: isUploaded ? 'border-t-emerald-500' : 'border-t-amber-500',
     },
   ];
 

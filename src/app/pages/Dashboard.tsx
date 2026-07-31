@@ -51,30 +51,16 @@ export const Dashboard: React.FC = () => {
     }
 
     return {
-      students: defaultSampleStudents,
-      uploadedFile: {
-        name: 'CSE_III_YEAR_ALL_STUDENTS.xlsx',
-        size: '125 KB',
-      },
-      summary: {
-        fileName: 'CSE_III_YEAR_ALL_STUDENTS.xlsx',
-        fileSize: '125 KB',
-        department: 'Computer Science & Engg.',
-        academicYear: '2025 - 2026',
-        totalStudents: 512,
-        subjectsPerStudent: 10,
-        reportsCount: 512,
-        templateUsed: 'PARENTS.docx',
-        uploadedDate: '30 Jul 2026, 10:24 AM',
-        status: 'Ready for Download' as const,
-      },
+      students: [],
+      uploadedFile: null,
+      summary: null,
       stats: {
-        totalStudents: 512,
-        reportsGenerated: 512,
-        pdfPages: 512,
-        department: 'Computer Science & Engg.',
-        academicYear: '2025 - 2026',
-        uploadStatus: 'Success',
+        totalStudents: 0,
+        reportsGenerated: 0,
+        pdfPages: 0,
+        department: '-',
+        academicYear: '-',
+        uploadStatus: 'Pending Upload',
       },
     };
   };
@@ -285,12 +271,11 @@ export const Dashboard: React.FC = () => {
       {/* Top Statistics Bar (6 Cards Grid) */}
       <StatsGrid stats={stats} />
 
-      {/* Main Content Split Screen (35% Left / 65% Right) */}
+      {/* Main Content */}
       <main className="max-w-[1600px] mx-auto px-6 mb-8">
-        <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-          
-          {/* Step 1 & Step 3: Upload Excel File Column + Download Buttons (35% width) */}
-          <div className="w-full lg:w-[35%] shrink-0">
+        {!uploadedFile ? (
+          /* Centered Upload Section before Excel file is uploaded */
+          <div className="max-w-xl mx-auto py-6">
             <UploadSection
               onFileUpload={handleFileUpload}
               onLoadSampleData={handleLoadSampleData}
@@ -303,17 +288,34 @@ export const Dashboard: React.FC = () => {
               isProcessing={isProcessing}
             />
           </div>
+        ) : (
+          /* Split Screen Layout (35% Left / 65% Right) after Excel file is uploaded */
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* Step 1 & Step 3: Upload Excel File Column + Download Buttons (35% width) */}
+            <div className="w-full lg:w-[35%] shrink-0">
+              <UploadSection
+                onFileUpload={handleFileUpload}
+                onLoadSampleData={handleLoadSampleData}
+                onDownloadSampleTemplate={handleDownloadSampleTemplate}
+                onDeleteFile={handleDeleteFile}
+                onDownloadWord={handleDownloadWord}
+                onDownloadPDF={handleDownloadPDF}
+                summary={summary}
+                uploadedFile={uploadedFile}
+                isProcessing={isProcessing}
+              />
+            </div>
 
-          {/* Step 2: Report Template Preview Column (65% width) */}
-          <div className="w-full lg:w-[65%] flex-1 min-w-0">
-            <AcrobatDocumentViewer
-              students={students}
-              currentPageIndex={currentPageIndex}
-              onPageChange={(idx) => setCurrentPageIndex(idx)}
-            />
+            {/* Step 2: Report Template Preview Column (65% width) */}
+            <div className="w-full lg:w-[65%] flex-1 min-w-0">
+              <AcrobatDocumentViewer
+                students={students}
+                currentPageIndex={currentPageIndex}
+                onPageChange={(idx) => setCurrentPageIndex(idx)}
+              />
+            </div>
           </div>
-
-        </div>
+        )}
       </main>
 
       {/* Footer */}

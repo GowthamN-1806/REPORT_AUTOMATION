@@ -1,19 +1,19 @@
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-const defaultUnivSubjects: Omit<SubjectResult, 'grade' | 'passFail'>[] = [
-  { sem: 'V', code: 'CS3591', title: 'Computer Networks' },
-  { sem: 'V', code: 'CS3501', title: 'Compiler Design' },
-  { sem: 'V', code: 'CB3491', title: 'Cryptography and Cyber Security' },
-  { sem: 'V', code: 'CS3551', title: 'Distributed Computing' },
-  { sem: 'V', code: 'CS3511', title: 'Object Oriented Software Engineering' },
-  { sem: 'V', code: 'CS3561', title: 'Open Source Technologies' },
+export const defaultUnivSubjects: SubjectResult[] = [
+  { sem: 'V', code: 'CS3591', title: 'Computer Networks', grade: 'O', passFail: 'PASS' },
+  { sem: 'V', code: 'CS3501', title: 'Compiler Design', grade: 'A+', passFail: 'PASS' },
+  { sem: 'V', code: 'CB3491', title: 'Cryptography and Cyber Security', grade: 'A', passFail: 'PASS' },
+  { sem: 'V', code: 'CS3551', title: 'Distributed Computing', grade: 'B+', passFail: 'PASS' },
+  { sem: 'V', code: 'CS3511', title: 'Object Oriented Software Engineering', grade: 'O', passFail: 'PASS' },
+  { sem: 'V', code: 'CS3561', title: 'Open Source Technologies', grade: 'A+', passFail: 'PASS' },
 ];
 
-const defaultInternalSubjects: Omit<InternalEvalResult, 'cie1Marks' | 'passFail'>[] = [
-  { sem: 'VI', code: 'CS3691', title: 'Artificial Intelligence' },
-  { sem: 'VI', code: 'CS3601', title: 'Mobile Computing' },
-  { sem: 'VI', code: 'CS3651', title: 'Cloud Computing Architecture' },
-  { sem: 'VI', code: 'CS3611', title: 'Data Analytics Laboratory' },
+export const defaultInternalSubjects: InternalEvalResult[] = [
+  { sem: 'VI', code: 'CS3691', title: 'Artificial Intelligence', cie1Marks: 85, passFail: 'PASS' },
+  { sem: 'VI', code: 'CS3601', title: 'Mobile Computing', cie1Marks: 78, passFail: 'PASS' },
+  { sem: 'VI', code: 'CS3651', title: 'Cloud Computing Architecture', cie1Marks: 92, passFail: 'PASS' },
+  { sem: 'VI', code: 'CS3611', title: 'Data Analytics Laboratory', cie1Marks: 88, passFail: 'PASS' },
 ];
 
 const sampleNames = [

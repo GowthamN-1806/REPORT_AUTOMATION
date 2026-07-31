@@ -100,6 +100,32 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           </p>
         </div>
 
+        {/* Quick Helper Actions when no file uploaded */}
+        {!uploadedFile && (
+          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadSampleTemplate();
+              }}
+              className="text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-1.5 transition-colors"
+            >
+              <span>📥</span> Download Excel Template
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLoadSampleData();
+              }}
+              className="text-slate-500 hover:text-blue-700 font-medium hover:underline transition-colors"
+            >
+              Load Demo Excel Data
+            </button>
+          </div>
+        )}
+
         {/* Uploaded File Banner */}
         {uploadedFile && (
           <div className="mt-4 bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
