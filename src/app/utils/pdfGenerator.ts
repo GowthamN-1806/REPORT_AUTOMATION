@@ -1,11 +1,36 @@
 import { jsPDF } from 'jspdf';
 import { StudentRecord } from '../types';
 
+const loadImageAsDataUrl = (src: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } else {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+};
+
 export const generateCombinedPDF = async (
   students: StudentRecord[],
   reportContainerElement?: HTMLElement | null,
   onProgress?: (current: number, total: number) => void
 ): Promise<void> => {
+  const jitLogoData = await loadImageAsDataUrl('/jit_logo.png');
+  const naacLogoData = await loadImageAsDataUrl('/naac_logo.png');
+  const nbaLogoData = await loadImageAsDataUrl('/nba_logo.png');
+
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
@@ -42,6 +67,19 @@ export const generateCombinedPDF = async (
     pdf.setLineWidth(1);
     pdf.rect(18, 18, pageWidth - 36, pageHeight - 36);
     pdf.rect(22, 22, pageWidth - 44, pageHeight - 44);
+
+    // Left JIT Logo
+    if (jitLogoData) {
+      pdf.addImage(jitLogoData, 'PNG', margin, 32, 38, 44);
+    }
+
+    // Right Accreditation Logos (NAAC A+ Seal & NBA Logo)
+    if (naacLogoData) {
+      pdf.addImage(naacLogoData, 'PNG', pageWidth - margin - 80, 32, 36, 40);
+    }
+    if (nbaLogoData) {
+      pdf.addImage(nbaLogoData, 'PNG', pageWidth - margin - 40, 35, 38, 34);
+    }
 
     // Top Header Titles
     pdf.setTextColor(2, 132, 199); // #0284c7
