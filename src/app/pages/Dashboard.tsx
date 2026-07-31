@@ -41,11 +41,14 @@ export const Dashboard: React.FC = () => {
 
     if (savedStudents && savedFile && savedSummary && savedStats) {
       try {
+        const stdList = JSON.parse(savedStudents);
+        const parsedStats = JSON.parse(savedStats);
+        parsedStats.pdfPages = (stdList.length || 0) * 2;
         return {
-          students: JSON.parse(savedStudents),
+          students: stdList,
           uploadedFile: JSON.parse(savedFile),
           summary: JSON.parse(savedSummary),
-          stats: JSON.parse(savedStats),
+          stats: parsedStats,
         };
       } catch (e) {}
     }
@@ -163,7 +166,7 @@ export const Dashboard: React.FC = () => {
     const newStats: SystemStats = {
       totalStudents: newStudents.length,
       reportsGenerated: newStudents.length,
-      pdfPages: newStudents.length,
+      pdfPages: newStudents.length * 2,
       department: deptName,
       academicYear: acadYear,
       uploadStatus: 'Success',

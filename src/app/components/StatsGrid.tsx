@@ -29,7 +29,7 @@ export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
     {
       title: 'Total PDF Pages',
       value: stats.pdfPages.toString(),
-      subtext: isUploaded ? '(One Page Per Student)' : 'Pending Excel Upload',
+      subtext: isUploaded ? '(2 Pages Per Student)' : 'Pending Excel Upload',
       icon: FileText,
       iconBg: 'bg-gradient-to-tr from-purple-600 to-indigo-500 text-white',
       accentColor: 'border-t-purple-500',
