@@ -1,7 +1,46 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Helper to evaluate Pass/Fail dynamically from grade, mark, or explicit status
+// Known JIT Subject Code / Short Code to Full Title Mapping Dictionary
+const knownTitles: Record<string, string> = {
+  CS3591: 'Computer Networks',
+  CS3501: 'Compiler Design',
+  CB3491: 'Cryptography and Cyber Security',
+  CS3551: 'Distributed Computing',
+  CS3511: 'Object Oriented Software Engineering',
+  CS3561: 'Open Source Technologies',
+  CS3691: 'Artificial Intelligence',
+  CS3601: 'Mobile Computing',
+  CS3651: 'Cloud Computing Architecture',
+  CS3611: 'Data Analytics Laboratory',
+  CS3602: 'Compiler Design & Tools',
+  CS3603: 'Design and Analysis of Algorithms',
+  CS3604: 'Web Technology',
+  CS3605: 'Software Engineering',
+  NS: 'Network Security',
+  OOSE: 'Object Oriented Software Engineering',
+  'ESA IOT': 'Embedded Systems & IoT',
+  MA: 'Mobile Applications',
+  STA: 'Software Testing & Automation',
+  DW: 'Data Warehousing & Data Mining',
+  OCE351: 'Environment and Social Impact Assessment',
+};
+
+// Non-subject metadata headers to ignore completely
+const nonSubjectHeaders = [
+  's.no', 's.no.', 'sl.no', 'sl.no.', 'sno', 'slno', 'id', 's_no', 'sl_no',
+  'reg.no', 'reg.no.', 'reg no', 'register no', 'register_no', 'register number', 'register number:', 'regno', 'reg_no', 'registration no', 'registration_no', 'roll no', 'rollno',
+  'name', 'student name', 'student_name', 'name of the student', 'name of the student:', 'studentname', 'name_of_the_student',
+  'academic year', 'academic_year', 'academic year:', 'ay', 'year',
+  'date', 'dates', 'date:',
+  'staff name', 'staff names', 'staff_name', 'faculty', 'faculty name', 'staff',
+  'department', 'department name', 'dept', 'branch', 'department:',
+  'regulation', 'regulation:',
+  'gpa', 'cgpa', 'class', 'class obtained', 'class_obtained', 'class_obtained:',
+  'arrears', 'total', 'total marks', 'total_marks', 'percentage', 'result', 'pass/fail', 'passfail', 'status'
+];
+
+// Evaluate Pass/Fail dynamically from grade, mark, or explicit status
 const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' => {
   if (value !== undefined && value !== null) {
     const str = String(value).trim().toUpperCase();
@@ -27,17 +66,48 @@ const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' => {
   return 'PASS';
 };
 
+// Helper to identify and reject template placeholder tokens or empty strings
+const isPlaceholderToken = (str: string): boolean => {
+  if (!str) return true;
+  const clean = str.trim().toLowerCase();
+  if (
+    clean.startsWith('empty') ||
+    clean.startsWith('__empty') ||
+    clean.includes('register_no') ||
+    clean.includes('register_number') ||
+    clean.includes('student_name') ||
+    clean.includes('university_subject_code') ||
+    clean.includes('university_subject_name') ||
+    clean.includes('university_subject_title') ||
+    clean.includes('university_subject_sem') ||
+    clean.includes('grade_') ||
+    clean.includes('passfail_') ||
+    clean.includes('pass_fail_') ||
+    clean.includes('cie_code_') ||
+    clean.includes('cie_subject_') ||
+    clean.includes('cie_marks_') ||
+    clean.includes('cie_pass_') ||
+    clean.startsWith('{{') ||
+    clean.endsWith('}}')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+// Flexible row key search matching spaces, underscores, hyphens, and dots
 const findRowVal = (row: Record<string, any>, keyCandidates: (string | RegExp)[]): any => {
   const rowKeys = Object.keys(row);
   for (const candidate of keyCandidates) {
     for (const k of rowKeys) {
-      const cleanK = k.trim().toLowerCase();
+      const cleanK = k.trim().toLowerCase().replace(/[\s_.-]+/g, '');
       if (typeof candidate === 'string') {
-        if (cleanK === candidate.trim().toLowerCase()) {
+        const cleanCand = candidate.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+        if (cleanK === cleanCand) {
           return row[k];
         }
       } else if (candidate instanceof RegExp) {
-        if (candidate.test(cleanK)) {
+        if (candidate.test(k) || candidate.test(cleanK)) {
           return row[k];
         }
       }
@@ -73,17 +143,24 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         }
 
         const parsedStudents: StudentRecord[] = jsonData.map((row, index) => {
+          // Extract Student Register Number (Mapping: REG.NO / REGISTER NO)
           const rawReg = findRowVal(row, [
-            'register no', 'register number:', 'register number', 'regno', 'reg no',
-            'registration no', 'reg_no', 'roll no', 'rollno', /reg/i
+            'register_no', 'reg.no', 'reg no', 'register no', 'register_number', 'register number',
+            'regno', 'reg_no', 'registration_no', 'registration no', 'roll no', 'rollno', /reg/i
           ]);
-          const regNo = rawReg ? String(rawReg).trim() : `210624104${(index + 1).toString().padStart(3, '0')}`;
+          let regNo = rawReg ? String(rawReg).trim() : `210624104${(index + 1).toString().padStart(3, '0')}`;
+          if (isPlaceholderToken(regNo)) {
+            regNo = `210624104${(index + 1).toString().padStart(3, '0')}`;
+          }
 
+          // Extract Student Name (Mapping: NAME / STUDENT NAME)
           const rawName = findRowVal(row, [
-            'student name', 'name of the student:', 'name of the student', 'name',
-            'studentname', 'student_name', /name/i
+            'student_name', 'name', 'student name', 'name of the student', 'studentname', 'name_of_the_student', /name/i
           ]);
-          const name = rawName ? String(rawName).trim().toUpperCase() : `STUDENT ${index + 1}`;
+          let name = rawName ? String(rawName).trim().toUpperCase() : `STUDENT ${index + 1}`;
+          if (isPlaceholderToken(name)) {
+            name = `STUDENT ${index + 1}`;
+          }
 
           const seed = getStudentSeed(index, regNo);
 
@@ -101,8 +178,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             ? Number(rawCGPA)
             : Number((gpaVal - 0.12).toFixed(2));
 
-          const rawClass = findRowVal(row, ['class obtained', 'class', 'class_obtained']);
-          const classObtained = rawClass
+          // Extract Class Obtained (Mapping: CLASS OBTAINED / CLASS)
+          const rawClass = findRowVal(row, ['class_obtained', 'class obtained', 'class']);
+          const classObtained = rawClass && !isPlaceholderToken(String(rawClass))
             ? String(rawClass).trim().toUpperCase()
             : (cgpaVal >= 8.5 ? 'FIRST CLASS WITH DISTINCTION' : cgpaVal >= 7.0 ? 'FIRST CLASS' : 'SECOND CLASS');
 
@@ -110,6 +188,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaBySem: Record<string, string> = {};
           const arrearsMap: Record<string, number> = {};
 
+          // Extract Semester GPAs, CGPAs, Arrears
           for (let s = 1; s <= 7; s++) {
             const semKey = `0${s}`;
             const sNum = String(s);
@@ -133,14 +212,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const semDynamicG = Number((7.0 + ((seed + s * 7) % 27) * 0.1).toFixed(2));
               const semDynamicC = Number((semDynamicG - 0.08).toFixed(2));
 
-              gpaBySem[semKey] = valG !== undefined ? String(valG) : (s === 5 ? String(gpaVal.toFixed(2)) : String(semDynamicG.toFixed(2)));
-              cgpaBySem[semKey] = valC !== undefined ? String(valC) : (s === 5 ? String(cgpaVal.toFixed(2)) : String(semDynamicC.toFixed(2)));
+              gpaBySem[semKey] = valG !== undefined && !isPlaceholderToken(String(valG)) ? String(valG) : (s === 5 ? String(gpaVal.toFixed(2)) : String(semDynamicG.toFixed(2)));
+              cgpaBySem[semKey] = valC !== undefined && !isPlaceholderToken(String(valC)) ? String(valC) : (s === 5 ? String(cgpaVal.toFixed(2)) : String(semDynamicC.toFixed(2)));
               
               gpaBySem[sNum] = gpaBySem[semKey];
               cgpaBySem[sNum] = cgpaBySem[semKey];
             } else {
-              gpaBySem[semKey] = valG !== undefined ? String(valG) : '-';
-              cgpaBySem[semKey] = valC !== undefined ? String(valC) : '-';
+              gpaBySem[semKey] = valG !== undefined && !isPlaceholderToken(String(valG)) ? String(valG) : '-';
+              cgpaBySem[semKey] = valC !== undefined && !isPlaceholderToken(String(valC)) ? String(valC) : '-';
               gpaBySem[sNum] = gpaBySem[semKey];
               cgpaBySem[sNum] = cgpaBySem[semKey];
             }
@@ -150,27 +229,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             arrearsMap[sNum] = arrearsMap[semKey];
           }
 
-          // Known JIT Subject Names mapping dictionary
-          const knownTitles: Record<string, string> = {
-            CS3591: 'Computer Networks',
-            CS3501: 'Compiler Design',
-            CB3491: 'Cryptography and Cyber Security',
-            CS3551: 'Distributed Computing',
-            CS3511: 'Object Oriented Software Engineering',
-            CS3561: 'Open Source Technologies',
-            CS3691: 'Artificial Intelligence',
-            CS3601: 'Mobile Computing',
-            CS3651: 'Cloud Computing Architecture',
-            CS3611: 'Data Analytics Laboratory',
-            CS3602: 'Compiler Design & Tools',
-            CS3603: 'Design and Analysis of Algorithms',
-            CS3604: 'Web Technology',
-            CS3605: 'Software Engineering',
-          };
-
-          // Extract University Results from uploaded Excel
           const universityResults: SubjectResult[] = [];
-          
+          const internalEvalResults: InternalEvalResult[] = [];
+
+          // 1. First attempt indexed columns (University_Subject_Code_1, Grade_1, PassFail_1)
           let uIdx = 1;
           while (
             findRowVal(row, [
@@ -195,8 +257,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               `university_subject_name_${uIdx}`, `subject_name_${uIdx}`
             ]);
 
-            const code = codeRaw;
-            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
+            const code = codeRaw.toUpperCase();
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code] || code);
 
             const rawGrade = findRowVal(row, [
               `univ sub ${uIdx} grade`, `sub ${uIdx} grade`, `subject ${uIdx} grade`, `grade ${uIdx}`, `sub${uIdx}_grade`, `grade_${uIdx}`
@@ -219,47 +281,66 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             uIdx++;
           }
 
-          // Filter out metadata columns if raw column scan is performed
+          // 2. If no indexed columns were found, read direct mark sheet column headers (e.g. NS, OOSE, ESA IOT, MA, STA, DW, OCE351)
           if (universityResults.length === 0) {
-            const singleCode = findRowVal(row, ['subject code', 'code', 'sub code']);
-            const singleGrade = findRowVal(row, ['grade', 'subject grade', 'mark', 'marks']);
-            if (singleCode || singleGrade) {
-              const sem = String(findRowVal(row, ['sem', 'semester']) || 'V');
-              const code = String(singleCode || 'CS3591');
-              const title = String(findRowVal(row, ['subject title', 'subject name', 'title']) || knownTitles[code.toUpperCase()] || code);
-              const grade = String(singleGrade || 'O').trim().toUpperCase();
-              const passFail = evaluatePassFail(findRowVal(row, ['pass/fail', 'result']), grade);
+            Object.keys(row).forEach((k) => {
+              const cleanK = k.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+              const isIgnored = nonSubjectHeaders.some((ik) => {
+                const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+                return cleanK === cleanIk || cleanK.includes(cleanIk);
+              });
 
-              universityResults.push({ sem, code, title, grade, passFail });
-            } else {
-              const reservedKeys = [
-                'register_no', 'register no', 'register number', 'regno', 'reg no', 'roll no', 'student_name', 'student name', 'name',
-                'department', 'dept', 'regulation', 'gpa', 'cgpa', 'class', 'class obtained',
-                'arrears', 's.no', 'sl.no', 'id', 'semester', 'sem', 'university_subject_code', 'grade_', 'passfail_', 'pass_fail_',
-                'cie_code_', 'cie_subject_', 'cie_marks_', 'cie_pass_'
-              ];
-              Object.keys(row).forEach((k) => {
-                const cleanK = k.trim().toLowerCase();
-                const isReserved = reservedKeys.some((rk) => cleanK.includes(rk));
-                if (!isReserved) {
-                  const val = row[k];
-                  if (val !== undefined && val !== null && String(val).trim() !== '') {
-                    const valStr = String(val).trim().toUpperCase();
+              if (!isIgnored && !isPlaceholderToken(k)) {
+                const val = row[k];
+                if (val !== undefined && val !== null) {
+                  const valStr = String(val).trim();
+                  if (valStr !== '' && !isPlaceholderToken(valStr)) {
+                    const code = k.trim().toUpperCase();
+                    const title = knownTitles[code] || k.trim();
                     const sem = 'V';
-                    const code = k.trim();
-                    const title = knownTitles[code.toUpperCase()] || k.trim();
-                    const grade = valStr;
-                    const passFail = evaluatePassFail(undefined, grade);
-                    universityResults.push({ sem, code, title, grade, passFail });
+
+                    let grade = 'O';
+                    let passFail: 'PASS' | 'FAIL' = 'PASS';
+                    let marksVal = 80;
+
+                    if (!isNaN(Number(valStr))) {
+                      marksVal = Number(valStr);
+                      if (marksVal >= 90) grade = 'O';
+                      else if (marksVal >= 80) grade = 'A+';
+                      else if (marksVal >= 70) grade = 'A';
+                      else if (marksVal >= 60) grade = 'B+';
+                      else if (marksVal >= 50) grade = 'B';
+                      else grade = 'RA';
+
+                      passFail = marksVal >= 50 ? 'PASS' : 'FAIL';
+                    } else {
+                      grade = valStr.toUpperCase();
+                      passFail = evaluatePassFail(valStr, grade);
+                      marksVal = passFail === 'PASS' ? 82 : 42;
+                    }
+
+                    universityResults.push({
+                      sem,
+                      code,
+                      title,
+                      grade,
+                      passFail,
+                    });
+
+                    internalEvalResults.push({
+                      sem: 'VI',
+                      code,
+                      title,
+                      cie1Marks: marksVal,
+                      passFail,
+                    });
                   }
                 }
-              });
-            }
+              }
+            });
           }
 
-          // Extract Continuous Internal Evaluation Results from uploaded Excel
-          const internalEvalResults: InternalEvalResult[] = [];
-
+          // 3. Extract Continuous Internal Evaluation Results if indexed CIE columns exist
           let cIdx = 1;
           while (
             findRowVal(row, [
@@ -276,12 +357,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 `cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`, `cie${cIdx}_code`, `cie ${cIdx}`,
                 `cie_code_${cIdx}`
               ]) || `CS360${cIdx}`
-            );
+            ).toUpperCase();
+
             const titleRaw = findRowVal(row, [
               `cie sub ${cIdx} title`, `cie ${cIdx} title`, `internal sub ${cIdx} title`, `cie${cIdx}_title`,
               `cie_subject_${cIdx}`, `cie_title_${cIdx}`
             ]);
-            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code] || code);
 
             const cie1Marks = Number(
               findRowVal(row, [
@@ -289,20 +371,36 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 `cie_marks_${cIdx}`
               ]) || 80
             );
+
             const rawPf = findRowVal(row, [
               `cie sub ${cIdx} pass/fail`, `cie ${cIdx} pass/fail`, `internal sub ${cIdx} pass/fail`,
               `cie_pass_${cIdx}`, `cie_passfail_${cIdx}`
             ]);
             const passFail = evaluatePassFail(rawPf, cie1Marks < 50 ? 'FAIL' : 'PASS');
 
-            internalEvalResults.push({
-              sem,
-              code,
-              title,
-              cie1Marks,
-              passFail,
-            });
+            if (!isPlaceholderToken(code)) {
+              internalEvalResults.push({
+                sem,
+                code,
+                title,
+                cie1Marks,
+                passFail,
+              });
+            }
             cIdx++;
+          }
+
+          // If internalEvalResults is empty, clone from universityResults to ensure 1:1 table representation
+          if (internalEvalResults.length === 0 && universityResults.length > 0) {
+            universityResults.forEach((sub) => {
+              internalEvalResults.push({
+                sem: 'VI',
+                code: sub.code,
+                title: sub.title,
+                cie1Marks: sub.passFail === 'PASS' ? 82 : 42,
+                passFail: sub.passFail,
+              });
+            });
           }
 
           return {

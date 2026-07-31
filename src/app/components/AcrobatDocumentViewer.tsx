@@ -200,7 +200,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
       </div>
 
-      {/* Document Canvas Container with Continuous Vertical Scroll */}
+      {/* Document Canvas Container with Vertical Scroll */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -213,7 +213,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
               if (el) reportRefs.current.set(idx, el);
               else reportRefs.current.delete(idx);
             }}
-            className="flex flex-col items-center gap-2 group shrink-0"
+            className="flex flex-col items-center gap-4 group shrink-0"
           >
             {/* Header Badge for each Student Report Page */}
             <div className="flex items-center gap-2.5 bg-slate-800/90 text-white text-[11px] font-mono px-3.5 py-1 rounded-full shadow-md backdrop-blur-sm border border-slate-700/80">
@@ -257,18 +257,18 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                         </p>
                       </div>
 
-                        <div className="shrink-0 flex items-center gap-2">
-                          <img
-                            src="/naac_logo.png"
-                            alt="NAAC A+ Accreditation Seal"
-                            className="h-12 w-auto object-contain"
-                          />
-                          <img
-                            src="/nba_logo.png"
-                            alt="NBA National Board of Accreditation"
-                            className="h-10 w-auto object-contain"
-                          />
-                        </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <img
+                          src="/naac_logo.png"
+                          alt="NAAC A+ Accreditation Seal"
+                          className="h-12 w-auto object-contain"
+                        />
+                        <img
+                          src="/nba_logo.png"
+                          alt="NBA National Board of Accreditation"
+                          className="h-10 w-auto object-contain"
+                        />
+                      </div>
                     </div>
 
                     {/* Greetings Line */}
