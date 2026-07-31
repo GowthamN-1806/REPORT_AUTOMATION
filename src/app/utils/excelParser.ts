@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Known JIT Subject Code / Short Code to Full Title Mapping Dictionary
+// Step 9: Subject Master Mapping Dictionary for clean human-readable titles
 const knownTitles: Record<string, string> = {
   NS: 'Network Security',
   OOSE: 'Object Oriented Software Engineering',
@@ -31,6 +31,10 @@ const knownTitles: Record<string, string> = {
   OS: 'Operating Systems',
   DSA: 'Data Structures & Algorithms',
   SE: 'Software Engineering',
+  ECE: 'Electronics & Communication',
+  EEE: 'Electrical & Electronics',
+  MECH: 'Mechanical Engineering',
+  CIVIL: 'Civil Engineering',
 };
 
 // Non-subject metadata headers to ignore completely
@@ -47,7 +51,26 @@ const nonSubjectHeaders = [
   'arrears', 'total', 'total marks', 'total_marks', 'percentage', 'result', 'pass/fail', 'passfail', 'status'
 ];
 
-// Helper to identify and reject template placeholder tokens or empty strings
+// Helper to detect if a cell string is an Exam Date (e.g. 17-02-2025, 2025/02/17, 17.02.2025)
+const isDateCell = (str: string): boolean => {
+  if (!str) return false;
+  const clean = str.trim();
+  // Match DD-MM-YYYY, YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, etc.
+  if (/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/.test(clean)) return true;
+  // Match month names like Feb 17, 2025
+  if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(clean)) return true;
+  return false;
+};
+
+// Helper to detect if a cell or row contains Faculty Names (e.g. Mr. Raghavan, Dr. V. Dhanalakshmi, Mrs., Prof., AP/)
+const isFacultyNameCell = (str: string): boolean => {
+  if (!str) return false;
+  const clean = str.trim().toLowerCase();
+  return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
+         /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff)\b/i.test(clean);
+};
+
+// Helper to identify placeholder tokens or __EMPTY strings
 const isPlaceholderToken = (str: string): boolean => {
   if (!str) return true;
   const clean = str.trim().toLowerCase();
@@ -59,47 +82,14 @@ const isPlaceholderToken = (str: string): boolean => {
     clean.includes('student_name') ||
     clean.includes('university_subject_code') ||
     clean.includes('university_subject_name') ||
-    clean.includes('university_subject_title') ||
-    clean.includes('university_subject_sem') ||
     clean.includes('grade_') ||
     clean.includes('passfail_') ||
-    clean.includes('pass_fail_') ||
-    clean.includes('cie_code_') ||
-    clean.includes('cie_subject_') ||
-    clean.includes('cie_marks_') ||
-    clean.includes('cie_pass_') ||
     clean.startsWith('{{') ||
     clean.endsWith('}}')
   ) {
     return true;
   }
   return false;
-};
-
-// Helper to evaluate Pass/Fail dynamically from grade or mark
-const evaluatePassFail = (markOrGrade: any, gradeStr?: string): 'PASS' | 'FAIL' => {
-  if (markOrGrade !== undefined && markOrGrade !== null && markOrGrade !== '') {
-    const str = String(markOrGrade).trim().toUpperCase();
-    if (str === 'FAIL' || str === 'F' || str === 'RA' || str === 'U' || str === 'AB' || str === 'ABSENT') {
-      return 'FAIL';
-    }
-    if (str === 'PASS' || str === 'P') {
-      return 'PASS';
-    }
-    const num = Number(str);
-    if (!isNaN(num)) {
-      return num >= 50 ? 'PASS' : 'FAIL';
-    }
-  }
-
-  if (gradeStr !== undefined && gradeStr !== null) {
-    const g = String(gradeStr).trim().toUpperCase();
-    if (g === 'RA' || g === 'U' || g === 'F' || g === 'AB' || g === 'FAIL' || g === 'ABSENT') {
-      return 'FAIL';
-    }
-  }
-
-  return 'PASS';
 };
 
 const getStudentSeed = (index: number, regNoStr: string): number => {
@@ -123,22 +113,21 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
 
-        // Step 1: Read raw 2D array of rows from Excel sheet (header: 1)
+        // STEP 1: Open uploaded Excel & read every row as raw 2D array matrix (header: 1)
         const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
         if (!rawMatrix || rawMatrix.length === 0) {
           throw new Error('Excel sheet is empty or invalid.');
         }
 
-        // Step 2: Dynamically detect Header Row Index
-        // Scan top 15 rows for columns containing Register Number or Student Name keywords
-        let headerRowIndex = -1;
+        // STEP 2: Automatically locate the STUDENT TABLE (Reg.No & Name row)
+        let anchorRowIndex = -1;
         let regNoColIndex = -1;
         let nameColIndex = -1;
         let deptColIndex = -1;
         let reguColIndex = -1;
 
-        for (let r = 0; r < Math.min(15, rawMatrix.length); r++) {
+        for (let r = 0; r < Math.min(25, rawMatrix.length); r++) {
           const rowCells = rawMatrix[r] || [];
           let foundReg = -1;
           let foundName = -1;
@@ -160,9 +149,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // If a row has Register No or Student Name column, it's our Header Row!
           if (foundReg !== -1 || foundName !== -1) {
-            headerRowIndex = r;
+            anchorRowIndex = r;
             regNoColIndex = foundReg;
             nameColIndex = foundName;
             deptColIndex = foundDept;
@@ -171,21 +159,66 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Fallback: If no explicit header row found, pick row 0
-        if (headerRowIndex === -1) {
-          headerRowIndex = 0;
+        if (anchorRowIndex === -1) {
+          anchorRowIndex = 0;
           const r0 = rawMatrix[0] || [];
           if (r0.length > 0) regNoColIndex = 0;
           if (r0.length > 1) nameColIndex = 1;
         }
 
-        const headerRow = rawMatrix[headerRowIndex] || [];
+        // STEP 3 & STEP 4: Detect SUBJECT HEADER ROW vs Dates & Faculty Names
+        // Examine candidate rows around anchorRowIndex to find real subject codes
+        let subjectHeaderRowIndex = anchorRowIndex;
+        let maxSubjectCodeCount = 0;
 
-        // Check for metadata above header row (e.g. Row 1: Dept: CSE)
+        const candidateRowIndices = [
+          anchorRowIndex,
+          anchorRowIndex - 1,
+          anchorRowIndex + 1,
+          anchorRowIndex + 2,
+          anchorRowIndex - 2,
+        ].filter((idx) => idx >= 0 && idx < rawMatrix.length);
+
+        for (let rIdx of candidateRowIndices) {
+          const rCells = rawMatrix[rIdx] || [];
+          let validSubCount = 0;
+          let dateCount = 0;
+          let facultyCount = 0;
+
+          for (let c = 0; c < rCells.length; c++) {
+            if (c === regNoColIndex || c === nameColIndex) continue;
+            const txt = String(rCells[c] || '').trim();
+            if (!txt || isPlaceholderToken(txt)) continue;
+
+            if (isDateCell(txt)) {
+              dateCount++;
+            } else if (isFacultyNameCell(txt)) {
+              facultyCount++;
+            } else {
+              const cleanTxt = txt.toLowerCase();
+              const isMeta = nonSubjectHeaders.some((ik) => {
+                const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+                const cleanK = cleanTxt.replace(/[\s_.-]+/g, '');
+                return cleanK === cleanIk;
+              });
+              if (!isMeta) {
+                validSubCount++;
+              }
+            }
+          }
+
+          // Row with highest valid subject codes (and zero dates/faculty names) is chosen as subject header row!
+          if (validSubCount > maxSubjectCodeCount && dateCount === 0 && facultyCount === 0) {
+            maxSubjectCodeCount = validSubCount;
+            subjectHeaderRowIndex = rIdx;
+          }
+        }
+
+        // Check for department & regulation metadata in top rows
         let extractedDepartment = 'Computer Science and Engineering';
         let extractedRegulation = '2021/2024';
 
-        for (let r = 0; r < headerRowIndex; r++) {
+        for (let r = 0; r < Math.max(anchorRowIndex, subjectHeaderRowIndex); r++) {
           const rCells = rawMatrix[r] || [];
           for (let c = 0; c < rCells.length; c++) {
             const txt = String(rCells[c] || '').trim();
@@ -199,20 +232,29 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Step 3: Build Dynamic Header Map
-        // Identify valid Subject Columns (Exclude empty, __EMPTY, Register No, Name, Dept, Regulation, GPA/CGPA/Arrears)
+        const subjectRow = rawMatrix[subjectHeaderRowIndex] || [];
+
+        // Build Dynamic Subject Columns List
         const subjectCols: { colIndex: number; code: string; title: string }[] = [];
 
-        for (let c = 0; c < headerRow.length; c++) {
-          const rawHeader = String(headerRow[c] || '').trim();
-          const cleanHeader = rawHeader.toLowerCase();
+        for (let c = 0; c < subjectRow.length; c++) {
+          if (c === regNoColIndex || c === nameColIndex) continue;
 
-          // Ignore completely empty columns, placeholder tokens or columns named __EMPTY, __EMPTY_1, etc.
-          if (!rawHeader || isPlaceholderToken(rawHeader) || cleanHeader.startsWith('__empty') || cleanHeader.includes('__empty')) {
+          let rawHeader = String(subjectRow[c] || '').trim();
+          let cleanHeader = rawHeader.toLowerCase();
+
+          // Step 3 & 4: Reject dates, faculty names, empty strings, __EMPTY
+          if (
+            !rawHeader ||
+            isDateCell(rawHeader) ||
+            isFacultyNameCell(rawHeader) ||
+            isPlaceholderToken(rawHeader) ||
+            cleanHeader.startsWith('__empty')
+          ) {
             continue;
           }
 
-          // Exclude known non-subject metadata columns
+          // Exclude metadata headers
           const isReg = c === regNoColIndex || /^(reg|reg\.no|reg_no|regno|roll|roll\.no|rollno|register|registration)/i.test(cleanHeader);
           const isName = c === nameColIndex || /^(name|student|student_name|candidate|name of the student)/i.test(cleanHeader);
           const isDept = c === deptColIndex || /^(dept|department|branch)/i.test(cleanHeader);
@@ -227,34 +269,68 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             continue;
           }
 
-          // Valid Subject Column Found!
+          // Valid Subject Code Found!
           const code = rawHeader.toUpperCase();
+          // Step 9: Map subject code to human-readable Subject Name using Master Mapping
           const title = knownTitles[code] || rawHeader;
           subjectCols.push({ colIndex: c, code, title });
         }
 
-        // Step 4 & Step 5: Process Data Rows below headerRowIndex
+        // STEP 5: Determine Student Data Start Row
+        // Skip header rows, date rows, faculty name rows, sub-header rows
+        let studentDataStartRowIndex = Math.max(anchorRowIndex, subjectHeaderRowIndex) + 1;
+
+        while (studentDataStartRowIndex < rawMatrix.length) {
+          const rCells = rawMatrix[studentDataStartRowIndex] || [];
+          const txtReg = regNoColIndex !== -1 ? String(rCells[regNoColIndex] || '').trim() : '';
+          const txtName = nameColIndex !== -1 ? String(rCells[nameColIndex] || '').trim() : '';
+
+          // If row contains dates, faculty names, or subheaders like 'Marks', skip to next row
+          if (
+            isFacultyNameCell(txtReg) ||
+            isFacultyNameCell(txtName) ||
+            isDateCell(txtReg) ||
+            isDateCell(txtName) ||
+            /^(marks|cie|grade|max marks)/i.test(txtReg) ||
+            /^(marks|cie|grade|max marks)/i.test(txtName)
+          ) {
+            studentDataStartRowIndex++;
+            continue;
+          }
+
+          // If we reached actual student data, stop skipping!
+          if (txtReg || txtName) {
+            break;
+          }
+
+          studentDataStartRowIndex++;
+        }
+
+        // STEP 6: Process Every Student Data Row
         const parsedStudents: StudentRecord[] = [];
         let studentCount = 0;
 
-        for (let r = headerRowIndex + 1; r < rawMatrix.length; r++) {
+        for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
           const rowCells = rawMatrix[r] || [];
 
-          // Skip completely empty rows
+          // Skip empty rows
           const hasAnyData = rowCells.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== '');
           if (!hasAnyData) continue;
 
-          // Step 5: Read Register Number & Student Name ONLY from detected columns
+          // STEP 5: Read Register Number & Student Name ONLY from detected columns
           const rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
           const rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
 
           let regNoStr = String(rawRegVal || '').trim();
           let nameStr = String(rawNameVal || '').trim();
 
+          // Reject dates or faculty names accidentally present in data rows
+          if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr)) regNoStr = '';
+          if (isDateCell(nameStr) || isFacultyNameCell(nameStr)) nameStr = '';
           if (isPlaceholderToken(regNoStr)) regNoStr = '';
           if (isPlaceholderToken(nameStr)) nameStr = '';
 
-          // Skip if row doesn't contain a valid student register number or name
+          // Skip if row doesn't contain student details
           if (!regNoStr && !nameStr) continue;
 
           studentCount++;
@@ -263,7 +339,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
           const seed = getStudentSeed(studentCount, regNo);
 
-          // Build University Results & CIE Results for every detected subject column
+          // STEP 6 & STEP 9: Derive Subject Name, Grade & Pass/Fail for every subject column
           const universityResults: SubjectResult[] = [];
           const internalEvalResults: InternalEvalResult[] = [];
 
@@ -281,6 +357,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 markNum = Math.min(100, Math.max(0, parsedNum));
                 passFail = markNum >= 50 ? 'PASS' : 'FAIL';
 
+                // STEP 9: Derive Grades based on marks
                 if (markNum >= 90) grade = 'O';
                 else if (markNum >= 81) grade = 'A+';
                 else if (markNum >= 73) grade = 'A';
@@ -291,7 +368,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                   passFail = 'FAIL';
                 }
               } else {
-                // Text grade (e.g. 'O', 'A+', 'PASS', 'RA')
+                // Text grade (e.g. 'O', 'A+', 'PASS', 'RA', 'AB')
                 const upper = valStr.toUpperCase();
                 if (upper === 'RA' || upper === 'F' || upper === 'FAIL' || upper === 'AB' || upper === 'ABSENT') {
                   grade = upper === 'AB' || upper === 'ABSENT' ? 'AB' : 'RA';
