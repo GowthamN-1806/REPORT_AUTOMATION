@@ -28,7 +28,7 @@ export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
     },
     {
       title: 'Total PDF Pages',
-      value: stats.pdfPages.toString(),
+      value: (stats.totalStudents > 0 ? (stats.pdfPages > stats.totalStudents ? stats.pdfPages : stats.totalStudents * 2) : 0).toString(),
       subtext: isUploaded ? '(2 Pages Per Student)' : 'Pending Excel Upload',
       icon: FileText,
       iconBg: 'bg-gradient-to-tr from-purple-600 to-indigo-500 text-white',
