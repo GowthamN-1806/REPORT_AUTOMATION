@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Dictionary of known course codes to human-readable titles
+// Known JIT Subject Code to Title Mapping Dictionary
 const knownTitles: Record<string, string> = {
   CS3591: 'Computer Networks',
   CS3501: 'Compiler Design',
@@ -11,15 +11,15 @@ const knownTitles: Record<string, string> = {
   CS3561: 'Open Source Technologies',
   CS3691: 'Artificial Intelligence',
   CS3601: 'Mobile Computing',
+  CS3651: 'Cloud Computing Architecture',
+  CS3611: 'Data Analytics Laboratory',
   CS3602: 'Compiler Design & Tools',
   CS3603: 'Design and Analysis of Algorithms',
   CS3604: 'Web Technology',
   CS3605: 'Software Engineering',
-  CS3611: 'Data Analytics Laboratory',
-  CS3651: 'Cloud Computing Architecture',
 };
 
-// Helper to evaluate Pass/Fail dynamically from grade, mark, or explicit status
+// Evaluate Pass/Fail dynamically from grade, mark, or explicit status
 const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' => {
   if (value !== undefined && value !== null) {
     const str = String(value).trim().toUpperCase();
@@ -45,7 +45,7 @@ const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' => {
   return 'PASS';
 };
 
-// Helper to check if a string is a template placeholder token name
+// Helper to identify and reject template placeholder tokens
 const isPlaceholderToken = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
@@ -72,14 +72,14 @@ const isPlaceholderToken = (str: string): boolean => {
   return false;
 };
 
-// Flexible row key search matching spaces, underscores, and hyphens
+// Flexible row key search matching spaces, underscores, hyphens, and dots
 const findRowVal = (row: Record<string, any>, keyCandidates: (string | RegExp)[]): any => {
   const rowKeys = Object.keys(row);
   for (const candidate of keyCandidates) {
     for (const k of rowKeys) {
-      const cleanK = k.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      const cleanK = k.trim().toLowerCase().replace(/[\s_.-]+/g, '');
       if (typeof candidate === 'string') {
-        const cleanCand = candidate.trim().toLowerCase().replace(/[\s_-]+/g, '');
+        const cleanCand = candidate.trim().toLowerCase().replace(/[\s_.-]+/g, '');
         if (cleanK === cleanCand) {
           return row[k];
         }
@@ -120,20 +120,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         }
 
         const parsedStudents: StudentRecord[] = jsonData.map((row, index) => {
-          // Extract Student Register Number
+          // Extract Student Register Number (Mapping: {{REGISTER_NO}} -> REG.NO / REGISTER NO)
           const rawReg = findRowVal(row, [
-            'register_no', 'register_number', 'register no', 'register number:', 'register number',
-            'regno', 'reg_no', 'reg no', 'registration no', 'registration_no', 'roll no', 'rollno', /reg/i
+            'register_no', 'reg.no', 'reg no', 'register no', 'register_number', 'register number',
+            'regno', 'reg_no', 'registration_no', 'registration no', 'roll no', 'rollno', /reg/i
           ]);
           let regNo = rawReg ? String(rawReg).trim() : `210624104${(index + 1).toString().padStart(3, '0')}`;
           if (isPlaceholderToken(regNo)) {
             regNo = `210624104${(index + 1).toString().padStart(3, '0')}`;
           }
 
-          // Extract Student Name
+          // Extract Student Name (Mapping: {{STUDENT_NAME}} -> NAME / STUDENT NAME)
           const rawName = findRowVal(row, [
-            'student_name', 'student name', 'name of the student:', 'name of the student',
-            'name', 'studentname', 'name_of_the_student', /name/i
+            'student_name', 'name', 'student name', 'name of the student', 'studentname', 'name_of_the_student', /name/i
           ]);
           let name = rawName ? String(rawName).trim().toUpperCase() : `STUDENT ${index + 1}`;
           if (isPlaceholderToken(name)) {
@@ -156,8 +155,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             ? Number(rawCGPA)
             : Number((gpaVal - 0.12).toFixed(2));
 
+          // Extract Class Obtained (Mapping: {{CLASS}} -> CLASS OBTAINED / CLASS)
           const rawClass = findRowVal(row, ['class_obtained', 'class obtained', 'class']);
-          const classObtained = rawClass
+          const classObtained = rawClass && !isPlaceholderToken(String(rawClass))
             ? String(rawClass).trim().toUpperCase()
             : (cgpaVal >= 8.5 ? 'FIRST CLASS WITH DISTINCTION' : cgpaVal >= 7.0 ? 'FIRST CLASS' : 'SECOND CLASS');
 
@@ -165,6 +165,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaBySem: Record<string, string> = {};
           const arrearsMap: Record<string, number> = {};
 
+          // Extract Semester GPAs, CGPAs, Arrears (Mapping: {{GPA_01}}...{{GPA_07}}, {{CGPA_01}}...{{CGPA_07}}, {{ARREARS_01}}...{{ARREARS_07}})
           for (let s = 1; s <= 7; s++) {
             const semKey = `0${s}`;
             const sNum = String(s);
@@ -188,14 +189,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const semDynamicG = Number((7.0 + ((seed + s * 7) % 27) * 0.1).toFixed(2));
               const semDynamicC = Number((semDynamicG - 0.08).toFixed(2));
 
-              gpaBySem[semKey] = valG !== undefined ? String(valG) : (s === 5 ? String(gpaVal.toFixed(2)) : String(semDynamicG.toFixed(2)));
-              cgpaBySem[semKey] = valC !== undefined ? String(valC) : (s === 5 ? String(cgpaVal.toFixed(2)) : String(semDynamicC.toFixed(2)));
+              gpaBySem[semKey] = valG !== undefined && !isPlaceholderToken(String(valG)) ? String(valG) : (s === 5 ? String(gpaVal.toFixed(2)) : String(semDynamicG.toFixed(2)));
+              cgpaBySem[semKey] = valC !== undefined && !isPlaceholderToken(String(valC)) ? String(valC) : (s === 5 ? String(cgpaVal.toFixed(2)) : String(semDynamicC.toFixed(2)));
               
               gpaBySem[sNum] = gpaBySem[semKey];
               cgpaBySem[sNum] = cgpaBySem[semKey];
             } else {
-              gpaBySem[semKey] = valG !== undefined ? String(valG) : '-';
-              cgpaBySem[semKey] = valC !== undefined ? String(valC) : '-';
+              gpaBySem[semKey] = valG !== undefined && !isPlaceholderToken(String(valG)) ? String(valG) : '-';
+              cgpaBySem[semKey] = valC !== undefined && !isPlaceholderToken(String(valC)) ? String(valC) : '-';
               gpaBySem[sNum] = gpaBySem[semKey];
               cgpaBySem[sNum] = cgpaBySem[semKey];
             }
@@ -205,135 +206,141 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             arrearsMap[sNum] = arrearsMap[semKey];
           }
 
-          // Extract University Results ONLY from uploaded Excel
+          // Extract University Results from uploaded Excel
           const universityResults: SubjectResult[] = [];
+          
+          let uIdx = 1;
+          while (
+            findRowVal(row, [
+              `univ sub ${uIdx} code`, `sub ${uIdx} code`, `subject ${uIdx} code`,
+              `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`,
+              `university_subject_code_${uIdx}`, `univ_subject_code_${uIdx}`, `subject_code_${uIdx}`
+            ]) !== undefined
+          ) {
+            const sem = String(
+              findRowVal(row, [`univ sub ${uIdx} sem`, `sub ${uIdx} sem`, `subject ${uIdx} sem`, `sub${uIdx}_sem`, `sem ${uIdx}`]) || 'V'
+            );
+            const codeRaw = String(
+              findRowVal(row, [
+                `univ sub ${uIdx} code`, `sub ${uIdx} code`, `subject ${uIdx} code`,
+                `univ code ${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`, `sub${uIdx}`,
+                `university_subject_code_${uIdx}`, `univ_subject_code_${uIdx}`, `subject_code_${uIdx}`
+              ]) || `CS350${uIdx}`
+            ).trim();
 
-          for (let uIdx = 1; uIdx <= 20; uIdx++) {
-            const codeVal = findRowVal(row, [
-              `university subject code ${uIdx}`, `university_subject_code_${uIdx}`, `univ_subject_code_${uIdx}`,
-              `univ sub ${uIdx} code`, `univ_sub_${uIdx}_code`, `sub ${uIdx} code`, `subject ${uIdx} code`,
-              `univ code ${uIdx}`, `univ_code_${uIdx}`, `sub${uIdx}_code`, `sub ${uIdx}`, `subject ${uIdx}`,
-              `code ${uIdx}`, `code_${uIdx}`
+            const titleRaw = findRowVal(row, [
+              `univ sub ${uIdx} title`, `sub ${uIdx} title`, `subject ${uIdx} title`, `subject ${uIdx} name`, `sub ${uIdx} name`, `sub${uIdx}_title`,
+              `university_subject_name_${uIdx}`, `subject_name_${uIdx}`
             ]);
 
-            const gradeVal = findRowVal(row, [
-              `university subject grade ${uIdx}`, `university_grade_${uIdx}`, `univ_grade_${uIdx}`,
-              `univ sub ${uIdx} grade`, `sub ${uIdx} grade`, `subject ${uIdx} grade`,
-              `grade ${uIdx}`, `grade_${uIdx}`, `sub${uIdx}_grade`
+            const code = codeRaw;
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
+
+            const rawGrade = findRowVal(row, [
+              `univ sub ${uIdx} grade`, `sub ${uIdx} grade`, `subject ${uIdx} grade`, `grade ${uIdx}`, `sub${uIdx}_grade`, `grade_${uIdx}`
             ]);
+            const grade = rawGrade !== undefined ? String(rawGrade).trim().toUpperCase() : 'O';
 
-            if (codeVal !== undefined || gradeVal !== undefined) {
-              const rawCode = codeVal !== undefined ? String(codeVal).trim() : '';
-              if (isPlaceholderToken(rawCode)) continue;
-              const code = rawCode ? rawCode.toUpperCase() : `CS350${uIdx}`;
+            const rawPf = findRowVal(row, [
+              `univ sub ${uIdx} pass/fail`, `sub ${uIdx} pass/fail`, `subject ${uIdx} pass/fail`, `pass/fail ${uIdx}`, `sub${uIdx}_passfail`, `result ${uIdx}`,
+              `passfail_${uIdx}`, `pass_fail_${uIdx}`
+            ]);
+            const passFail = evaluatePassFail(rawPf, grade);
 
-              const titleVal = findRowVal(row, [
-                `university subject name ${uIdx}`, `university subject title ${uIdx}`,
-                `university_subject_name_${uIdx}`, `university_subject_title_${uIdx}`,
-                `univ sub ${uIdx} title`, `sub ${uIdx} title`, `subject ${uIdx} title`,
-                `subject ${uIdx} name`, `sub ${uIdx} name`, `sub${uIdx}_title`,
-                `title ${uIdx}`, `name ${uIdx}`, `title_${uIdx}`, `name_${uIdx}`
-              ]);
-
-              let title = titleVal !== undefined ? String(titleVal).trim() : '';
-              if (!title || isPlaceholderToken(title) || title.toUpperCase() === code) {
-                title = knownTitles[code.toUpperCase()] || code;
-              }
-
-              const semVal = findRowVal(row, [
-                `university subject sem ${uIdx}`, `university_subject_sem_${uIdx}`,
-                `univ sub ${uIdx} sem`, `sub ${uIdx} sem`, `subject ${uIdx} sem`,
-                `sub${uIdx}_sem`, `sem ${uIdx}`, `sem_${uIdx}`
-              ]);
-              const sem = semVal !== undefined ? String(semVal).trim().toUpperCase() : 'V';
-
-              const gradeStr = gradeVal !== undefined ? String(gradeVal).trim().toUpperCase() : 'O';
-
-              const rawPf = findRowVal(row, [
-                `university subject passfail ${uIdx}`, `university subject pass/fail ${uIdx}`,
-                `university_passfail_${uIdx}`, `passfail_${uIdx}`, `pass_fail_${uIdx}`,
-                `sub ${uIdx} pass/fail`, `subject ${uIdx} pass/fail`, `pass/fail ${uIdx}`, `result ${uIdx}`
-              ]);
-              const passFail = evaluatePassFail(rawPf, gradeStr);
-
-              universityResults.push({
-                sem,
-                code,
-                title,
-                grade: gradeStr,
-                passFail,
-              });
-            }
+            universityResults.push({
+              sem,
+              code,
+              title,
+              grade,
+              passFail,
+            });
+            uIdx++;
           }
 
-          // Fallback if no indexed subjects were found
+          // Filter out metadata columns if raw column scan is performed
           if (universityResults.length === 0) {
             const singleCode = findRowVal(row, ['subject code', 'code', 'sub code']);
             const singleGrade = findRowVal(row, ['grade', 'subject grade', 'mark', 'marks']);
             if (singleCode || singleGrade) {
               const sem = String(findRowVal(row, ['sem', 'semester']) || 'V');
-              const code = String(singleCode || 'CS3591').toUpperCase();
+              const code = String(singleCode || 'CS3591');
               const title = String(findRowVal(row, ['subject title', 'subject name', 'title']) || knownTitles[code.toUpperCase()] || code);
               const grade = String(singleGrade || 'O').trim().toUpperCase();
               const passFail = evaluatePassFail(findRowVal(row, ['pass/fail', 'result']), grade);
 
-              if (!isPlaceholderToken(code)) {
-                universityResults.push({ sem, code, title, grade, passFail });
-              }
+              universityResults.push({ sem, code, title, grade, passFail });
+            } else {
+              const reservedKeys = [
+                'register_no', 'register no', 'register number', 'regno', 'reg no', 'roll no', 'student_name', 'student name', 'name',
+                'department', 'dept', 'regulation', 'gpa', 'cgpa', 'class', 'class obtained',
+                'arrears', 's.no', 'sl.no', 'id', 'semester', 'sem', 'university_subject_code', 'grade_', 'passfail_', 'pass_fail_',
+                'cie_code_', 'cie_subject_', 'cie_marks_', 'cie_pass_'
+              ];
+              Object.keys(row).forEach((k) => {
+                const cleanK = k.trim().toLowerCase();
+                const isReserved = reservedKeys.some((rk) => cleanK.includes(rk));
+                if (!isReserved) {
+                  const val = row[k];
+                  if (val !== undefined && val !== null && String(val).trim() !== '') {
+                    const valStr = String(val).trim().toUpperCase();
+                    const sem = 'V';
+                    const code = k.trim();
+                    const title = knownTitles[code.toUpperCase()] || k.trim();
+                    const grade = valStr;
+                    const passFail = evaluatePassFail(undefined, grade);
+                    universityResults.push({ sem, code, title, grade, passFail });
+                  }
+                }
+              });
             }
           }
 
-          // Extract Continuous Internal Evaluation (CIE) Results
+          // Extract Continuous Internal Evaluation Results from uploaded Excel
           const internalEvalResults: InternalEvalResult[] = [];
 
-          for (let cIdx = 1; cIdx <= 20; cIdx++) {
-            const codeVal = findRowVal(row, [
-              `cie code ${cIdx}`, `cie_code_${cIdx}`, `cie sub ${cIdx} code`, `cie ${cIdx} code`,
-              `internal sub ${cIdx} code`, `internal_code_${cIdx}`, `cie${cIdx}_code`, `cie ${cIdx}`
+          let cIdx = 1;
+          while (
+            findRowVal(row, [
+              `cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`,
+              `cie${cIdx}_code`, `cie ${cIdx}`, `internal ${cIdx}`,
+              `cie_code_${cIdx}`, `internal_code_${cIdx}`
+            ]) !== undefined
+          ) {
+            const sem = String(
+              findRowVal(row, [`cie sub ${cIdx} sem`, `cie ${cIdx} sem`, `internal sub ${cIdx} sem`, `cie${cIdx}_sem`]) || 'VI'
+            );
+            const code = String(
+              findRowVal(row, [
+                `cie sub ${cIdx} code`, `cie ${cIdx} code`, `internal sub ${cIdx} code`, `cie${cIdx}_code`, `cie ${cIdx}`,
+                `cie_code_${cIdx}`
+              ]) || `CS360${cIdx}`
+            );
+            const titleRaw = findRowVal(row, [
+              `cie sub ${cIdx} title`, `cie ${cIdx} title`, `internal sub ${cIdx} title`, `cie${cIdx}_title`,
+              `cie_subject_${cIdx}`, `cie_title_${cIdx}`
             ]);
+            const title = titleRaw ? String(titleRaw).trim() : (knownTitles[code.toUpperCase()] || code);
 
-            const marksVal = findRowVal(row, [
-              `cie marks ${cIdx}`, `cie_marks_${cIdx}`, `cie 1 marks ${cIdx}`, `cie_1_marks_${cIdx}`,
-              `cie sub ${cIdx} marks`, `cie ${cIdx} marks`, `internal sub ${cIdx} marks`, `cie${cIdx}_marks`
+            const cie1Marks = Number(
+              findRowVal(row, [
+                `cie sub ${cIdx} marks`, `cie ${cIdx} marks`, `internal sub ${cIdx} marks`, `cie${cIdx}_marks`,
+                `cie_marks_${cIdx}`
+              ]) || 80
+            );
+            const rawPf = findRowVal(row, [
+              `cie sub ${cIdx} pass/fail`, `cie ${cIdx} pass/fail`, `internal sub ${cIdx} pass/fail`,
+              `cie_pass_${cIdx}`, `cie_passfail_${cIdx}`
             ]);
+            const passFail = evaluatePassFail(rawPf, cie1Marks < 50 ? 'FAIL' : 'PASS');
 
-            const subjectVal = findRowVal(row, [
-              `cie subject ${cIdx}`, `cie_subject_${cIdx}`, `cie_subject_name_${cIdx}`, `cie sub ${cIdx} title`,
-              `cie ${cIdx} title`, `internal sub ${cIdx} title`, `internal_subject_${cIdx}`, `cie${cIdx}_title`
-            ]);
-
-            if (codeVal !== undefined || marksVal !== undefined || subjectVal !== undefined) {
-              const rawCode = codeVal !== undefined ? String(codeVal).trim() : '';
-              if (isPlaceholderToken(rawCode)) continue;
-              const code = rawCode ? rawCode.toUpperCase() : `CS360${cIdx}`;
-
-              let title = subjectVal !== undefined ? String(subjectVal).trim() : '';
-              if (!title || isPlaceholderToken(title) || title.toUpperCase() === code) {
-                title = knownTitles[code.toUpperCase()] || code;
-              }
-
-              const semVal = findRowVal(row, [
-                `cie sem ${cIdx}`, `cie_sem_${cIdx}`, `cie sub ${cIdx} sem`, `cie ${cIdx} sem`, `internal sub ${cIdx} sem`, `cie${cIdx}_sem`
-              ]);
-              const sem = semVal !== undefined ? String(semVal).trim().toUpperCase() : 'VI';
-
-              const numMarks = marksVal !== undefined && !isNaN(Number(marksVal)) ? Number(marksVal) : 80;
-
-              const rawPf = findRowVal(row, [
-                `cie pass ${cIdx}`, `cie_pass_${cIdx}`, `cie passfail ${cIdx}`, `cie_passfail_${cIdx}`,
-                `cie sub ${cIdx} pass/fail`, `cie ${cIdx} pass/fail`, `internal sub ${cIdx} pass/fail`
-              ]);
-
-              const passFail = evaluatePassFail(rawPf, numMarks < 50 ? 'FAIL' : 'PASS');
-
-              internalEvalResults.push({
-                sem,
-                code,
-                title,
-                cie1Marks: numMarks,
-                passFail,
-              });
-            }
+            internalEvalResults.push({
+              sem,
+              code,
+              title,
+              cie1Marks,
+              passFail,
+            });
+            cIdx++;
           }
 
           return {
@@ -363,3 +370,4 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
     reader.readAsArrayBuffer(file);
   });
 };
+

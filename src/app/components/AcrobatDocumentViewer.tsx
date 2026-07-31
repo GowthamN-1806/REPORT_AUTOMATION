@@ -25,7 +25,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [previewPage, setPreviewPage] = useState<1 | 2>(1);
-  const [showPlaceholders, setShowPlaceholders] = useState<boolean>(false);
   const [targetReportIndex, setTargetReportIndex] = useState<string>('');
 
   // Limit initially rendered items for fast DOM rendering, expand dynamically on scroll
@@ -307,7 +306,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                               Register number:
                             </td>
                             <td className="border border-slate-900 px-2.5 py-1 font-bold font-mono">
-                              {showPlaceholders ? '{{REGISTER_NO}}' : student?.regNo || '210624104000'}
+                              {student?.regNo}
                             </td>
                           </tr>
                           <tr>
@@ -315,7 +314,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                               Name of the Student:
                             </td>
                             <td className="border border-slate-900 px-2.5 py-1 font-bold uppercase">
-                              {showPlaceholders ? '{{STUDENT_NAME}}' : student?.name || 'YYYYY'}
+                              {student?.name}
                             </td>
                           </tr>
                         </tbody>
@@ -333,13 +332,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           </tr>
                         </thead>
                         <tbody>
-                          {((student?.universityResults && student.universityResults.length > 0) ? student.universityResults : defaultUnivSubjects).map((sub, sIdx) => (
+                          {(student?.universityResults || []).map((sub, sIdx) => (
                             <tr key={sIdx} className="h-5">
-                              <td className="border border-slate-900 py-0.5 px-1">{showPlaceholders ? '{{SEM}}' : sub.sem}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{showPlaceholders ? '{{CODE}}' : sub.code}</td>
-                              <td className="border border-slate-900 py-0.5 px-1.5 text-left">{showPlaceholders ? '{{TITLE}}' : sub.title}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{GRADE}}' : sub.grade}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{PASS_FAIL}}' : sub.passFail}</td>
+                              <td className="border border-slate-900 py-0.5 px-1">{sub.sem}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{sub.code}</td>
+                              <td className="border border-slate-900 py-0.5 px-1.5 text-left">{sub.title}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.grade}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.passFail}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -370,7 +369,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">ARREARS</td>
                             {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                               <td key={sem} className="border border-slate-900 py-0.5 px-1">
-                                {showPlaceholders ? '0' : getSemArrears(student, sem)}
+                                {getSemArrears(student, sem)}
                               </td>
                             ))}
                           </tr>
@@ -378,7 +377,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">GPA</td>
                             {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                               <td key={sem} className="border border-slate-900 py-0.5 px-1 font-bold">
-                                {showPlaceholders ? '8.20' : getSemGPA(student, sem)}
+                                {getSemGPA(student, sem)}
                               </td>
                             ))}
                           </tr>
@@ -386,14 +385,14 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">CGPA</td>
                             {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                               <td key={sem} className="border border-slate-900 py-0.5 px-1 font-bold">
-                                {showPlaceholders ? '8.20' : getSemCGPA(student, sem)}
+                                {getSemCGPA(student, sem)}
                               </td>
                             ))}
                           </tr>
                           <tr>
                             <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">CLASS OBTAINED</td>
                             <td colSpan={7} className="border border-slate-900 py-0.5 text-left font-bold px-2.5">
-                              {showPlaceholders ? 'FIRST CLASS WITH DISTINCTION' : student?.classObtained || 'FIRST CLASS'}
+                              {student?.classObtained || 'FIRST CLASS'}
                             </td>
                           </tr>
                         </tbody>
@@ -416,13 +415,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           </tr>
                         </thead>
                         <tbody>
-                          {((student?.internalEvalResults && student.internalEvalResults.length > 0) ? student.internalEvalResults : defaultInternalSubjects).map((sub, sIdx) => (
+                          {(student?.internalEvalResults || []).map((sub, sIdx) => (
                             <tr key={sIdx} className="h-5">
-                              <td className="border border-slate-900 py-0.5 px-1">{showPlaceholders ? '{{SEM}}' : sub.sem}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{showPlaceholders ? '{{CODE}}' : sub.code}</td>
-                              <td className="border border-slate-900 py-0.5 px-1.5 text-left">{showPlaceholders ? '{{TITLE}}' : sub.title}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{CIE_MARKS}}' : sub.cie1Marks}</td>
-                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{PASS_FAIL}}' : sub.passFail}</td>
+                              <td className="border border-slate-900 py-0.5 px-1">{sub.sem}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{sub.code}</td>
+                              <td className="border border-slate-900 py-0.5 px-1.5 text-left">{sub.title}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.cie1Marks}</td>
+                              <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.passFail}</td>
                             </tr>
                           ))}
                         </tbody>
