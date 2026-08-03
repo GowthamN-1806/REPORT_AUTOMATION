@@ -409,7 +409,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
       }),
       new Paragraph({
         alignment: AlignmentType.RIGHT,
-        spacing: { before: 180 },
+        spacing: { before: 120, after: 180 },
         children: [
           new TextRun({
             text: 'JIT/EXAM/FORM-09-b',
@@ -417,6 +417,113 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
             size: 20,
             font: 'Arial',
           }),
+        ],
+      }),
+
+      // 16.2 CLASSIFICATION OF THE DEGREE AWARDED SECTION
+      new Paragraph({
+        spacing: { before: 180, after: 60 },
+        children: [
+          new TextRun({ text: '16.2    CLASSIFICATION OF THE DEGREE AWARDED', bold: true, size: 20, font: 'Arial' }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: '16.2.1  FIRST CLASS WITH DISTINCTION', bold: true, size: 19, font: 'Arial' }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: 'A student who satisfies the following conditions shall be declared to have passed the examination in ', size: 18, font: 'Times New Roman' }),
+          new TextRun({ text: 'First class with Distinction:', bold: true, size: 18, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 20 },
+        children: [
+          new TextRun({ text: 'Should have passed the examination in all the courses of all the eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) in the student\'s First Appearance within ', size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: 'five years', bold: true, size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: ' (Six years in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry). Withdrawal from examination (vide Clause 17) will not be considered as an appearance.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 20 },
+        children: [
+          new TextRun({ text: 'Should have secured a CGPA of not less than ', size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: '8.50', bold: true, size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: '.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 20 },
+        children: [
+          new TextRun({ text: 'One year authorized break of study (if availed of) is included in the five years (Six years in the case of Mechanical (Sandwich) and four years in the case of Lateral entry) for award of First class with Distinction.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 80 },
+        children: [
+          new TextRun({ text: 'Should NOT have been prevented from writing end semester examination due to lack of attendance in any semester.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: '16.2.2  FIRST CLASS:', bold: true, size: 19, font: 'Arial' }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: 'A student who satisfies the following conditions shall be declared to have passed the examination in ', size: 18, font: 'Times New Roman' }),
+          new TextRun({ text: 'First class:', bold: true, size: 18, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 20 },
+        children: [
+          new TextRun({ text: 'Should have passed the examination in all the courses of all eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) ', size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: 'within five years', bold: true, size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: '. (Six years in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry).', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 20 },
+        children: [
+          new TextRun({ text: 'One year authorized break of study (if availed of) or prevention from writing the End Semester examination due to lack of attendance (if applicable) is included in the duration of five years (Six years in case of Mechanical (Sandwich) and four years in the case of lateral entry) for award of First class.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+      new Paragraph({
+        bullet: { level: 0 },
+        spacing: { after: 80 },
+        children: [
+          new TextRun({ text: 'Should have secured a CGPA of not less than ', size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: '6.50', bold: true, size: 17, font: 'Times New Roman' }),
+          new TextRun({ text: '.', size: 17, font: 'Times New Roman' }),
+        ],
+      }),
+
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: '16.2.3  SECOND CLASS:', bold: true, size: 19, font: 'Arial' }),
+        ],
+      }),
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: 'All other students (not covered in clauses 16.2.1 and 16.2.2) who qualify for the award of the degree (vide Clause 16.1) shall be declared to have passed the examination in ', size: 18, font: 'Times New Roman' }),
+          new TextRun({ text: 'Second Class', bold: true, size: 18, font: 'Times New Roman' }),
+          new TextRun({ text: '.', size: 18, font: 'Times New Roman' }),
         ],
       })
     );

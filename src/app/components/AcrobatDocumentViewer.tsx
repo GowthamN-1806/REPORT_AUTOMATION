@@ -424,7 +424,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
               </div>
             </div>
 
-            {/* PAGE 2: ACKNOWLEDGEMENT FORM */}
+            {/* PAGE 2: ACKNOWLEDGEMENT FORM & DEGREE CLASSIFICATION */}
             <div
               className="bg-white w-[680px] h-[960px] p-3 rounded shadow-xl border border-slate-300 font-serif transition-transform duration-200 text-slate-900 relative shrink-0 box-border flex flex-col justify-between"
               style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
@@ -433,42 +433,104 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
               <div className="border-2 border-slate-900 w-full h-full p-1 flex flex-col box-border">
                 
                 {/* Inner Page Border Inset Box */}
-                <div className="border border-slate-900 w-full h-full p-8 flex flex-col justify-between box-border overflow-hidden">
+                <div className="border border-slate-900 w-full h-full p-6 flex flex-col justify-between box-border overflow-hidden text-[10.5px]">
                   <div>
-                    <h2 className="text-sm font-sans font-bold text-slate-900 tracking-wide mb-8 text-center uppercase">
+                    <h2 className="text-sm font-sans font-bold text-slate-900 tracking-wide mb-4 text-center uppercase">
                       ACKNOWLEDGEMENT
                     </h2>
 
-                    <p className="text-xs mb-6">To</p>
+                    <p className="mb-2">To</p>
 
-                    <div className="text-center text-xs font-bold mb-6">
-                      The Class Counsellor, Department of {student?.department || 'Computer Science and Engineering'} ,
+                    <div className="text-center font-bold mb-2">
+                      The Class Counsellor, Department of {student?.department || ''} ,
                     </div>
 
-                    <p className="text-xs mb-8 text-center">
+                    <p className="mb-4 text-center">
                       Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.
                     </p>
 
-                    <p className="text-xs leading-relaxed mb-10 text-justify">
+                    <p className="leading-relaxed mb-6 text-justify">
                       Progress report of my Son / Daughter Name:{' '}
                       <span className="font-bold uppercase">
-                        {showPlaceholders ? 'NAME OF THE STUDENT – Reg. REGNO' : `${student?.name} – Reg. ${student?.regNo}`}
+                        {showPlaceholders ? 'NAME OF THE STUDENT – Reg. REGNO' : `${student?.name || ''} – Reg. ${student?.regNo || ''}`}
                       </span>{' '}
                       for Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation Results have been received.
                     </p>
-                  </div>
 
-                  <div>
-                    <div className="text-right text-xs font-bold mb-12">
+                    <div className="text-right font-bold mb-4 pr-4">
                       Signature of the Parent
                     </div>
 
-                    <div className="text-xs mb-12">
-                      Date:
+                    <div className="flex justify-between items-center mb-5">
+                      <div>Date:</div>
+                      <div className="font-sans font-bold">JIT/EXAM/FORM-09-b</div>
                     </div>
 
-                    <div className="text-right text-xs font-sans font-bold text-slate-900">
-                      JIT/EXAM/FORM-09-b
+                    {/* Section 16.2 Classification of Degree Awarded */}
+                    <div className="border-t border-slate-300 pt-3 text-[9.5px] leading-snug space-y-2 text-slate-900">
+                      <div className="flex items-center gap-4 font-bold font-sans">
+                        <span>16.2</span>
+                        <span className="uppercase">CLASSIFICATION OF THE DEGREE AWARDED</span>
+                      </div>
+
+                      {/* 16.2.1 FIRST CLASS WITH DISTINCTION */}
+                      <div>
+                        <div className="flex items-center gap-2 font-bold font-sans">
+                          <span>16.2.1</span>
+                          <span>FIRST CLASS WITH DISTINCTION</span>
+                        </div>
+                        <p className="pl-8 text-slate-800">
+                          A student who satisfies the following conditions shall be declared to have passed the examination in <span className="font-bold">First class with Distinction:</span>
+                        </p>
+                        <ul className="list-disc pl-12 space-y-0.5 text-slate-800">
+                          <li>
+                            Should have passed the examination in all the courses of all the eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) in the student's First Appearance within <span className="font-bold">five years</span> (Six years in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry). Withdrawal from examination (vide Clause 17) will not be considered as an appearance.
+                          </li>
+                          <li>
+                            Should have secured a CGPA of not less than <span className="font-bold">8.50</span>.
+                          </li>
+                          <li>
+                            One year authorized break of study (if availed of) is included in the five years (Six years in the case of Mechanical (Sandwich) and four years in the case of Lateral entry) for award of First class with Distinction.
+                          </li>
+                          <li>
+                            Should NOT have been prevented from writing end semester examination due to lack of attendance in any semester.
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* 16.2.2 FIRST CLASS */}
+                      <div>
+                        <div className="flex items-center gap-2 font-bold font-sans">
+                          <span>16.2.2</span>
+                          <span>FIRST CLASS:</span>
+                        </div>
+                        <p className="pl-8 text-slate-800">
+                          A student who satisfies the following conditions shall be declared to have passed the examination in <span className="font-bold">First class:</span>
+                        </p>
+                        <ul className="list-disc pl-12 space-y-0.5 text-slate-800">
+                          <li>
+                            Should have passed the examination in all the courses of all eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) <span className="font-bold">within five years</span>. (Six years in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry).
+                          </li>
+                          <li>
+                            One year authorized break of study (if availed of) or prevention from writing the End Semester examination due to lack of attendance (if applicable) is included in the duration of five years (Six years in case of Mechanical (Sandwich) and four years in the case of lateral entry) for award of First class.
+                          </li>
+                          <li>
+                            Should have secured a CGPA of not less than <span className="font-bold">6.50</span>.
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* 16.2.3 SECOND CLASS */}
+                      <div>
+                        <div className="flex items-center gap-2 font-bold font-sans">
+                          <span>16.2.3</span>
+                          <span>SECOND CLASS:</span>
+                        </div>
+                        <p className="pl-8 text-slate-800">
+                          All other students (not covered in clauses 16.2.1 and 16.2.2) who qualify for the award of the degree (vide Clause 16.1) shall be declared to have passed the examination in <span className="font-bold">Second Class</span>.
+                        </p>
+                      </div>
+
                     </div>
                   </div>
                 </div>

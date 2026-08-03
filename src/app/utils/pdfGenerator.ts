@@ -295,53 +295,154 @@ export const generateCombinedPDF = async (
     pdf.rect(18, 18, pageWidth - 36, pageHeight - 36);
     pdf.rect(22, 22, pageWidth - 44, pageHeight - 44);
 
-    let p2Y = 60;
+    let p2Y = 45;
 
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(12);
-    pdf.setTextColor(15, 23, 42);
-    pdf.text('ACKNOWLEDGEMENT', margin, p2Y);
-
-    p2Y += 30;
-    pdf.setFont('times', 'normal');
     pdf.setFontSize(11);
-    pdf.text('To', margin, p2Y);
-
-    p2Y += 25;
-    pdf.setFont('times', 'bold');
-    pdf.text(`The Class Counsellor, Department of ${student.department || ''} ,`, pageWidth / 2, p2Y, { align: 'center' });
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('ACKNOWLEDGEMENT', pageWidth / 2, p2Y, { align: 'center' });
 
     p2Y += 20;
     pdf.setFont('times', 'normal');
+    pdf.setFontSize(10);
+    pdf.text('To', margin, p2Y);
+
+    p2Y += 15;
+    pdf.setFont('times', 'bold');
+    pdf.text(`The Class Counsellor, Department of ${student.department || ''} ,`, pageWidth / 2, p2Y, { align: 'center' });
+
+    p2Y += 15;
+    pdf.setFont('times', 'normal');
     pdf.text('Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', margin, p2Y);
 
-    p2Y += 30;
+    p2Y += 20;
     pdf.text('Progress report of my Son / Daughter Name: ', margin, p2Y);
     const p1 = pdf.getTextWidth('Progress report of my Son / Daughter Name: ');
     pdf.setFont('times', 'bold');
-    pdf.text(`${student.name} – Reg. ${student.regNo}`, margin + p1, p2Y);
-    const p2 = pdf.getTextWidth(`${student.name} – Reg. ${student.regNo}`);
+    pdf.text(`${student.name || ''} – Reg. ${student.regNo || ''}`, margin + p1, p2Y);
+    const p2 = pdf.getTextWidth(`${student.name || ''} – Reg. ${student.regNo || ''}`);
     pdf.setFont('times', 'normal');
     pdf.text(' for', margin + p1 + p2, p2Y);
 
-    p2Y += 18;
+    p2Y += 14;
     pdf.text('Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation', margin, p2Y);
 
-    p2Y += 18;
+    p2Y += 14;
     pdf.text('Results have been received.', margin, p2Y);
 
-    p2Y += 70;
+    p2Y += 30;
     pdf.setFont('times', 'bold');
     pdf.text('Signature of the Parent', pageWidth - margin, p2Y, { align: 'right' });
 
-    p2Y += 30;
+    p2Y += 18;
     pdf.setFont('times', 'normal');
     pdf.text('Date:', margin, p2Y);
-
-    p2Y += 40;
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(11);
+    pdf.setFontSize(9.5);
     pdf.text('JIT/EXAM/FORM-09-b', pageWidth - margin, p2Y, { align: 'right' });
+
+    // Section 16.2 CLASSIFICATION OF THE DEGREE AWARDED
+    p2Y += 22;
+    pdf.setDrawColor(203, 213, 225); // slate-300
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, p2Y, pageWidth - margin, p2Y);
+
+    p2Y += 15;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('16.2    CLASSIFICATION OF THE DEGREE AWARDED', margin, p2Y);
+
+    p2Y += 14;
+    pdf.text('16.2.1  FIRST CLASS WITH DISTINCTION', margin, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.text('A student who satisfies the following conditions shall be declared to have passed the examination in ', margin + 15, p2Y);
+    const w1 = pdf.getTextWidth('A student who satisfies the following conditions shall be declared to have passed the examination in ');
+    pdf.setFont('times', 'bold');
+    pdf.text('First class with Distinction:', margin + 15 + w1, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    const bullet1 = '• Should have passed the examination in all the courses of all the eight semesters (10 Semesters in case of Mechanical';
+    pdf.text(bullet1, margin + 25, p2Y);
+    p2Y += 11;
+    pdf.text('  (Sandwich) and 6 semesters in the case of Lateral Entry) in the student\'s First Appearance within ', margin + 25, p2Y);
+    const w2 = pdf.getTextWidth('  (Sandwich) and 6 semesters in the case of Lateral Entry) in the student\'s First Appearance within ');
+    pdf.setFont('times', 'bold');
+    pdf.text('five years', margin + 25 + w2, p2Y);
+    const w3 = pdf.getTextWidth('five years');
+    pdf.setFont('times', 'normal');
+    pdf.text(' (Six years', margin + 25 + w2 + w3, p2Y);
+    p2Y += 11;
+    pdf.text('  in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry). Withdrawal from examination', margin + 25, p2Y);
+    p2Y += 11;
+    pdf.text('  (vide Clause 17) will not be considered as an appearance.', margin + 25, p2Y);
+
+    p2Y += 12;
+    pdf.text('• Should have secured a CGPA of not less than ', margin + 25, p2Y);
+    const w4 = pdf.getTextWidth('• Should have secured a CGPA of not less than ');
+    pdf.setFont('times', 'bold');
+    pdf.text('8.50.', margin + 25 + w4, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.text('• One year authorized break of study (if availed of) is included in the five years (Six years in the case of Mechanical', margin + 25, p2Y);
+    p2Y += 11;
+    pdf.text('  (Sandwich) and four years in the case of Lateral entry) for award of First class with Distinction.', margin + 25, p2Y);
+
+    p2Y += 12;
+    pdf.text('• Should NOT have been prevented from writing end semester examination due to lack of attendance in any semester.', margin + 25, p2Y);
+
+    p2Y += 16;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('16.2.2  FIRST CLASS:', margin, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.text('A student who satisfies the following conditions shall be declared to have passed the examination in ', margin + 15, p2Y);
+    const w5 = pdf.getTextWidth('A student who satisfies the following conditions shall be declared to have passed the examination in ');
+    pdf.setFont('times', 'bold');
+    pdf.text('First class:', margin + 15 + w5, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.text('• Should have passed the examination in all the courses of all eight semesters (10 Semesters in case of Mechanical', margin + 25, p2Y);
+    p2Y += 11;
+    pdf.text('  (Sandwich) and 6 semesters in the case of Lateral Entry) ', margin + 25, p2Y);
+    const w6 = pdf.getTextWidth('  (Sandwich) and 6 semesters in the case of Lateral Entry) ');
+    pdf.setFont('times', 'bold');
+    pdf.text('within five years.', margin + 25 + w6, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.text('• One year authorized break of study (if availed of) or prevention from writing the End Semester examination due', margin + 25, p2Y);
+    p2Y += 11;
+    pdf.text('  to lack of attendance (if applicable) is included in the duration of five years for award of First class.', margin + 25, p2Y);
+
+    p2Y += 12;
+    pdf.text('• Should have secured a CGPA of not less than ', margin + 25, p2Y);
+    const w7 = pdf.getTextWidth('• Should have secured a CGPA of not less than ');
+    pdf.setFont('times', 'bold');
+    pdf.text('6.50.', margin + 25 + w7, p2Y);
+
+    p2Y += 16;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('16.2.3  SECOND CLASS:', margin, p2Y);
+
+    p2Y += 12;
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.text('All other students (not covered in clauses 16.2.1 and 16.2.2) who qualify for the award of the degree (vide Clause 16.1) shall', margin + 15, p2Y);
+    p2Y += 11;
+    pdf.text('be declared to have passed the examination in ', margin + 15, p2Y);
+    const w8 = pdf.getTextWidth('be declared to have passed the examination in ');
+    pdf.setFont('times', 'bold');
+    pdf.text('Second Class.', margin + 15 + w8, p2Y);
   }
 
   pdf.save('JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.pdf');
