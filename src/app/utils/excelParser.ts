@@ -203,57 +203,29 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           if (r0.length > 1) nameColIndex = 1;
         }
 
-        // STEP 2: Locate Subject Header Row dynamically
-        let subjectHeaderRowIndex = anchorRowIndex;
-        let maxSubjectCodeCount = 0;
+        // STEP 2: Build Unified Header Names per Column across top candidate rows (0..6)
+        const maxCols = Math.max(...rawMatrix.slice(0, 10).map((r) => (r ? r.length : 0)));
+        const headerNames: string[] = [];
 
-        const candidateRowIndices = [
-          anchorRowIndex,
-          anchorRowIndex - 1,
-          anchorRowIndex + 1,
-          anchorRowIndex + 2,
-          anchorRowIndex - 2,
-        ].filter((idx) => idx >= 0 && idx < rawMatrix.length);
-
-        for (let rIdx of candidateRowIndices) {
-          const rCells = rawMatrix[rIdx] || [];
-          let validSubCount = 0;
-          let dateCount = 0;
-          let facultyCount = 0;
-
-          for (let c = 0; c < rCells.length; c++) {
-            if (c === regNoColIndex || c === nameColIndex) continue;
-            const txt = String(rCells[c] || '').trim();
-            if (!txt || isPlaceholderToken(txt)) continue;
-
-            if (isDateCell(txt)) {
-              dateCount++;
-            } else if (isFacultyNameCell(txt)) {
-              facultyCount++;
-            } else {
-              const cleanTxt = txt.toLowerCase();
-              const isMeta = nonSubjectHeaders.some((ik) => {
-                const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
-                const cleanK = cleanTxt.replace(/[\s_.-]+/g, '');
-                return cleanK === cleanIk;
-              });
-              if (!isMeta) {
-                validSubCount++;
-              }
+        for (let c = 0; c < maxCols; c++) {
+          let foundH = '';
+          for (let r = 0; r <= Math.min(6, rawMatrix.length - 1); r++) {
+            const cellVal = String((rawMatrix[r] || [])[c] || '').trim();
+            if (cellVal && !isDateCell(cellVal) && !isFacultyNameCell(cellVal)) {
+              foundH = cellVal;
+              break;
             }
           }
-
-          if (validSubCount > maxSubjectCodeCount && dateCount === 0 && facultyCount === 0) {
-            maxSubjectCodeCount = validSubCount;
-            subjectHeaderRowIndex = rIdx;
-          }
+          headerNames.push(foundH);
         }
+
+        let subjectHeaderRowIndex = anchorRowIndex;
 
         // Extract metadata strings ONLY if present in top rows of Excel
         let extractedDepartment = '';
         let extractedRegulation = '';
 
-        for (let r = 0; r < Math.max(anchorRowIndex, subjectHeaderRowIndex); r++) {
+        for (let r = 0; r < Math.max(anchorRowIndex, 5); r++) {
           const rCells = rawMatrix[r] || [];
           for (let c = 0; c < rCells.length; c++) {
             const txt = String(rCells[c] || '').trim();
@@ -273,10 +245,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        const headerRow = rawMatrix[subjectHeaderRowIndex] || [];
-        const headerNames: string[] = headerRow.map((cell) => String(cell || '').trim());
-
-        // STEP 3: Detect Grouped Subject Suffix Columns (_1, _2, _3 ... _n) or Direct Subject Columns
+        // STEP 3: Detect Grouped Subject Suffix Columns (_1, _2, _3 ... _n) for University & CIE
         interface SubjectGroupSpec {
           groupNum: number;
           codeCol: number;
@@ -290,20 +259,34 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const univGroupsMap = new Map<number, SubjectGroupSpec>();
         const cieGroupsMap = new Map<number, SubjectGroupSpec>();
 
-        for (let c = 0; c < headerRow.length; c++) {
+        for (let c = 0; c < headerNames.length; c++) {
           if (c === regNoColIndex || c === nameColIndex) continue;
 
-          const rawHeader = String(headerRow[c] || '').trim();
+          const rawHeader = String(headerNames[c] || '').trim();
           if (!rawHeader || isPlaceholderToken(rawHeader)) continue;
 
-          // Match patterns like Code_1, Subject_1, Grade_1, Pass_1, CIE_Code_1, CIE_Marks_1
-          const match = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
-          if (match) {
-            const rawPrefix = match[1].trim();
-            const cleanPrefix = rawPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const num = Number(match[2]);
+          // Match patterns:
+          // 1) Code_1, Subject_1, Grade_1, Pass_1, CIE_Code_1, CIE_Marks_1
+          // 2) Code 1, Subject 1, Grade 1, Pass 1, CIE Code 1, CIE Marks 1
+          // 3) CIE_1_Code, CIE_1_Marks, CIE_1_Subject, CIE_1_Pass
+          // 4) Code1, Subject1, Grade1, Pass1, CIECode1, CIEMarks1
+          let num = -1;
+          let prefix = '';
 
-            const isCieHeader = cleanPrefix.includes('cie');
+          const m1 = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
+          const m2 = rawHeader.match(/^(cie|univ|university)?[\s_.-]*(\d+)[\s_.-]*(.*)$/i);
+
+          if (m2 && m2[2]) {
+            num = Number(m2[2]);
+            prefix = ((m2[1] || '') + '_' + (m2[3] || '')).trim();
+          } else if (m1 && m1[2]) {
+            num = Number(m1[2]);
+            prefix = m1[1].trim();
+          }
+
+          if (num !== -1) {
+            const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader);
             const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
 
             if (!targetMap.has(num)) {
@@ -320,19 +303,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
             const spec = targetMap.get(num)!;
 
-            if (/code/i.test(cleanPrefix)) {
+            if (cleanPrefix.includes('code')) {
               spec.codeCol = c;
-            } else if (/subject|title|name/i.test(cleanPrefix)) {
+            } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
               spec.titleCol = c;
-            } else if (/mark|score/i.test(cleanPrefix)) {
+            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
               spec.cieMarksCol = c;
               spec.gradeCol = c;
-            } else if (/grade/i.test(cleanPrefix)) {
+            } else if (cleanPrefix.includes('grade')) {
               spec.gradeCol = c;
               spec.cieMarksCol = c;
-            } else if (/pass|fail|result|status/i.test(cleanPrefix)) {
+            } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
               spec.passCol = c;
-            } else if (/sem/i.test(cleanPrefix)) {
+            } else if (cleanPrefix.includes('sem')) {
               spec.semCol = c;
             }
           }
@@ -345,10 +328,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
 
         if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
-          for (let c = 0; c < headerRow.length; c++) {
+          for (let c = 0; c < headerNames.length; c++) {
             if (c === regNoColIndex || c === nameColIndex) continue;
 
-            let rawHeader = String(headerRow[c] || '').trim();
+            let rawHeader = String(headerNames[c] || '').trim();
             let cleanHeader = rawHeader.toLowerCase();
 
             if (
@@ -382,7 +365,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         }
 
         // STEP 4: Determine Student Data Start Row
-        let studentDataStartRowIndex = Math.max(anchorRowIndex, subjectHeaderRowIndex) + 1;
+        let studentDataStartRowIndex = anchorRowIndex + 1;
 
         while (studentDataStartRowIndex < rawMatrix.length) {
           const rCells = rawMatrix[studentDataStartRowIndex] || [];
@@ -394,8 +377,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             isFacultyNameCell(txtName) ||
             isDateCell(txtReg) ||
             isDateCell(txtName) ||
-            /^(marks|cie|grade|max marks)/i.test(txtReg) ||
-            /^(marks|cie|grade|max marks)/i.test(txtName)
+            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtReg) ||
+            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtName)
           ) {
             studentDataStartRowIndex++;
             continue;
@@ -624,6 +607,48 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         if (parsedStudents.length === 0) {
           throw new Error('No valid student records found in uploaded Excel file.');
+        }
+
+        // BROWSER CONSOLE LOGGING AS SPECIFIED BY USER
+        console.log('==============================================');
+        console.log('Detected Columns:', headerNames.filter((h) => Boolean(h)));
+        console.log('==============================================');
+        console.log('Generated Object for Student 1:', parsedStudents[0]);
+        console.log('==============================================');
+
+        if (regNoColIndex === -1) {
+          console.warn('Placeholder Warning:', {
+            Placeholder: '{{REGISTER_NO}}',
+            ExpectedColumn: 'Register No / Reg.No / RegNo',
+            MatchedColumn: 'None',
+            Reason: 'No column matching Register Number found in Excel header',
+          });
+        }
+        if (nameColIndex === -1) {
+          console.warn('Placeholder Warning:', {
+            Placeholder: '{{STUDENT_NAME}}',
+            ExpectedColumn: 'Name / Student Name / Candidate Name',
+            MatchedColumn: 'None',
+            Reason: 'No column matching Student Name found in Excel header',
+          });
+        }
+
+        if (sortedUnivSpecs.length === 0 && directSubjectCols.length === 0) {
+          console.warn('Placeholder Warning:', {
+            Placeholder: '{{SEM}}, {{CODE}}, {{TITLE}}, {{GRADE}}, {{PASS_FAIL}}',
+            ExpectedColumn: 'Code_1, Subject_1, Grade_1, Pass_1',
+            MatchedColumn: 'None',
+            Reason: 'No University subject groups detected in uploaded Excel',
+          });
+        }
+
+        if (sortedCieSpecs.length === 0) {
+          console.warn('Placeholder Warning:', {
+            Placeholder: '{{CODE}}, {{TITLE}}, {{CIE_MARKS}}, {{PASS_FAIL}}',
+            ExpectedColumn: 'CIE_Code_1, CIE_Subject_1, CIE_Marks_1, CIE_Pass_1',
+            MatchedColumn: sortedUnivSpecs.length > 0 ? 'Fallback to University Subject Groups' : 'None',
+            Reason: sortedUnivSpecs.length > 0 ? 'Separate CIE columns missing in Excel; using University subject groups fallback' : 'No CIE subject columns detected',
+          });
         }
 
         resolve(parsedStudents);
