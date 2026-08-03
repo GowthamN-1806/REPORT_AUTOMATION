@@ -277,6 +277,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Subject Code', bold: true, size: 20 })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Subject Name', bold: true, size: 20 })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'CIE I Marks', bold: true, size: 20 })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'CIE II Marks', bold: true, size: 20 })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Pass/Fail', bold: true, size: 20 })] })] }),
       ],
     });
@@ -284,11 +285,12 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
     const cieRows = (student.internalEvalResults || []).map((sub) => {
       return new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: sub.sem })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.code })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.title })] }),
-          new TableCell({ children: [new Paragraph({ text: String(sub.cie1Marks) })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.passFail })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.sem || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.code || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.title || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.cie1Marks !== undefined && sub.cie1Marks !== null ? String(sub.cie1Marks) : '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.cie2Marks !== undefined && sub.cie2Marks !== null ? String(sub.cie2Marks) : '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.passFail || '' })] }),
         ],
       });
     });

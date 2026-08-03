@@ -11,6 +11,7 @@ export interface InternalEvalResult {
   code: string;
   title: string;
   cie1Marks: number | string;
+  cie2Marks?: number | string;
   passFail: 'PASS' | 'FAIL' | '';
 }
 

@@ -387,6 +387,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           <th className="border border-slate-900 py-1 px-1.5 w-24">Subject Code</th>
                           <th className="border border-slate-900 py-1 px-1.5 text-left">Subject Name</th>
                           <th className="border border-slate-900 py-1 px-1.5 w-24">CIE I Marks</th>
+                          <th className="border border-slate-900 py-1 px-1.5 w-24">CIE II Marks</th>
                           <th className="border border-slate-900 py-1 px-1.5 w-20">Pass/Fail</th>
                         </tr>
                       </thead>
@@ -397,6 +398,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{sub.code || ''}</td>
                             <td className="border border-slate-900 py-0.5 px-1.5 text-left">{sub.title || ''}</td>
                             <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.cie1Marks ?? ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.cie2Marks ?? ''}</td>
                             <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.passFail || ''}</td>
                           </tr>
                         ))}

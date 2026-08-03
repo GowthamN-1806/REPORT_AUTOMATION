@@ -245,11 +245,11 @@ export const generateCombinedPDF = async (
 
     // Continuous Internal Evaluation Table
     y += 10;
-    const colW2 = [65, 85, 235, 65, 65];
+    const colW2 = [55, 75, 205, 60, 60, 60];
     currX = margin;
     
     pdf.rect(margin, y, contentWidth, 20);
-    ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'Pass/Fail'].forEach((h, hIdx) => {
+    ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Pass/Fail'].forEach((h, hIdx) => {
       pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
       currX += colW2[hIdx];
     });
@@ -269,10 +269,11 @@ export const generateCombinedPDF = async (
         pdf.setFont('times', 'bold');
         pdf.text(item.code || '', x + colW2[1] / 2, y + 12, { align: 'center' }); x += colW2[1];
         pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 48), x + 6, y + 12); x += colW2[2];
+        pdf.text((item.title || '').substring(0, 42), x + 6, y + 12); x += colW2[2];
         pdf.setFont('times', 'bold');
-        pdf.text(String(item.cie1Marks ?? ''), x + colW2[3] / 2, y + 12, { align: 'center' }); x += colW2[3];
-        pdf.text(item.passFail || '', x + colW2[4] / 2, y + 12, { align: 'center' });
+        pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', x + colW2[3] / 2, y + 12, { align: 'center' }); x += colW2[3];
+        pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', x + colW2[4] / 2, y + 12, { align: 'center' }); x += colW2[4];
+        pdf.text(item.passFail || '', x + colW2[5] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;
