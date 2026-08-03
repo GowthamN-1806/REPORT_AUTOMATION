@@ -14,7 +14,8 @@ const loadImg = (src: string): Promise<HTMLImageElement | null> => {
 export const generateCombinedPDF = async (
   students: StudentRecord[],
   reportContainerElement?: HTMLElement | null,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  regulation: string = '2021'
 ): Promise<void> => {
   const pdf = new jsPDF({
     orientation: 'portrait',
@@ -102,7 +103,7 @@ export const generateCombinedPDF = async (
 
     y += 18;
     pdf.setFont('times', 'bold');
-    pdf.text(student.regulation ? `Regulation:${student.regulation}` : '', pageWidth - margin, y, { align: 'right' });
+    pdf.text(`Regulation: ${regulation || '2021'}`, pageWidth - margin, y, { align: 'right' });
 
     // Register Number & Name Box Table
     y += 8;

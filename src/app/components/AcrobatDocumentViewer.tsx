@@ -14,12 +14,14 @@ interface AcrobatDocumentViewerProps {
   students: StudentRecord[];
   currentPageIndex: number;
   onPageChange: (index: number) => void;
+  regulation?: string;
 }
 
 export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   students,
   currentPageIndex,
   onPageChange,
+  regulation = '2021',
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -271,7 +273,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
                     {/* Regulation Line */}
                     <div className="text-right text-[11px] font-bold font-serif my-1 text-slate-900">
-                      {student?.regulation ? `Regulation:${student.regulation}` : ''}
+                      Regulation: {regulation || '2021'}
                     </div>
 
                     {/* Register number / Student Name Table */}

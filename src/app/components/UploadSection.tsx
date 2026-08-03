@@ -12,6 +12,8 @@ interface UploadSectionProps {
   summary: UploadSummary | null;
   uploadedFile: { name: string; size: string } | null;
   isProcessing: boolean;
+  regulation?: string;
+  onRegulationChange?: (val: string) => void;
 }
 
 export const UploadSection: React.FC<UploadSectionProps> = ({
@@ -24,6 +26,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
   summary,
   uploadedFile,
   isProcessing,
+  regulation = '2021',
+  onRegulationChange,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,6 +163,25 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             </button>
           </div>
         )}
+
+        {/* Editable Regulation Setting Field */}
+        <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚙️</span>
+            <label className="text-xs font-bold text-slate-700">
+              Regulation:
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={regulation}
+              onChange={(e) => onRegulationChange && onRegulationChange(e.target.value)}
+              placeholder="2021 / 2024"
+              className="w-28 text-xs font-bold font-mono px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 transition-all text-center"
+            />
+          </div>
+        </div>
 
       </div>
 

@@ -12,7 +12,7 @@ import {
 } from 'docx';
 import { StudentRecord } from '../types';
 
-export const generateCombinedWordDocument = async (students: StudentRecord[]): Promise<void> => {
+export const generateCombinedWordDocument = async (students: StudentRecord[], regulation: string = '2021'): Promise<void> => {
   const docChildren: (Paragraph | Table)[] = [];
 
   students.forEach((student, index) => {
@@ -96,7 +96,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         spacing: { after: 80 },
         children: [
           new TextRun({
-            text: student.regulation ? `Regulation:${student.regulation}` : '',
+            text: `Regulation: ${regulation || '2021'}`,
             bold: true,
             size: 22,
             font: 'Times New Roman',

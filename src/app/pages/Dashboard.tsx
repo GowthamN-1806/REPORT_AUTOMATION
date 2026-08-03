@@ -79,6 +79,14 @@ export const Dashboard: React.FC = () => {
 
   const [stats, setStats] = useState<SystemStats>(initial.stats);
 
+  // Editable Regulation State
+  const [regulation, setRegulation] = useState<string>(() => localStorage.getItem('jit_regulation') || '2021');
+
+  const handleRegulationChange = (val: string) => {
+    setRegulation(val);
+    localStorage.setItem('jit_regulation', val);
+  };
+
   // Processing Dialog State
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [stepMessage, setStepMessage] = useState<string>('Reading Excel file...');
@@ -244,7 +252,7 @@ export const Dashboard: React.FC = () => {
     }
     try {
       addToast('info', 'Word Download Started', `Generating Word (.docx) for ${students.length} student reports...`);
-      await generateCombinedWordDocument(students);
+      await generateCombinedWordDocument(students, regulation);
       addToast('success', 'Word Document Ready', 'JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.docx downloaded.');
     } catch (err: any) {
       addToast('error', 'Download Failed', 'Could not create Word document.');
@@ -258,7 +266,7 @@ export const Dashboard: React.FC = () => {
     }
     try {
       addToast('info', 'PDF Download Started', `Generating Adobe PDF (.pdf) for ${students.length} student reports...`);
-      await generateCombinedPDF(students);
+      await generateCombinedPDF(students, null, undefined, regulation);
       addToast('success', 'PDF Document Ready', 'JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.pdf downloaded.');
     } catch (err: any) {
       addToast('error', 'Download Failed', 'Could not generate PDF document.');
@@ -289,6 +297,8 @@ export const Dashboard: React.FC = () => {
               summary={summary}
               uploadedFile={uploadedFile}
               isProcessing={isProcessing}
+              regulation={regulation}
+              onRegulationChange={handleRegulationChange}
             />
           </div>
         ) : (
@@ -306,6 +316,8 @@ export const Dashboard: React.FC = () => {
                 summary={summary}
                 uploadedFile={uploadedFile}
                 isProcessing={isProcessing}
+                regulation={regulation}
+                onRegulationChange={handleRegulationChange}
               />
             </div>
 
@@ -315,6 +327,7 @@ export const Dashboard: React.FC = () => {
                 students={students}
                 currentPageIndex={currentPageIndex}
                 onPageChange={(idx) => setCurrentPageIndex(idx)}
+                regulation={regulation}
               />
             </div>
           </div>
