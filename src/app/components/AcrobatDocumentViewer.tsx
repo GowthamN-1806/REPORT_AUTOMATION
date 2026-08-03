@@ -9,7 +9,6 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { StudentRecord } from '../types';
-import { defaultUnivSubjects, defaultInternalSubjects } from '../data/sampleStudents';
 
 interface AcrobatDocumentViewerProps {
   students: StudentRecord[];
@@ -24,7 +23,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [showPlaceholders, setShowPlaceholders] = useState<boolean>(false);
   const [targetReportIndex, setTargetReportIndex] = useState<string>('');
 
   // Limit initially rendered items for fast DOM rendering, expand dynamically on scroll
@@ -35,20 +33,20 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
   const activeStudents = students && students.length > 0 ? students : [
     {
-      id: 'demo-1',
-      regNo: '210624104000',
-      name: 'YYYYY',
-      department: 'Computer Science and Engineering',
-      regulation: '2021/2024',
-      universityResults: defaultUnivSubjects,
-      internalEvalResults: defaultInternalSubjects,
-      gpa: 8.2,
-      cgpa: 8.2,
-      classObtained: 'FIRST CLASS',
-      arrears: { '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0, '07': 0 },
-      gpaBySem: { '01': '8.20', '02': '8.20', '03': '8.20', '04': '8.20', '05': '8.20', '06': '-', '07': '-' },
-      cgpaBySem: { '01': '8.20', '02': '8.20', '03': '8.20', '04': '8.20', '05': '8.20', '06': '-', '07': '-' },
-    } as StudentRecord
+      id: 'blank-1',
+      regNo: '',
+      name: '',
+      department: '',
+      regulation: '',
+      universityResults: [],
+      internalEvalResults: [],
+      gpa: undefined,
+      cgpa: undefined,
+      classObtained: '',
+      arrears: {},
+      gpaBySem: {},
+      cgpaBySem: {},
+    } as unknown as StudentRecord
   ];
 
   const totalReports = activeStudents.length;
@@ -282,7 +280,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
                     {/* Regulation Line */}
                     <div className="text-right text-[11px] font-bold font-serif my-1 text-slate-900">
-                      Regulation:{student?.regulation || '2021/2024'}
+                      {student?.regulation ? `Regulation:${student.regulation}` : ''}
                     </div>
 
                     {/* Register number / Student Name Table */}
@@ -293,7 +291,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             Register number:
                           </td>
                           <td className="border border-slate-900 px-2.5 py-1 font-bold font-mono">
-                            {showPlaceholders ? '{{REGISTER_NO}}' : student?.regNo || ''}
+                            {student?.regNo || ''}
                           </td>
                         </tr>
                         <tr>
@@ -301,7 +299,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             Name of the Student:
                           </td>
                           <td className="border border-slate-900 px-2.5 py-1 font-bold uppercase">
-                            {showPlaceholders ? '{{STUDENT_NAME}}' : student?.name || ''}
+                            {student?.name || ''}
                           </td>
                         </tr>
                       </tbody>
@@ -319,13 +317,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {((student?.universityResults && student.universityResults.length > 0) ? student.universityResults : []).map((sub, sIdx) => (
+                        {(student?.universityResults || []).map((sub, sIdx) => (
                           <tr key={sIdx} className="h-5">
-                            <td className="border border-slate-900 py-0.5 px-1">{showPlaceholders ? '{{SEM}}' : sub.sem}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{showPlaceholders ? '{{CODE}}' : sub.code}</td>
-                            <td className="border border-slate-900 py-0.5 px-1.5 text-left">{showPlaceholders ? '{{TITLE}}' : sub.title}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{GRADE}}' : sub.grade}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{PASS_FAIL}}' : sub.passFail}</td>
+                            <td className="border border-slate-900 py-0.5 px-1">{sub.sem || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{sub.code || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1.5 text-left">{sub.title || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.grade || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.passFail || ''}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -356,7 +354,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">ARREARS</td>
                           {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                             <td key={sem} className="border border-slate-900 py-0.5 px-1">
-                              {showPlaceholders ? '0' : getSemArrears(student, sem)}
+                              {getSemArrears(student, sem)}
                             </td>
                           ))}
                         </tr>
@@ -364,7 +362,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">GPA</td>
                           {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                             <td key={sem} className="border border-slate-900 py-0.5 px-1 font-bold">
-                              {showPlaceholders ? '8.20' : getSemGPA(student, sem)}
+                              {getSemGPA(student, sem)}
                             </td>
                           ))}
                         </tr>
@@ -372,14 +370,14 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                           <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">CGPA</td>
                           {['01', '02', '03', '04', '05', '06', '07'].map((sem) => (
                             <td key={sem} className="border border-slate-900 py-0.5 px-1 font-bold">
-                              {showPlaceholders ? '8.20' : getSemCGPA(student, sem)}
+                              {getSemCGPA(student, sem)}
                             </td>
                           ))}
                         </tr>
                         <tr>
                           <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">CLASS OBTAINED</td>
                           <td colSpan={7} className="border border-slate-900 py-0.5 text-left font-bold px-2.5">
-                            {showPlaceholders ? 'FIRST CLASS WITH DISTINCTION' : student?.classObtained || ''}
+                            {student?.classObtained || ''}
                           </td>
                         </tr>
                       </tbody>
@@ -402,13 +400,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {((student?.internalEvalResults && student.internalEvalResults.length > 0) ? student.internalEvalResults : defaultInternalSubjects).map((sub, sIdx) => (
+                        {(student?.internalEvalResults || []).map((sub, sIdx) => (
                           <tr key={sIdx} className="h-5">
-                            <td className="border border-slate-900 py-0.5 px-1">{showPlaceholders ? '{{SEM}}' : sub.sem}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{showPlaceholders ? '{{CODE}}' : sub.code}</td>
-                            <td className="border border-slate-900 py-0.5 px-1.5 text-left">{showPlaceholders ? '{{TITLE}}' : sub.title}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{CIE_MARKS}}' : sub.cie1Marks}</td>
-                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{showPlaceholders ? '{{PASS_FAIL}}' : sub.passFail}</td>
+                            <td className="border border-slate-900 py-0.5 px-1">{sub.sem || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{sub.code || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1.5 text-left">{sub.title || ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.cie1Marks ?? ''}</td>
+                            <td className="border border-slate-900 py-0.5 px-1 font-bold">{sub.passFail || ''}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -452,7 +450,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                     <p className="leading-relaxed mb-6 text-justify">
                       Progress report of my Son / Daughter Name:{' '}
                       <span className="font-bold uppercase">
-                        {showPlaceholders ? 'NAME OF THE STUDENT – Reg. REGNO' : `${student?.name || ''} – Reg. ${student?.regNo || ''}`}
+                        {student?.name ? `${student.name} – Reg. ${student.regNo || ''}` : ''}
                       </span>{' '}
                       for Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation Results have been received.
                     </p>
