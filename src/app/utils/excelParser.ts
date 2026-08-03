@@ -660,11 +660,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             });
           }
 
+          const rawDeptVal = findCellValue(rowCells, headerNames, [
+            'department', 'dept', 'branch', 'dept_name', 'department_name', 'dept name', 'department name'
+          ]);
+
+          let studentDept = rawDeptVal !== undefined && rawDeptVal !== null && String(rawDeptVal).trim() !== ''
+            ? String(rawDeptVal).trim()
+            : (deptColIndex !== -1 && rowCells[deptColIndex] ? String(rowCells[deptColIndex]).trim() : extractedDepartment);
+
           parsedStudents.push({
             id: `std-dyn-${r}`,
             regNo: regNoStr,
             name: nameStr.toUpperCase(),
-            department: extractedDepartment,
+            department: studentDept.toUpperCase(),
             regulation: extractedRegulation,
             universityResults,
             gpa: gpaVal,

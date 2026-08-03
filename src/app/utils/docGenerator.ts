@@ -347,7 +347,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         spacing: { after: 100 },
         children: [
           new TextRun({
-            text: `The Class Counsellor, Department of ${student.department || ''} ,`,
+            text: `The Class Counsellor, Department of ${student.department ? student.department : ''},`,
             bold: true,
             size: 22,
             font: 'Times New Roman',

@@ -310,7 +310,7 @@ export const generateCombinedPDF = async (
 
     p2Y += 15;
     pdf.setFont('times', 'bold');
-    pdf.text(`The Class Counsellor, Department of ${student.department || ''} ,`, pageWidth / 2, p2Y, { align: 'center' });
+    pdf.text(`The Class Counsellor, Department of ${student.department ? student.department : ''},`, pageWidth / 2, p2Y, { align: 'center' });
 
     p2Y += 15;
     pdf.setFont('times', 'normal');

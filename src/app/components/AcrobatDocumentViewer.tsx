@@ -433,7 +433,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                     <p className="mb-2">To</p>
 
                     <div className="text-center font-bold mb-2">
-                      The Class Counsellor, Department of {student?.department || ''} ,
+                      The Class Counsellor, Department of {student?.department ? student.department : ''},
                     </div>
 
                     <p className="mb-4 text-center">
