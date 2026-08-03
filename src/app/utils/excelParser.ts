@@ -203,23 +203,44 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           if (r0.length > 1) nameColIndex = 1;
         }
 
-        // STEP 2: Build Unified Header Names per Column across top candidate rows (0..6)
-        const maxCols = Math.max(...rawMatrix.slice(0, 10).map((r) => (r ? r.length : 0)));
-        const headerNames: string[] = [];
+        // STEP 2: Locate the true Header Row by counting column header keywords across top rows (0..10)
+        let bestHeaderRowIndex = -1;
+        let maxHeaderMatches = -1;
 
-        for (let c = 0; c < maxCols; c++) {
-          let foundH = '';
-          for (let r = 0; r <= Math.min(6, rawMatrix.length - 1); r++) {
-            const cellVal = String((rawMatrix[r] || [])[c] || '').trim();
-            if (cellVal && !isDateCell(cellVal) && !isFacultyNameCell(cellVal)) {
-              foundH = cellVal;
-              break;
+        for (let r = 0; r <= Math.min(10, rawMatrix.length - 1); r++) {
+          const rowCells = rawMatrix[r] || [];
+          let matches = 0;
+          for (let c = 0; c < rowCells.length; c++) {
+            const txt = String(rowCells[c] || '').trim();
+            if (!txt || isPlaceholderToken(txt) || isDateCell(txt) || isFacultyNameCell(txt)) continue;
+
+            // Check if cell looks like a column header (e.g. Code_1, Grade_1, Reg.No, Subject_1, Pass_1)
+            if (/^(reg|name|code|subject|grade|pass|cie|sem|gpa|cgpa|arr)/i.test(txt) || /(code|grade|pass|subject|mark)[\s_.-]*\d+/i.test(txt)) {
+              matches++;
             }
           }
-          headerNames.push(foundH);
+          if (matches > maxHeaderMatches) {
+            maxHeaderMatches = matches;
+            bestHeaderRowIndex = r;
+          }
         }
 
-        let subjectHeaderRowIndex = anchorRowIndex;
+        if (bestHeaderRowIndex === -1) bestHeaderRowIndex = anchorRowIndex;
+
+        const headerRow = rawMatrix[bestHeaderRowIndex] || [];
+        const headerNames: string[] = headerRow.map((cell) => String(cell || '').trim());
+
+        // Fill empty header cells from adjacent row if headers are split across 2 rows
+        for (let c = 0; c < headerNames.length; c++) {
+          if (!headerNames[c]) {
+            const nextRowVal = String((rawMatrix[bestHeaderRowIndex + 1] || [])[c] || '').trim();
+            if (nextRowVal && !isDateCell(nextRowVal) && !isFacultyNameCell(nextRowVal)) {
+              headerNames[c] = nextRowVal;
+            }
+          }
+        }
+
+        let subjectHeaderRowIndex = bestHeaderRowIndex;
 
         // Extract metadata strings ONLY if present in top rows of Excel
         let extractedDepartment = '';
@@ -307,12 +328,12 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               spec.codeCol = c;
             } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
               spec.titleCol = c;
-            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
-              spec.cieMarksCol = c;
-              spec.gradeCol = c;
             } else if (cleanPrefix.includes('grade')) {
               spec.gradeCol = c;
               spec.cieMarksCol = c;
+            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
+              spec.cieMarksCol = c;
+              if (spec.gradeCol === -1) spec.gradeCol = c;
             } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
               spec.passCol = c;
             } else if (cleanPrefix.includes('sem')) {
@@ -320,6 +341,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
         }
+
+        // Secondary Pass to ensure Grade_N columns are explicitly resolved if missed
+        univGroupsMap.forEach((spec, gNum) => {
+          if (spec.gradeCol === -1) {
+            for (let c = 0; c < headerNames.length; c++) {
+              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (h === `grade${gNum}` || h === `grade0${gNum}` || h.startsWith(`grade${gNum}`)) {
+                spec.gradeCol = c;
+                break;
+              }
+            }
+          }
+        });
 
         const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
         const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
