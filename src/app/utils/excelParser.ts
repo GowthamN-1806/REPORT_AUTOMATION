@@ -60,12 +60,13 @@ const isDateCell = (str: string): boolean => {
   return false;
 };
 
-// Helper to detect if a cell string is a Faculty Name / Staff Title
+// Helper to detect if a cell string is Title, Department Header, or Faculty/Staff row metadata
 const isFacultyNameCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
-         /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff)\b/i.test(clean);
+         /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
+         /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name)/i.test(clean);
 };
 
 // Helper to identify placeholder tokens or __EMPTY strings
@@ -604,8 +605,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 sem: 'VI',
                 code: sub.code,
                 title: sub.title,
-                cie1Marks: sub.grade,
-                passFail: sub.passFail,
+                cie1Marks: '',
+                cie2Marks: '',
+                passFail: '',
               });
             });
           }
