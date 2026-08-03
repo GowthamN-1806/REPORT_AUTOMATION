@@ -138,6 +138,17 @@ const findCellValue = (rowCells: any[], headers: string[], keyCandidates: (strin
   return undefined;
 };
 
+// Find matching column index by candidate header names
+const findColIndex = (headers: string[], candidates: string[]): number => {
+  const cleanHeaders = headers.map((h) => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+  for (let candidate of candidates) {
+    const cleanCand = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const idx = cleanHeaders.findIndex((h) => h === cleanCand || h.includes(cleanCand));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+};
+
 export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -526,8 +537,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const internalEvalResults: InternalEvalResult[] = [];
 
           if (sortedUnivSpecs.length > 0) {
-            // University Results Table (TOP) - Code_1, Subject_1, Grade_1, Pass_1
+            // Process rows 1..N dynamically from uploaded Excel
             sortedUnivSpecs.forEach((spec) => {
+              const gNum = spec.groupNum;
+
               const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
               const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
               const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
@@ -555,39 +568,37 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 grade: gradeStr,
                 passFail,
               });
-            });
-          }
 
-          if (sortedCieSpecs.length > 0) {
-            // CIE Results Table (BOTTOM) - CIE_Code_1, CIE_Subject_1, CIE_Marks_1, CIE2_Marks_1, CIE_Pass_1
-            sortedCieSpecs.forEach((spec) => {
-              const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
-              const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
-              const cieMarksRaw = spec.cieMarksCol !== -1 ? rowCells[spec.cieMarksCol] : (spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '');
-              const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
-              const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
-              const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
+              // Map CIE I & CIE II Marks for Row N (Row 1 -> CIE1_Marks_1 & CIE2_Marks_1, Row 7 -> CIE1_Marks_7 & CIE2_Marks_7)
+              const cieSpec = cieGroupsMap.get(gNum);
 
-              const codeStr = String(codeRaw || '').trim().toUpperCase();
-              let titleStr = String(titleRaw || '').trim();
-              const cieMarksStr = String(cieMarksRaw || '').trim();
-              const cie2MarksStr = String(cie2MarksRaw || '').trim();
-              const passStr = String(passRaw || '').trim().toUpperCase();
+              let cie1MarksRaw: any = '';
+              let cie2MarksRaw: any = '';
 
-              if (!codeStr && !titleStr && !cieMarksStr && !cie2MarksStr && !passStr) return;
-
-              if (!titleStr && codeStr) {
-                titleStr = knownTitles[codeStr] || codeStr;
+              if (cieSpec) {
+                if (cieSpec.cieMarksCol !== -1) cie1MarksRaw = rowCells[cieSpec.cieMarksCol];
+                if (cieSpec.cie2MarksCol !== -1) cie2MarksRaw = rowCells[cieSpec.cie2MarksCol];
               }
 
-              const passFail = evaluatePassFail(passStr, cieMarksStr);
-              const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
+              // Fallback column index lookup by exact header names if cieSpec column was -1
+              if (cie1MarksRaw === '') {
+                const c1 = findColIndex(headerNames, [`cie1marks0${gNum}`, `cie1marks${gNum}`, `cie1_marks_${gNum}`, `cie1marks_${gNum}`, `cie1_${gNum}`]);
+                if (c1 !== -1) cie1MarksRaw = rowCells[c1];
+              }
+
+              if (cie2MarksRaw === '') {
+                const c2 = findColIndex(headerNames, [`cie2marks0${gNum}`, `cie2marks${gNum}`, `cie2_marks_${gNum}`, `cie2marks_${gNum}`, `cie2_${gNum}`]);
+                if (c2 !== -1) cie2MarksRaw = rowCells[c2];
+              }
+
+              const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
+              const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
 
               internalEvalResults.push({
-                sem,
+                sem: 'VI',
                 code: codeStr,
                 title: titleStr,
-                cie1Marks: cieMarksStr,
+                cie1Marks: cie1MarksStr,
                 cie2Marks: cie2MarksStr,
                 passFail,
               });
