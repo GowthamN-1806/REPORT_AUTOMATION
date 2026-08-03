@@ -284,7 +284,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           titleCol: number;
           gradeCol: number;
           passCol: number;
-          cieMarksCol: number;
+          cie1MarksCol: number;
           cie2MarksCol: number;
           semCol: number;
         }
@@ -298,62 +298,58 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawHeader = String(headerNames[c] || '').trim();
           if (!rawHeader || isPlaceholderToken(rawHeader)) continue;
 
-          // Match patterns:
-          // 1) Code_1, Subject_1, Grade_1, Pass_1, CIE_Code_1, CIE_Marks_1, CIE2_Marks_1
-          // 2) Code 1, Subject 1, Grade 1, Pass 1, CIE Code 1, CIE Marks 1, CIE 2 Marks 1
-          // 3) CIE_1_Code, CIE_1_Marks, CIE_2_Marks, CIE_1_Subject, CIE_1_Pass
-          // 4) Code1, Subject1, Grade1, Pass1, CIECode1, CIEMarks1, CIE2Marks1
-          let num = -1;
-          let prefix = '';
+          // Match trailing digit group index N (e.g. Code_1 -> N=1, CIE_Code_7 -> N=7, CIE1_Marks_2 -> N=2)
+          const match = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
+          if (!match) continue;
 
-          const m1 = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
-          const m2 = rawHeader.match(/^(cie|univ|university)?[\s_.-]*(\d+)[\s_.-]*(.*)$/i);
+          const rawPrefix = match[1].trim();
+          const num = Number(match[2]);
+          const cleanPrefix = rawPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader);
 
-          if (m2 && m2[2]) {
-            num = Number(m2[2]);
-            prefix = ((m2[1] || '') + '_' + (m2[3] || '')).trim();
-          } else if (m1 && m1[2]) {
-            num = Number(m1[2]);
-            prefix = m1[1].trim();
+          const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
+
+          if (!targetMap.has(num)) {
+            targetMap.set(num, {
+              groupNum: num,
+              codeCol: -1,
+              titleCol: -1,
+              gradeCol: -1,
+              passCol: -1,
+              cie1MarksCol: -1,
+              cie2MarksCol: -1,
+              semCol: -1,
+            });
           }
 
-          if (num !== -1) {
-            const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader);
-            const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
+          const spec = targetMap.get(num)!;
 
-            if (!targetMap.has(num)) {
-              targetMap.set(num, {
-                groupNum: num,
-                codeCol: -1,
-                titleCol: -1,
-                gradeCol: -1,
-                passCol: -1,
-                cieMarksCol: -1,
-                cie2MarksCol: -1,
-                semCol: -1,
-              });
+          if (isCieHeader) {
+            // Strict CIE Header Classifier (CIE_Code_N, CIE_Subject_N, CIE1_Marks_N, CIE2_Marks_N, CIE_Pass_N)
+            if (cleanPrefix.includes('code')) {
+              spec.codeCol = c;
+            } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
+              spec.titleCol = c;
+            } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2') || cleanPrefix.includes('marks2')) {
+              spec.cie2MarksCol = c;
+            } else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('marks1')) {
+              spec.cie1MarksCol = c;
+            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
+              if (spec.cie1MarksCol === -1) spec.cie1MarksCol = c;
+              else if (spec.cie2MarksCol === -1 && c !== spec.cie1MarksCol) spec.cie2MarksCol = c;
+            } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
+              spec.passCol = c;
+            } else if (cleanPrefix.includes('sem')) {
+              spec.semCol = c;
             }
-
-            const spec = targetMap.get(num)!;
-
+          } else {
+            // Strict University Header Classifier (Code_N, Subject_N, Grade_N, Pass_N)
             if (cleanPrefix.includes('code')) {
               spec.codeCol = c;
             } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
               spec.titleCol = c;
             } else if (cleanPrefix.includes('grade')) {
               spec.gradeCol = c;
-              spec.cieMarksCol = c;
-            } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('cie_ii') || cleanPrefix.includes('mark2')) {
-              spec.cie2MarksCol = c;
-            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
-              if (cleanPrefix.includes('2') || cleanPrefix.includes('ii')) {
-                spec.cie2MarksCol = c;
-              } else {
-                if (spec.cieMarksCol === -1) spec.cieMarksCol = c;
-                else if (spec.cie2MarksCol === -1 && c !== spec.cieMarksCol) spec.cie2MarksCol = c;
-              }
-              if (spec.gradeCol === -1) spec.gradeCol = c;
             } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
               spec.passCol = c;
             } else if (cleanPrefix.includes('sem')) {
@@ -362,7 +358,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Secondary Pass to ensure Grade_N and CIE2_Marks_N columns are explicitly resolved if missed
+        // Secondary Pass to ensure Grade_N and CIE marks columns are explicitly resolved if missed
         univGroupsMap.forEach((spec, gNum) => {
           if (spec.gradeCol === -1) {
             for (let c = 0; c < headerNames.length; c++) {
@@ -376,21 +372,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         });
 
         cieGroupsMap.forEach((spec, gNum) => {
+          if (spec.cie1MarksCol === -1) {
+            for (let c = 0; c < headerNames.length; c++) {
+              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (h === `cie1marks${gNum}` || h === `cie1mark${gNum}` || h.includes(`cie1marks${gNum}`) || h.includes(`cie1_marks_${gNum}`)) {
+                spec.cie1MarksCol = c;
+                break;
+              }
+            }
+          }
           if (spec.cie2MarksCol === -1) {
             for (let c = 0; c < headerNames.length; c++) {
               const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (
-                h === `cie2marks${gNum}` ||
-                h === `cie2mark${gNum}` ||
-                h === `cie2_${gNum}` ||
-                h === `cieii_${gNum}` ||
-                h === `cie2marks0${gNum}` ||
-                h === `cie2_${gNum}_marks` ||
-                h === `cie2marks_${gNum}` ||
-                h.includes(`cie2marks${gNum}`) ||
-                h.includes(`cie2_marks_${gNum}`) ||
-                h.includes(`cie_2_marks_${gNum}`)
-              ) {
+              if (h === `cie2marks${gNum}` || h === `cie2mark${gNum}` || h.includes(`cie2marks${gNum}`) || h.includes(`cie2_marks_${gNum}`)) {
                 spec.cie2MarksCol = c;
                 break;
               }
@@ -532,70 +526,68 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             arrearsMap[sNum] = arrearsMap[semKey];
           }
 
-          // Process Subject Rows (University Top Table & CIE Bottom Table)
+          // Process Subject Rows (University Top Table & CIE Bottom Table - SEPARATE MAPPINGS)
           const universityResults: SubjectResult[] = [];
           const internalEvalResults: InternalEvalResult[] = [];
 
-          if (sortedUnivSpecs.length > 0) {
-            // Process rows 1..N dynamically from uploaded Excel
-            sortedUnivSpecs.forEach((spec) => {
-              const gNum = spec.groupNum;
+          // 1. University Results Table: Read ONLY Code_1..N, Subject_1..N, Grade_1..N, Pass_1..N
+          sortedUnivSpecs.forEach((spec) => {
+            const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
+            const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
+            const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
+            const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
+            const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
+            const codeStr = String(codeRaw || '').trim().toUpperCase();
+            let titleStr = String(titleRaw || '').trim();
+            const gradeStr = String(gradeRaw || '').trim().toUpperCase();
+            const passStr = String(passRaw || '').trim().toUpperCase();
+
+            if (!codeStr && !titleStr && !gradeStr && !passStr) return;
+
+            if (!titleStr && codeStr) {
+              titleStr = knownTitles[codeStr] || codeStr;
+            }
+
+            const passFail = evaluatePassFail(passStr, gradeStr);
+            const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'V';
+
+            universityResults.push({
+              sem,
+              code: codeStr,
+              title: titleStr,
+              grade: gradeStr,
+              passFail,
+            });
+          });
+
+          // 2. CIE Results Table: Read ONLY CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, CIE_Pass_1..N
+          if (sortedCieSpecs.length > 0) {
+            sortedCieSpecs.forEach((spec) => {
               const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
               const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
-              const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
+              const cie1MarksRaw = spec.cie1MarksCol !== -1 ? rowCells[spec.cie1MarksCol] : '';
+              const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
               const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
               const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
               const codeStr = String(codeRaw || '').trim().toUpperCase();
               let titleStr = String(titleRaw || '').trim();
-              const gradeStr = String(gradeRaw || '').trim().toUpperCase();
+              const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
+              const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
               const passStr = String(passRaw || '').trim().toUpperCase();
 
-              if (!codeStr && !titleStr && !gradeStr && !passStr) return;
+              if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
 
               if (!titleStr && codeStr) {
                 titleStr = knownTitles[codeStr] || codeStr;
               }
 
-              const passFail = evaluatePassFail(passStr, gradeStr);
-              const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'V';
-
-              universityResults.push({
-                sem,
-                code: codeStr,
-                title: titleStr,
-                grade: gradeStr,
-                passFail,
-              });
-
-              // Map CIE I & CIE II Marks for Row N (Row 1 -> CIE1_Marks_1 & CIE2_Marks_1, Row 7 -> CIE1_Marks_7 & CIE2_Marks_7)
-              const cieSpec = cieGroupsMap.get(gNum);
-
-              let cie1MarksRaw: any = '';
-              let cie2MarksRaw: any = '';
-
-              if (cieSpec) {
-                if (cieSpec.cieMarksCol !== -1) cie1MarksRaw = rowCells[cieSpec.cieMarksCol];
-                if (cieSpec.cie2MarksCol !== -1) cie2MarksRaw = rowCells[cieSpec.cie2MarksCol];
-              }
-
-              // Fallback column index lookup by exact header names if cieSpec column was -1
-              if (cie1MarksRaw === '') {
-                const c1 = findColIndex(headerNames, [`cie1marks0${gNum}`, `cie1marks${gNum}`, `cie1_marks_${gNum}`, `cie1marks_${gNum}`, `cie1_${gNum}`]);
-                if (c1 !== -1) cie1MarksRaw = rowCells[c1];
-              }
-
-              if (cie2MarksRaw === '') {
-                const c2 = findColIndex(headerNames, [`cie2marks0${gNum}`, `cie2marks${gNum}`, `cie2_marks_${gNum}`, `cie2marks_${gNum}`, `cie2_${gNum}`]);
-                if (c2 !== -1) cie2MarksRaw = rowCells[c2];
-              }
-
-              const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
-              const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
+              const passFail = evaluatePassFail(passStr, cie1MarksStr);
+              const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
 
               internalEvalResults.push({
-                sem: 'VI',
+                sem,
                 code: codeStr,
                 title: titleStr,
                 cie1Marks: cie1MarksStr,
