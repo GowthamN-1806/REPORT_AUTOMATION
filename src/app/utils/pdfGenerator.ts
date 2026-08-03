@@ -102,7 +102,7 @@ export const generateCombinedPDF = async (
 
     y += 18;
     pdf.setFont('times', 'bold');
-    pdf.text(`Regulation:${student.regulation || '2021/2024'}`, pageWidth - margin, y, { align: 'right' });
+    pdf.text(student.regulation ? `Regulation:${student.regulation}` : '', pageWidth - margin, y, { align: 'right' });
 
     // Register Number & Name Box Table
     y += 8;
@@ -115,7 +115,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     pdf.text('Register number:', margin + 6, y + 14);
     pdf.setFont('times', 'bold');
-    pdf.text(student.regNo, margin + 166, y + 14);
+    pdf.text(student.regNo || '', margin + 166, y + 14);
 
     // Row 2: Name
     y += 20;
@@ -124,7 +124,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     pdf.text('Name of the Student:', margin + 6, y + 14);
     pdf.setFont('times', 'bold');
-    pdf.text(student.name, margin + 166, y + 14);
+    pdf.text(student.name || '', margin + 166, y + 14);
 
     // University Results Table
     y += 32;
@@ -154,14 +154,14 @@ export const generateCombinedPDF = async (
       
       if (item) {
         let x = margin;
-        pdf.text(item.sem, x + colW1[0] / 2, y + 12, { align: 'center' }); x += colW1[0];
+        pdf.text(item.sem || '', x + colW1[0] / 2, y + 12, { align: 'center' }); x += colW1[0];
         pdf.setFont('times', 'bold');
-        pdf.text(item.code, x + colW1[1] / 2, y + 12, { align: 'center' }); x += colW1[1];
+        pdf.text(item.code || '', x + colW1[1] / 2, y + 12, { align: 'center' }); x += colW1[1];
         pdf.setFont('times', 'normal');
-        pdf.text(item.title.substring(0, 48), x + 6, y + 12); x += colW1[2];
+        pdf.text((item.title || '').substring(0, 48), x + 6, y + 12); x += colW1[2];
         pdf.setFont('times', 'bold');
-        pdf.text(item.grade, x + colW1[3] / 2, y + 12, { align: 'center' }); x += colW1[3];
-        pdf.text(item.passFail, x + colW1[4] / 2, y + 12, { align: 'center' });
+        pdf.text(item.grade || '', x + colW1[3] / 2, y + 12, { align: 'center' }); x += colW1[3];
+        pdf.text(item.passFail || '', x + colW1[4] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;
@@ -197,7 +197,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const arrVal = getSemValue(student.arrears, semKey, '0');
+      const arrVal = getSemValue(student.arrears, semKey, '');
       pdf.text(String(arrVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
       mX += matrixCols[c];
     }
@@ -211,7 +211,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const gpaVal = getSemValue(student.gpaBySem, semKey, c === 5 ? String(student.gpa) : '-');
+      const gpaVal = getSemValue(student.gpaBySem, semKey, (c === 5 || c === 5) && student.gpa !== undefined ? String(student.gpa) : '');
       pdf.text(String(gpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
       mX += matrixCols[c];
     }
@@ -225,7 +225,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === 5 ? String(student.cgpa) : '-');
+      const cgpaVal = getSemValue(student.cgpaBySem, semKey, (c === 5 || c === 5) && student.cgpa !== undefined ? String(student.cgpa) : '');
       pdf.text(String(cgpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
       mX += matrixCols[c];
     }
@@ -235,7 +235,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'bold');
     pdf.rect(margin, y, contentWidth, 18);
     pdf.text('CLASS OBTAINED', margin + 8, y + 12);
-    pdf.text(student.classObtained || 'FIRST CLASS', margin + 120, y + 12);
+    pdf.text(student.classObtained || '', margin + 120, y + 12);
 
     // Continuous Internal Evaluation Header
     y += 30;
@@ -265,14 +265,14 @@ export const generateCombinedPDF = async (
       
       if (item) {
         let x = margin;
-        pdf.text(item.sem, x + colW2[0] / 2, y + 12, { align: 'center' }); x += colW2[0];
+        pdf.text(item.sem || '', x + colW2[0] / 2, y + 12, { align: 'center' }); x += colW2[0];
         pdf.setFont('times', 'bold');
-        pdf.text(item.code, x + colW2[1] / 2, y + 12, { align: 'center' }); x += colW2[1];
+        pdf.text(item.code || '', x + colW2[1] / 2, y + 12, { align: 'center' }); x += colW2[1];
         pdf.setFont('times', 'normal');
-        pdf.text(item.title.substring(0, 48), x + 6, y + 12); x += colW2[2];
+        pdf.text((item.title || '').substring(0, 48), x + 6, y + 12); x += colW2[2];
         pdf.setFont('times', 'bold');
-        pdf.text(String(item.cie1Marks), x + colW2[3] / 2, y + 12, { align: 'center' }); x += colW2[3];
-        pdf.text(item.passFail, x + colW2[4] / 2, y + 12, { align: 'center' });
+        pdf.text(String(item.cie1Marks ?? ''), x + colW2[3] / 2, y + 12, { align: 'center' }); x += colW2[3];
+        pdf.text(item.passFail || '', x + colW2[4] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;
@@ -286,12 +286,11 @@ export const generateCombinedPDF = async (
 
 
     // ==========================================
-    // PAGE 2: ACKNOWLEDGEMENT FORM
+    // PAGE 2: GRADUATE ATTRIBUTES / CONTINUOUS EVALUATION / ACKNOWLEDGEMENT
     // ==========================================
     pdf.addPage('a4', 'portrait');
 
-    // Page 2 Border Frame
-    pdf.setDrawColor(15, 23, 42); // slate-900
+    pdf.setDrawColor(15, 23, 42);
     pdf.setLineWidth(1);
     pdf.rect(18, 18, pageWidth - 36, pageHeight - 36);
     pdf.rect(22, 22, pageWidth - 44, pageHeight - 44);
@@ -310,7 +309,7 @@ export const generateCombinedPDF = async (
 
     p2Y += 25;
     pdf.setFont('times', 'bold');
-    pdf.text(`The Class Counsellor, Department of ${student.department || 'Computer Science and Engineering'} ,`, pageWidth / 2, p2Y, { align: 'center' });
+    pdf.text(`The Class Counsellor, Department of ${student.department || ''} ,`, pageWidth / 2, p2Y, { align: 'center' });
 
     p2Y += 20;
     pdf.setFont('times', 'normal');

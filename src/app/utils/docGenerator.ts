@@ -96,7 +96,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         spacing: { after: 80 },
         children: [
           new TextRun({
-            text: `Regulation:${student.regulation || '2021/2024'}`,
+            text: student.regulation ? `Regulation:${student.regulation}` : '',
             bold: true,
             size: 22,
             font: 'Times New Roman',
@@ -116,7 +116,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
               width: { size: 40, type: WidthType.PERCENTAGE },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: student.regNo, size: 20 })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: student.regNo || '', size: 20 })] })],
               width: { size: 60, type: WidthType.PERCENTAGE },
             }),
           ],
@@ -127,7 +127,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
               children: [new Paragraph({ children: [new TextRun({ text: 'Name of the Student:', bold: true, size: 20 })] })],
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: student.name, bold: true, size: 20 })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: student.name || '', bold: true, size: 20 })] })],
             }),
           ],
         }),
@@ -149,16 +149,14 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
     const univRows = (student.universityResults || []).map((sub) => {
       return new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: sub.sem })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.code })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.title })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.grade })] }),
-          new TableCell({ children: [new Paragraph({ text: sub.passFail })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.sem || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.code || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.title || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.grade || '' })] }),
+          new TableCell({ children: [new Paragraph({ text: sub.passFail || '' })] }),
         ],
       });
     });
-
-
 
     docChildren.push(
       new Paragraph({ spacing: { before: 120 } }),
@@ -195,10 +193,10 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
     );
 
     // GPA/CGPA Matrix Table
-    const getVal = (map: Record<string, any> | undefined, key: string, fallback: string) => {
+    const getVal = (map: Record<string, any> | undefined, key: string, fallback: string = '') => {
       if (!map) return fallback;
-      const v = map[key] || map[key.replace(/^0/, '')];
-      return v !== undefined && v !== null && v !== '' ? String(v) : fallback;
+      const v = map[key] ?? map[key.replace(/^0/, '')];
+      return v !== undefined && v !== null && String(v).trim() !== '' ? String(v) : fallback;
     };
 
     const matrixHeader = new TableRow({
@@ -219,7 +217,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         children: [
           new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'ARREARS', bold: true, size: 18 })] })] }),
           ...['01', '02', '03', '04', '05', '06', '07'].map((sem) =>
-            new TableCell({ children: [new Paragraph({ text: getVal(student.arrears, sem, '0') })] })
+            new TableCell({ children: [new Paragraph({ text: getVal(student.arrears, sem, '') })] })
           ),
         ],
       }),
@@ -227,7 +225,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         children: [
           new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'GPA', bold: true, size: 18 })] })] }),
           ...['01', '02', '03', '04', '05', '06', '07'].map((sem) =>
-            new TableCell({ children: [new Paragraph({ text: getVal(student.gpaBySem, sem, sem === '05' ? String(student.gpa) : '-') })] })
+            new TableCell({ children: [new Paragraph({ text: getVal(student.gpaBySem, sem, (sem === '05' || sem === '5') && student.gpa !== undefined ? String(student.gpa) : '') })] })
           ),
         ],
       }),
@@ -235,7 +233,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         children: [
           new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'CGPA', bold: true, size: 18 })] })] }),
           ...['01', '02', '03', '04', '05', '06', '07'].map((sem) =>
-            new TableCell({ children: [new Paragraph({ text: getVal(student.cgpaBySem, sem, sem === '05' ? String(student.cgpa) : '-') })] })
+            new TableCell({ children: [new Paragraph({ text: getVal(student.cgpaBySem, sem, (sem === '05' || sem === '5') && student.cgpa !== undefined ? String(student.cgpa) : '') })] })
           ),
         ],
       }),
@@ -244,7 +242,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
           new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'CLASS OBTAINED', bold: true, size: 18 })] })] }),
           new TableCell({
             columnSpan: 7,
-            children: [new Paragraph({ children: [new TextRun({ text: student.classObtained || 'FIRST CLASS', bold: true })] })],
+            children: [new Paragraph({ children: [new TextRun({ text: student.classObtained || '', bold: true })] })],
           }),
         ],
       }),
@@ -347,7 +345,7 @@ export const generateCombinedWordDocument = async (students: StudentRecord[]): P
         spacing: { after: 100 },
         children: [
           new TextRun({
-            text: `The Class Counsellor, Department of ${student.department || 'Computer Science and Engineering'} ,`,
+            text: `The Class Counsellor, Department of ${student.department || ''} ,`,
             bold: true,
             size: 22,
             font: 'Times New Roman',

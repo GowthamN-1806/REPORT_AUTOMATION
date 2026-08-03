@@ -80,25 +80,25 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   };
 
   const getSemGPA = (student: StudentRecord | undefined, sem: string): string => {
-    if (!student || !student.gpaBySem) return '-';
-    const val = student.gpaBySem[sem] || student.gpaBySem[sem.replace(/^0/, '')];
+    if (!student || !student.gpaBySem) return '';
+    const val = student.gpaBySem[sem] ?? student.gpaBySem[sem.replace(/^0/, '')];
     if (val !== undefined && val !== null && val !== '') return String(val);
-    if (sem === '05' || sem === '5') return String(student.gpa);
-    return '-';
+    if ((sem === '05' || sem === '5') && student.gpa !== undefined && student.gpa !== null && student.gpa !== '') return String(student.gpa);
+    return '';
   };
 
   const getSemCGPA = (student: StudentRecord | undefined, sem: string): string => {
-    if (!student || !student.cgpaBySem) return '-';
-    const val = student.cgpaBySem[sem] || student.cgpaBySem[sem.replace(/^0/, '')];
+    if (!student || !student.cgpaBySem) return '';
+    const val = student.cgpaBySem[sem] ?? student.cgpaBySem[sem.replace(/^0/, '')];
     if (val !== undefined && val !== null && val !== '') return String(val);
-    if (sem === '05' || sem === '5') return String(student.cgpa);
-    return '-';
+    if ((sem === '05' || sem === '5') && student.cgpa !== undefined && student.cgpa !== null && student.cgpa !== '') return String(student.cgpa);
+    return '';
   };
 
   const getSemArrears = (student: StudentRecord | undefined, sem: string): string => {
-    if (!student || !student.arrears) return '0';
+    if (!student || !student.arrears) return '';
     const val = student.arrears[sem] ?? student.arrears[sem.replace(/^0/, '')];
-    return val !== undefined && val !== null ? String(val) : '0';
+    return val !== undefined && val !== null && val !== '' ? String(val) : '';
   };
 
   return (
@@ -293,7 +293,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             Register number:
                           </td>
                           <td className="border border-slate-900 px-2.5 py-1 font-bold font-mono">
-                            {showPlaceholders ? '{{REGISTER_NO}}' : student?.regNo || '210624104000'}
+                            {showPlaceholders ? '{{REGISTER_NO}}' : student?.regNo || ''}
                           </td>
                         </tr>
                         <tr>
@@ -301,7 +301,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                             Name of the Student:
                           </td>
                           <td className="border border-slate-900 px-2.5 py-1 font-bold uppercase">
-                            {showPlaceholders ? '{{STUDENT_NAME}}' : student?.name || 'YYYYY'}
+                            {showPlaceholders ? '{{STUDENT_NAME}}' : student?.name || ''}
                           </td>
                         </tr>
                       </tbody>
@@ -319,7 +319,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {((student?.universityResults && student.universityResults.length > 0) ? student.universityResults : defaultUnivSubjects).map((sub, sIdx) => (
+                        {((student?.universityResults && student.universityResults.length > 0) ? student.universityResults : []).map((sub, sIdx) => (
                           <tr key={sIdx} className="h-5">
                             <td className="border border-slate-900 py-0.5 px-1">{showPlaceholders ? '{{SEM}}' : sub.sem}</td>
                             <td className="border border-slate-900 py-0.5 px-1 font-bold font-mono">{showPlaceholders ? '{{CODE}}' : sub.code}</td>
@@ -379,7 +379,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                         <tr>
                           <td className="border border-slate-900 py-0.5 px-1.5 text-left font-bold">CLASS OBTAINED</td>
                           <td colSpan={7} className="border border-slate-900 py-0.5 text-left font-bold px-2.5">
-                            {showPlaceholders ? 'FIRST CLASS WITH DISTINCTION' : student?.classObtained || 'FIRST CLASS'}
+                            {showPlaceholders ? 'FIRST CLASS WITH DISTINCTION' : student?.classObtained || ''}
                           </td>
                         </tr>
                       </tbody>
