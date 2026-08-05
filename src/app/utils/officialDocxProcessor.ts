@@ -2,10 +2,22 @@ import PizZip from 'pizzip';
 import { StudentRecord } from '../types';
 
 /**
+ * Escapes special XML characters to prevent XML parsing syntax errors in Word & docx-preview
+ */
+function escapeXml(str: any): string {
+  return String(str !== undefined && str !== null ? str : '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
  * Updates text inside a Word XML cell <w:tc>
  */
 function updateCellText(cellXml: string, text: any): string {
-  const str = String(text !== undefined && text !== null ? text : '');
+  const str = escapeXml(text);
   if (!str) return cellXml;
 
   // If <w:t> tag already exists in cell, replace text inside <w:t>
@@ -21,13 +33,8 @@ function updateCellText(cellXml: string, text: any): string {
   }
 
   // If no <w:t> tag exists, append run inside cell's paragraph before </w:p>
-  const runXml = `<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t>${str}</w:t></w:r>`;
-  const pEnd = cellXml.lastIndexOf('</w:p>');
-  if (pEnd !== -1) {
-    return `${cellXml.substring(0, pEnd)}${runXml}${cellXml.substring(pEnd)}`;
-  }
-
-  return cellXml;
+  const runXml = `<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t>${str}</w:t></w:r></w:p>`;
+  return cellXml.replace(/<\/w:p>/, runXml);
 }
 
 /**
@@ -90,12 +97,12 @@ export async function populateOfficialDocxTemplate(
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
 
-  // 1. Replace Top Placeholders
-  xml = xml.replace(/\{\{REGISTER_NUMBER\}\}/g, student.regNo || '');
-  xml = xml.replace(/\{\{STUDENT_NAME\}\}/g, student.name || '');
-  xml = xml.replace(/\{\{DEPARTMENT\}\}/g, student.department || 'Computer Science and Engineering');
+  // 1. Replace Top Placeholders with XML-Escaped Values
+  xml = xml.replace(/\{\{REGISTER_NUMBER\}\}/g, escapeXml(student.regNo || ''));
+  xml = xml.replace(/\{\{STUDENT_NAME\}\}/g, escapeXml(student.name || ''));
+  xml = xml.replace(/\{\{DEPARTMENT\}\}/g, escapeXml(student.department || 'Computer Science and Engineering'));
   xml = xml.replace(/\{\{EXAM_SESSION\}\}/g, 'Nov/Dec 2025');
-  xml = xml.replace(/\{\{REGULATION\}\}/g, regulation || student.regulation || '2021');
+  xml = xml.replace(/\{\{REGULATION\}\}/g, escapeXml(regulation || student.regulation || '2021'));
   xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/g, '2025 - 2026');
 
   // 2. Split XML into Table Chunks & Update Tables Immutably
