@@ -7,77 +7,84 @@ import { AcrobatDocumentViewer } from '../components/AcrobatDocumentViewer';
 import { Footer } from '../components/Footer';
 import { ProcessingModal } from '../components/ProcessingModal';
 import { ToastContainer, ToastMessage } from '../components/Toast';
-import { StudentRecord, UploadSummary, SystemStats } from '../types';
+import { StudentRecord, UploadSummary, SystemStats, ResultPattern, UploadedFileSlotInfo } from '../types';
 import { defaultSampleStudents } from '../data/sampleStudents';
 import { parseExcelFile } from '../utils/excelParser';
 import { downloadSampleExcel } from '../utils/excelGenerator';
 import { generateCombinedWordDocument } from '../utils/docGenerator';
 import { generateCombinedPDF } from '../utils/pdfGenerator';
+import { mergeExcelDatasets, MergeEngineResult, getTemplateForPattern } from '../utils/excelMergeEngine';
 
 export const Dashboard: React.FC = () => {
-  // Persistence helpers
-  const getInitialState = () => {
-    const isDeleted = localStorage.getItem('jit_is_deleted') === 'true';
-    if (isDeleted) {
-      return {
-        students: [],
-        uploadedFile: null,
-        summary: null,
-        stats: {
-          totalStudents: 0,
-          reportsGenerated: 0,
-          pdfPages: 0,
-          department: '-',
-          academicYear: '-',
-          uploadStatus: 'Pending Upload',
-        },
-      };
-    }
+  // Pattern Selection State
+  const [selectedPattern, setSelectedPattern] = useState<ResultPattern>('pattern1');
 
-    const savedStudents = localStorage.getItem('jit_students');
-    const savedFile = localStorage.getItem('jit_uploaded_file');
-    const savedSummary = localStorage.getItem('jit_summary');
-    const savedStats = localStorage.getItem('jit_stats');
-
-    if (savedStudents && savedFile && savedSummary && savedStats) {
-      try {
-        const stdList = JSON.parse(savedStudents);
-        const parsedStats = JSON.parse(savedStats);
-        parsedStats.pdfPages = (stdList.length || 0) * 2;
-        return {
-          students: stdList,
-          uploadedFile: JSON.parse(savedFile),
-          summary: JSON.parse(savedSummary),
-          stats: parsedStats,
-        };
-      } catch (e) {}
-    }
-
-    return {
+  // File Slots State
+  const [fileSlots, setFileSlots] = useState<Record<string, UploadedFileSlotInfo>>({
+    univ: {
+      key: 'univ',
+      label: 'University Result Excel',
+      file: null,
+      name: '',
+      size: '',
+      studentCount: 0,
+      isValid: false,
+      missingCount: 0,
+      duplicateCount: 0,
       students: [],
-      uploadedFile: null,
-      summary: null,
-      stats: {
-        totalStudents: 0,
-        reportsGenerated: 0,
-        pdfPages: 0,
-        department: '-',
-        academicYear: '-',
-        uploadStatus: 'Pending Upload',
-      },
-    };
-  };
+    },
+    cie1: {
+      key: 'cie1',
+      label: 'CIE 1 Excel',
+      file: null,
+      name: '',
+      size: '',
+      studentCount: 0,
+      isValid: false,
+      missingCount: 0,
+      duplicateCount: 0,
+      students: [],
+    },
+    cie2: {
+      key: 'cie2',
+      label: 'CIE 2 Excel',
+      file: null,
+      name: '',
+      size: '',
+      studentCount: 0,
+      isValid: false,
+      missingCount: 0,
+      duplicateCount: 0,
+      students: [],
+    },
+    model: {
+      key: 'model',
+      label: 'Model Exam Excel',
+      file: null,
+      name: '',
+      size: '',
+      studentCount: 0,
+      isValid: false,
+      missingCount: 0,
+      duplicateCount: 0,
+      students: [],
+    },
+  });
 
-  const initial = getInitialState();
-
-  const [students, setStudents] = useState<StudentRecord[]>(initial.students);
+  // Merged Dataset State
+  const [mergeResult, setMergeResult] = useState<MergeEngineResult | null>(null);
+  const [mergedStudents, setMergedStudents] = useState<StudentRecord[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
-  
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(initial.uploadedFile);
 
-  const [summary, setSummary] = useState<UploadSummary | null>(initial.summary);
-
-  const [stats, setStats] = useState<SystemStats>(initial.stats);
+  const [summary, setSummary] = useState<UploadSummary | null>(null);
+  const [stats, setStats] = useState<SystemStats>({
+    totalStudents: 0,
+    reportsGenerated: 0,
+    pdfPages: 0,
+    department: '-',
+    academicYear: '-',
+    uploadStatus: 'Pending Upload',
+  });
 
   // Editable Regulation State
   const [regulation, setRegulation] = useState<string>(() => localStorage.getItem('jit_regulation') || '2021');
@@ -115,97 +122,28 @@ export const Dashboard: React.FC = () => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const processStudentRecords = async (newStudents: StudentRecord[], fileName: string, fileSizeStr: string) => {
-    setIsProcessing(true);
-    setTotalCount(newStudents.length);
-    setProcessedCount(0);
-    setProgressPercent(5);
-    setStepMessage('Reading Excel file (.xlsx)...');
-
-    await new Promise((r) => setTimeout(r, 400));
-    setProgressPercent(25);
-    setStepMessage('Validating student records & subjects...');
-
-    await new Promise((r) => setTimeout(r, 300));
-    setStepMessage('Populating PARENTS.docx template...');
-    
-    const total = newStudents.length;
-    for (let i = 1; i <= total; i += Math.ceil(total / 5)) {
-      const current = Math.min(i, total);
-      setProcessedCount(current);
-      const pct = 30 + Math.round((current / total) * 50);
-      setProgressPercent(pct);
-      setStepMessage(`Processing Student ${current} / ${total}...`);
-      await new Promise((r) => setTimeout(r, 120));
-    }
-
-    setProgressPercent(90);
-    setStepMessage('Merging reports into combined Word & PDF documents...');
-    await new Promise((r) => setTimeout(r, 400));
-
-    setProgressPercent(100);
-    setStepMessage('Download Ready!');
-    await new Promise((r) => setTimeout(r, 200));
-
-    setIsProcessing(false);
-
-    setStudents(newStudents);
-    setCurrentPageIndex(0);
-    const newFile = { name: fileName, size: fileSizeStr };
-    setUploadedFile(newFile);
-
-    const deptName = newStudents[0]?.department || 'Computer Science & Engg.';
-    const acadYear = '2025 - 2026';
-    const subCount = (newStudents[0]?.universityResults?.length || 0) + (newStudents[0]?.internalEvalResults?.length || 0);
-
-    const newSummary: UploadSummary = {
-      fileName,
-      fileSize: fileSizeStr,
-      department: deptName,
-      academicYear: acadYear,
-      totalStudents: newStudents.length,
-      subjectsPerStudent: subCount,
-      reportsCount: newStudents.length,
-      templateUsed: 'PARENTS.docx',
-      uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-      status: 'Ready for Download',
-    };
-
-    const newStats: SystemStats = {
-      totalStudents: newStudents.length,
-      reportsGenerated: newStudents.length,
-      pdfPages: newStudents.length * 2,
-      department: deptName,
-      academicYear: acadYear,
-      uploadStatus: 'Success',
-    };
-
-    setSummary(newSummary);
-    setStats(newStats);
-
-    // Persist to localStorage
-    localStorage.setItem('jit_is_deleted', 'false');
-    localStorage.setItem('jit_students', JSON.stringify(newStudents));
-    localStorage.setItem('jit_uploaded_file', JSON.stringify(newFile));
-    localStorage.setItem('jit_summary', JSON.stringify(newSummary));
-    localStorage.setItem('jit_stats', JSON.stringify(newStats));
-
-    addToast('success', 'Excel Uploaded Successfully', `Processed ${newStudents.length} student records automatically.`);
-
-    confetti({
-      particleCount: 50,
-      spread: 60,
-      origin: { y: 0.8 }
-    });
-  };
-
-  const handleFileUpload = async (file: File) => {
+  // Upload File to Specific Slot
+  const handleSlotFileUpload = async (slotKey: 'univ' | 'cie1' | 'cie2' | 'model', file: File) => {
     try {
       addToast('info', 'Reading Excel...', `Parsing ${file.name}`);
       const parsed = await parseExcelFile(file);
+
       if (parsed && parsed.length > 0) {
         const sizeStr = `${(file.size / 1024).toFixed(0)} KB`;
-        await processStudentRecords(parsed, file.name, sizeStr);
+        setFileSlots((prev) => ({
+          ...prev,
+          [slotKey]: {
+            ...prev[slotKey],
+            file,
+            name: file.name,
+            size: sizeStr,
+            studentCount: parsed.length,
+            isValid: true,
+            students: parsed,
+          },
+        }));
+
+        addToast('success', 'File Uploaded', `${file.name} parsed successfully (${parsed.length} Students).`);
       } else {
         addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
       }
@@ -214,64 +152,193 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleLoadSampleData = async () => {
-    await processStudentRecords(defaultSampleStudents, 'CSE_III_YEAR_ALL_STUDENTS.xlsx', '125 KB');
+  // Remove File from Slot
+  const handleSlotFileRemove = (slotKey: 'univ' | 'cie1' | 'cie2' | 'model') => {
+    setFileSlots((prev) => ({
+      ...prev,
+      [slotKey]: {
+        ...prev[slotKey],
+        file: null,
+        name: '',
+        size: '',
+        studentCount: 0,
+        isValid: false,
+        students: [],
+      },
+    }));
+    setMergeResult(null);
+    setMergedStudents([]);
+    setSummary(null);
+    addToast('info', 'File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
   };
 
+  // Run Excel Merge Engine
+  const handleRunMerge = async () => {
+    setIsProcessing(true);
+    setStepMessage('Initializing Excel Merge Engine...');
+    setProgressPercent(10);
+
+    await new Promise((r) => setTimeout(r, 300));
+    setProgressPercent(40);
+    setStepMessage('Matching student records by Register Number...');
+
+    const univList = fileSlots.univ.students;
+    const cie1List = fileSlots.cie1.students;
+    const cie2List = fileSlots.cie2.students;
+    const modelList = fileSlots.model.students;
+
+    const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+
+    await new Promise((r) => setTimeout(r, 400));
+    setProgressPercent(80);
+    setStepMessage(`Selecting Template ${res.templateFile}...`);
+
+    await new Promise((r) => setTimeout(r, 200));
+    setProgressPercent(100);
+    setIsProcessing(false);
+
+    setMergeResult(res);
+    setMergedStudents(res.mergedStudents);
+    setCurrentPageIndex(0);
+
+    const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
+    const acadYear = '2025 - 2026';
+    const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
+
+    setSummary({
+      fileName: fileSlots.univ.name || 'Merged_Results.xlsx',
+      fileSize: fileSlots.univ.size || '120 KB',
+      department: deptName,
+      academicYear: acadYear,
+      totalStudents: res.mergedStudents.length,
+      subjectsPerStudent: subCount,
+      reportsCount: res.mergedStudents.length,
+      templateUsed: res.templateFile,
+      uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+      status: 'Ready for Download',
+    });
+
+    setStats({
+      totalStudents: res.mergedStudents.length,
+      reportsGenerated: res.mergedStudents.length,
+      pdfPages: res.mergedStudents.length * 2,
+      department: deptName,
+      academicYear: acadYear,
+      uploadStatus: 'Success',
+    });
+
+    addToast('success', 'Excel Files Merged!', `Unified ${res.mergedStudents.length} student records into template ${res.templateFile}.`);
+
+    confetti({
+      particleCount: 50,
+      spread: 60,
+      origin: { y: 0.8 },
+    });
+  };
+
+  // Load Demo Data
+  const handleLoadSampleData = () => {
+    setFileSlots((prev) => ({
+      ...prev,
+      univ: {
+        ...prev.univ,
+        file: new File([], 'CSE_III_YEAR_UNIV_RESULTS.xlsx'),
+        name: 'CSE_III_YEAR_UNIV_RESULTS.xlsx',
+        size: '125 KB',
+        studentCount: defaultSampleStudents.length,
+        isValid: true,
+        students: defaultSampleStudents,
+      },
+      cie1: {
+        ...prev.cie1,
+        file: new File([], 'CSE_III_YEAR_CIE1_MARKS.xlsx'),
+        name: 'CSE_III_YEAR_CIE1_MARKS.xlsx',
+        size: '98 KB',
+        studentCount: defaultSampleStudents.length,
+        isValid: true,
+        students: defaultSampleStudents,
+      },
+    }));
+
+    addToast('success', 'Demo Data Loaded', 'Loaded University & CIE 1 sample datasets.');
+  };
+
+  // Download Sample Template
   const handleDownloadSampleTemplate = () => {
     downloadSampleExcel(defaultSampleStudents);
     addToast('success', 'Template Downloaded', 'Saved as JIT_PARENTS_Mark_Sheet_Template.xlsx');
   };
 
-  const handleDeleteFile = () => {
-    // Clear localStorage & mark as deleted
-    localStorage.setItem('jit_is_deleted', 'true');
-    localStorage.removeItem('jit_students');
-    localStorage.removeItem('jit_uploaded_file');
-    localStorage.removeItem('jit_summary');
-    localStorage.removeItem('jit_stats');
-
-    setUploadedFile(null);
-    setSummary(null);
-    setStudents([]);
-    setStats({
-      totalStudents: 0,
-      reportsGenerated: 0,
-      pdfPages: 0,
-      department: '-',
-      academicYear: '-',
-      uploadStatus: 'Pending Upload',
-    });
-    addToast('info', 'File Removed', 'Upload state reset. Please upload an Excel file.');
+  // In-Memory Edit Student Handler
+  const handleUpdateStudent = (updatedStudent: StudentRecord) => {
+    setMergedStudents((prev) =>
+      prev.map((s) => (s.id === updatedStudent.id || s.regNo === updatedStudent.regNo ? updatedStudent : s))
+    );
+    addToast('success', 'Student Updated', `Saved in-memory changes for ${updatedStudent.name} (${updatedStudent.regNo}).`);
   };
 
+  // Document Generation Handler
+  const handleGenerateDocuments = async () => {
+    if (!mergedStudents || mergedStudents.length === 0) {
+      addToast('error', 'No Merged Data', 'Please merge Excel files first.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setTotalCount(mergedStudents.length);
+    setProcessedCount(0);
+    setProgressPercent(10);
+    setStepMessage(`Loading template ${mergeResult?.templateFile || getTemplateForPattern(selectedPattern)}...`);
+
+    const total = mergedStudents.length;
+    for (let i = 1; i <= total; i += Math.ceil(total / 5)) {
+      const current = Math.min(i, total);
+      setProcessedCount(current);
+      const pct = 20 + Math.round((current / total) * 70);
+      setProgressPercent(pct);
+      setStepMessage(`Generating Result Letters for Student ${current} / ${total}...`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    setProgressPercent(100);
+    setStepMessage('Result Letters Generated!');
+    await new Promise((r) => setTimeout(r, 200));
+
+    setIsProcessing(false);
+    addToast('success', 'Generation Complete', `Generated result letters for ${mergedStudents.length} students.`);
+  };
+
+  // Download Word
   const handleDownloadWord = async () => {
-    if (!students || students.length === 0) {
-      addToast('error', 'No Reports Found', 'Please upload an Excel file first.');
+    if (!mergedStudents || mergedStudents.length === 0) {
+      addToast('error', 'No Merged Reports', 'Please merge Excel files first.');
       return;
     }
     try {
-      addToast('info', 'Word Download Started', `Generating Word (.docx) for ${students.length} student reports...`);
-      await generateCombinedWordDocument(students, regulation);
-      addToast('success', 'Word Document Ready', 'JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.docx downloaded.');
+      addToast('info', 'Word Download Started', `Generating Word (.docx) for ${mergedStudents.length} student reports...`);
+      await generateCombinedWordDocument(mergedStudents, regulation);
+      addToast('success', 'Word Document Ready', `JEPPIAAR_IT_Mark_Reports_${selectedPattern.toUpperCase()}.docx downloaded.`);
     } catch (err: any) {
       addToast('error', 'Download Failed', 'Could not create Word document.');
     }
   };
 
+  // Download PDF
   const handleDownloadPDF = async () => {
-    if (!students || students.length === 0) {
-      addToast('error', 'No Reports Found', 'Please upload an Excel file first.');
+    if (!mergedStudents || mergedStudents.length === 0) {
+      addToast('error', 'No Merged Reports', 'Please merge Excel files first.');
       return;
     }
     try {
-      addToast('info', 'PDF Download Started', `Generating Adobe PDF (.pdf) for ${students.length} student reports...`);
-      await generateCombinedPDF(students, null, undefined, regulation);
-      addToast('success', 'PDF Document Ready', 'JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.pdf downloaded.');
+      addToast('info', 'PDF Download Started', `Generating PDF (.pdf) for ${mergedStudents.length} student reports...`);
+      await generateCombinedPDF(mergedStudents, null, undefined, regulation);
+      addToast('success', 'PDF Document Ready', `JEPPIAAR_IT_Mark_Reports_${selectedPattern.toUpperCase()}.pdf downloaded.`);
     } catch (err: any) {
       addToast('error', 'Download Failed', 'Could not generate PDF document.');
     }
   };
+
+  const isMergedReady = mergeResult && mergeResult.isReadyForPreview && mergedStudents.length > 0;
 
   return (
     <div className="min-h-screen bg-[#F7FAFF] text-slate-800 pb-8 font-sans selection:bg-blue-500 selection:text-white">
@@ -279,55 +346,71 @@ export const Dashboard: React.FC = () => {
       {/* Top Header */}
       <Header />
 
-      {/* Top Statistics Bar (6 Cards Grid) */}
+      {/* Top Statistics Bar (4 Cards Grid) */}
       <StatsGrid stats={stats} />
 
       {/* Main Content */}
       <main className="max-w-[1600px] mx-auto px-6 mb-8">
-        {!uploadedFile ? (
-          /* Centered Upload Section before Excel file is uploaded */
-          <div className="max-w-xl mx-auto py-6">
+        {!isMergedReady ? (
+          /* Centered Upload Section before Excel files are merged */
+          <div className="max-w-4xl mx-auto py-4">
             <UploadSection
-              onFileUpload={handleFileUpload}
+              selectedPattern={selectedPattern}
+              onPatternSelect={(pat) => {
+                setSelectedPattern(pat);
+                setMergeResult(null);
+              }}
+              fileSlots={fileSlots}
+              onFileUploadToSlot={handleSlotFileUpload}
+              onRemoveSlotFile={handleSlotFileRemove}
               onLoadSampleData={handleLoadSampleData}
               onDownloadSampleTemplate={handleDownloadSampleTemplate}
-              onDeleteFile={handleDeleteFile}
+              onRunMerge={handleRunMerge}
+              onGenerateDocuments={handleGenerateDocuments}
               onDownloadWord={handleDownloadWord}
               onDownloadPDF={handleDownloadPDF}
-              summary={summary}
-              uploadedFile={uploadedFile}
+              mergeResult={mergeResult}
               isProcessing={isProcessing}
               regulation={regulation}
               onRegulationChange={handleRegulationChange}
             />
           </div>
         ) : (
-          /* Split Screen Layout (35% Left / 65% Right) after Excel file is uploaded */
+          /* Split Screen Layout (35% Left / 65% Right) after Excel files are merged */
           <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            {/* Step 1 & Step 3: Upload Excel File Column + Download Buttons (35% width) */}
+            {/* Left Controls & File Upload Slots Column (35% width) */}
             <div className="w-full lg:w-[35%] shrink-0">
               <UploadSection
-                onFileUpload={handleFileUpload}
+                selectedPattern={selectedPattern}
+                onPatternSelect={(pat) => {
+                  setSelectedPattern(pat);
+                  setMergeResult(null);
+                }}
+                fileSlots={fileSlots}
+                onFileUploadToSlot={handleSlotFileUpload}
+                onRemoveSlotFile={handleSlotFileRemove}
                 onLoadSampleData={handleLoadSampleData}
                 onDownloadSampleTemplate={handleDownloadSampleTemplate}
-                onDeleteFile={handleDeleteFile}
+                onRunMerge={handleRunMerge}
+                onGenerateDocuments={handleGenerateDocuments}
                 onDownloadWord={handleDownloadWord}
                 onDownloadPDF={handleDownloadPDF}
-                summary={summary}
-                uploadedFile={uploadedFile}
+                mergeResult={mergeResult}
                 isProcessing={isProcessing}
                 regulation={regulation}
                 onRegulationChange={handleRegulationChange}
               />
             </div>
 
-            {/* Step 2: Report Template Preview Column (65% width) */}
+            {/* Right Live Preview & Student Record Editor Column (65% width) */}
             <div className="w-full lg:w-[65%] flex-1 min-w-0">
               <AcrobatDocumentViewer
-                students={students}
+                students={mergedStudents}
                 currentPageIndex={currentPageIndex}
                 onPageChange={(idx) => setCurrentPageIndex(idx)}
                 regulation={regulation}
+                onUpdateStudent={handleUpdateStudent}
+                activeTemplate={mergeResult?.templateFile || getTemplateForPattern(selectedPattern)}
               />
             </div>
           </div>

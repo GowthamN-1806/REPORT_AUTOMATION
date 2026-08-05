@@ -1,3 +1,5 @@
+export type ResultPattern = 'pattern1' | 'pattern2' | 'pattern3' | 'pattern4';
+
 export interface SubjectResult {
   sem: string;
   code: string;
@@ -10,8 +12,9 @@ export interface InternalEvalResult {
   sem: string;
   code: string;
   title: string;
-  cie1Marks: number | string;
+  cie1Marks?: number | string;
   cie2Marks?: number | string;
+  modelMarks?: number | string;
   passFail: 'PASS' | 'FAIL' | '';
 }
 
@@ -51,4 +54,17 @@ export interface SystemStats {
   department: string;
   academicYear: string;
   uploadStatus: string;
+}
+
+export interface UploadedFileSlotInfo {
+  key: 'univ' | 'cie1' | 'cie2' | 'model';
+  label: string;
+  file: File | null;
+  name: string;
+  size: string;
+  studentCount: number;
+  isValid: boolean;
+  missingCount: number;
+  duplicateCount: number;
+  students: StudentRecord[];
 }
