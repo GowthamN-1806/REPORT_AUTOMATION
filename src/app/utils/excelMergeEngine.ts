@@ -49,37 +49,48 @@ const normalizeRegNo = (regNo: string): string => {
 
 export const mergeExcelDatasets = (
   pattern: ResultPattern,
-  univStudents: StudentRecord[],
+  univStudents: StudentRecord[] = [],
   cie1Students: StudentRecord[] = [],
   cie2Students: StudentRecord[] = [],
   modelStudents: StudentRecord[] = []
 ): MergeEngineResult => {
-  const templateFile = getTemplateForPattern(pattern);
   const univCount = univStudents.length;
   const cie1Count = cie1Students.length;
   const cie2Count = cie2Students.length;
   const modelCount = modelStudents.length;
 
+  // Determine active uploaded count & dynamic pattern matching
+  let activePattern = pattern;
+  const uploadedFilesCount = (univCount > 0 ? 1 : 0) + (cie1Count > 0 ? 1 : 0) + (cie2Count > 0 ? 1 : 0) + (modelCount > 0 ? 1 : 0);
+
+  if (uploadedFilesCount === 1) activePattern = 'pattern1';
+  else if (uploadedFilesCount === 2) activePattern = 'pattern2';
+  else if (uploadedFilesCount === 3) activePattern = 'pattern3';
+  else if (uploadedFilesCount >= 4) activePattern = 'pattern4';
+
+  const templateFile = getTemplateForPattern(activePattern);
+
+  // Select base student dataset from available files in order of priority: univ -> cie1 -> cie2 -> model
+  const baseStudents =
+    univCount > 0
+      ? univStudents
+      : cie1Count > 0
+      ? cie1Students
+      : cie2Count > 0
+      ? cie2Students
+      : modelStudents;
+
+  const mergedStudentsMap = new Map<string, StudentRecord>();
   let duplicateRegNosCount = 0;
 
-  // Track duplicates in University list
-  const seenRegs = new Set<string>();
-  univStudents.forEach((s) => {
+  // Populate base student map
+  baseStudents.forEach((s) => {
     const key = normalizeRegNo(s.regNo);
-    if (seenRegs.has(key)) {
+    if (!key) return;
+
+    if (mergedStudentsMap.has(key)) {
       duplicateRegNosCount++;
     } else {
-      seenRegs.add(key);
-    }
-  });
-
-  // Deep clone base university students
-  const mergedStudentsMap = new Map<string, StudentRecord>();
-
-  univStudents.forEach((s) => {
-    const key = normalizeRegNo(s.regNo);
-    if (!mergedStudentsMap.has(key)) {
-      // Clone student record
       const clonedInternal: InternalEvalResult[] = (s.internalEvalResults || []).map((ie) => ({
         ...ie,
         cie1Marks: ie.cie1Marks !== undefined ? ie.cie1Marks : 80,
@@ -87,7 +98,6 @@ export const mergeExcelDatasets = (
         modelMarks: ie.modelMarks !== undefined ? ie.modelMarks : 84,
       }));
 
-      // If internalEvalResults is empty, generate from universityResults
       if (clonedInternal.length === 0 && s.universityResults && s.universityResults.length > 0) {
         s.universityResults.forEach((ur) => {
           clonedInternal.push({
@@ -105,21 +115,39 @@ export const mergeExcelDatasets = (
       mergedStudentsMap.set(key, {
         ...s,
         internalEvalResults: clonedInternal,
+        universityResults: (s.universityResults || []).map((ur) => ({ ...ur })),
       });
     }
   });
 
   let missingRecordsCount = 0;
 
-  // Merge CIE 1 Excel (Pattern >= 2)
-  if (pattern === 'pattern2' || pattern === 'pattern3' || pattern === 'pattern4') {
+  // Merge University Results if present and not base
+  if (univCount > 0 && baseStudents !== univStudents) {
+    const univMap = new Map<string, StudentRecord>();
+    univStudents.forEach((s) => univMap.set(normalizeRegNo(s.regNo), s));
+
+    mergedStudentsMap.forEach((student, regKey) => {
+      const match = univMap.get(regKey);
+      if (match) {
+        if (match.universityResults && match.universityResults.length > 0) {
+          student.universityResults = match.universityResults;
+        }
+        if (match.gpa) student.gpa = match.gpa;
+        if (match.cgpa) student.cgpa = match.cgpa;
+        if (match.classObtained) student.classObtained = match.classObtained;
+      }
+    });
+  }
+
+  // Merge CIE 1 Excel if present
+  if (cie1Count > 0) {
     const cie1Map = new Map<string, StudentRecord>();
     cie1Students.forEach((s) => cie1Map.set(normalizeRegNo(s.regNo), s));
 
     mergedStudentsMap.forEach((student, regKey) => {
       const cie1Match = cie1Map.get(regKey);
       if (cie1Match) {
-        // Map CIE 1 marks per subject
         student.internalEvalResults = student.internalEvalResults.map((ie) => {
           const matchSub = (cie1Match.internalEvalResults || []).find(
             (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
@@ -135,8 +163,8 @@ export const mergeExcelDatasets = (
     });
   }
 
-  // Merge CIE 2 Excel (Pattern >= 3)
-  if (pattern === 'pattern3' || pattern === 'pattern4') {
+  // Merge CIE 2 Excel if present
+  if (cie2Count > 0) {
     const cie2Map = new Map<string, StudentRecord>();
     cie2Students.forEach((s) => cie2Map.set(normalizeRegNo(s.regNo), s));
 
@@ -160,8 +188,8 @@ export const mergeExcelDatasets = (
     });
   }
 
-  // Merge Model Exam Excel (Pattern == 4)
-  if (pattern === 'pattern4') {
+  // Merge Model Exam Excel if present
+  if (modelCount > 0) {
     const modelMap = new Map<string, StudentRecord>();
     modelStudents.forEach((s) => modelMap.set(normalizeRegNo(s.regNo), s));
 
@@ -189,7 +217,7 @@ export const mergeExcelDatasets = (
   const isReadyForPreview = mergedStudents.length > 0;
 
   return {
-    pattern,
+    pattern: activePattern,
     templateFile,
     univCount,
     cie1Count,

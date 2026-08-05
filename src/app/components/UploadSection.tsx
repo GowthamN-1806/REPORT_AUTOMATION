@@ -117,8 +117,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
       ? ['univ', 'cie1', 'cie2']
       : ['univ', 'cie1', 'cie2', 'model'];
 
-  const allRequiredFilesUploaded = activeRequiredKeys.every(
-    (k) => fileSlots[k] && fileSlots[k].file !== null
+  const hasUploadedFiles = Object.values(fileSlots).some(
+    (slot) => slot && slot.file !== null && slot.students && slot.students.length > 0
   );
 
   return (
@@ -333,7 +333,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!allRequiredFilesUploaded || isProcessing}
+            disabled={!hasUploadedFiles || isProcessing}
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
