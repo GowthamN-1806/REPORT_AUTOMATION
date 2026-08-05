@@ -2,13 +2,13 @@ import PizZip from 'pizzip';
 import { StudentRecord } from '../types';
 
 /**
- * Helper to update or insert text inside a Word XML table cell <w:tc>
+ * Updates text inside a Word XML cell <w:tc>
  */
 function updateCellText(cellXml: string, text: any): string {
   const str = String(text !== undefined && text !== null ? text : '');
   if (!str) return cellXml;
 
-  // If <w:t> tag already exists in cell, update text inside <w:t>
+  // If <w:t> tag already exists in cell, replace text inside <w:t>
   if (cellXml.includes('<w:t')) {
     let replaced = false;
     return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g, () => {
@@ -20,21 +20,53 @@ function updateCellText(cellXml: string, text: any): string {
     });
   }
 
-  // If no <w:t> exists inside cell's paragraph, append run before </w:p>
+  // If no <w:t> tag exists, append run inside cell's paragraph before </w:p>
   const runXml = `<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t>${str}</w:t></w:r>`;
-  return cellXml.replace('</w:p>', `${runXml}</w:p>`);
+  const pEnd = cellXml.lastIndexOf('</w:p>');
+  if (pEnd !== -1) {
+    return `${cellXml.substring(0, pEnd)}${runXml}${cellXml.substring(pEnd)}`;
+  }
+
+  return cellXml;
 }
 
 /**
- * Helper to process cells of a table row <w:tr> sequentially
+ * Updates cells of a row by splitting rowXml into cell chunks
  */
-function processRow(rXml: string, values: any[]): string {
-  let cellCount = 0;
-  return rXml.replace(/<w:tc[\s\S]*?<\/w:tc>/g, (cellXml) => {
-    const val = values[cellCount] !== undefined ? values[cellCount] : '';
-    cellCount++;
-    return updateCellText(cellXml, val);
-  });
+function updateRowCells(rowXml: string, values: any[]): string {
+  const parts = rowXml.split(/(<w:tc[\s\S]*?<\/w:tc>)/g);
+  let cellIdx = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].startsWith('<w:tc')) {
+      const val = values[cellIdx] !== undefined ? values[cellIdx] : '';
+      cellIdx++;
+      parts[i] = updateCellText(parts[i], val);
+    }
+  }
+
+  return parts.join('');
+}
+
+/**
+ * Updates rows of a table by splitting tblXml into row chunks
+ */
+function updateTableRows(tblXml: string, rowValuesList: any[][], headerRowsCount: number = 1): string {
+  const trParts = tblXml.split(/(<w:tr[\s\S]*?<\/w:tr>)/g);
+  let trIdx = 0;
+
+  for (let i = 0; i < trParts.length; i++) {
+    if (trParts[i].startsWith('<w:tr')) {
+      const currentTr = trIdx;
+      trIdx++;
+      if (currentTr >= headerRowsCount) {
+        const values = rowValuesList[currentTr - headerRowsCount] || [];
+        trParts[i] = updateRowCells(trParts[i], values);
+      }
+    }
+  }
+
+  return trParts.join('');
 }
 
 /**
@@ -66,102 +98,81 @@ export async function populateOfficialDocxTemplate(
   xml = xml.replace(/\{\{REGULATION\}\}/g, regulation || student.regulation || '2021');
   xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/g, '2025 - 2026');
 
-  // 2. Populate Tables
-  let tblCount = 0;
-  xml = xml.replace(/<w:tbl[\s\S]*?<\/w:tbl>/g, (tblXml) => {
-    tblCount++;
+  // 2. Split XML into Table Chunks & Update Tables Immutably
+  const isModel = cleanName.includes('model');
+  const isCie2 = cleanName.includes('cie1_cie2');
 
-    // TABLE 2: University Results
-    if (tblCount === 2) {
-      let rIdx = 0;
-      return tblXml.replace(/<w:tr[\s\S]*?<\/w:tr>/g, (rXml) => {
-        if (rIdx === 0) {
-          rIdx++;
-          return rXml; // Header row
-        }
-        const item = (student.universityResults || [])[rIdx - 1];
-        rIdx++;
-        if (item) {
-          return processRow(rXml, [item.sem || 'VI', item.code, item.title, item.grade, item.passFail]);
-        }
-        return processRow(rXml, ['', '', '', '', '']);
-      });
-    }
+  const tblParts = xml.split(/(<w:tbl[\s\S]*?<\/w:tbl>)/g);
+  let tblIdx = 0;
 
-    // TABLE 3: GPA & CGPA Summary Table
-    if (tblCount === 3) {
-      let rIdx = 0;
-      return tblXml.replace(/<w:tr[\s\S]*?<\/w:tr>/g, (rXml) => {
-        const currentIdx = rIdx;
-        rIdx++;
+  for (let i = 0; i < tblParts.length; i++) {
+    if (tblParts[i].startsWith('<w:tbl')) {
+      const currentTbl = tblIdx;
+      tblIdx++;
 
-        // Row 3 = CGPA, Row 4 = CLASS OBTAINED
-        if (currentIdx === 3) {
-          const cgpaVal = student.cgpa ? student.cgpa.toFixed(2) : '8.42';
-          return processRow(rXml, ['CGPA', cgpaVal]);
-        }
-        if (currentIdx === 4) {
-          const classVal = student.classObtained || 'FIRST CLASS';
-          return processRow(rXml, ['CLASS OBTAINED', classVal]);
-        }
-        return rXml;
-      });
-    }
-
-    // TABLE 4: Internal Evaluation Marks Table
-    if (tblCount === 4) {
-      let rIdx = 0;
-      const isModel = cleanName.includes('model');
-      const isCie2 = cleanName.includes('cie1_cie2');
-
-      return tblXml.replace(/<w:tr[\s\S]*?<\/w:tr>/g, (rXml) => {
-        if (rIdx < 2) {
-          rIdx++;
-          return rXml; // Header rows 0 and 1
-        }
-        const item = (student.internalEvalResults || [])[rIdx - 2];
-        rIdx++;
-
-        if (item) {
+      if (currentTbl === 1) {
+        // Table 2: University Results Table
+        const univRows = (student.universityResults || []).map((r) => [
+          r.sem || 'VI',
+          r.code,
+          r.title,
+          r.grade,
+          r.passFail,
+        ]);
+        tblParts[i] = updateTableRows(tblParts[i], univRows, 1);
+      } else if (currentTbl === 2) {
+        // Table 3: GPA & CGPA Summary Table
+        const cgpaVal = student.cgpa ? student.cgpa.toFixed(2) : '8.42';
+        const classVal = student.classObtained || 'FIRST CLASS';
+        const gpaRows = [
+          [],
+          [],
+          [],
+          ['CGPA', cgpaVal],
+          ['CLASS OBTAINED', classVal],
+        ];
+        tblParts[i] = updateTableRows(tblParts[i], gpaRows, 0);
+      } else if (currentTbl === 3) {
+        // Table 4: Internal Evaluation Marks Table
+        const intRows = (student.internalEvalResults || []).map((r) => {
           if (isModel) {
-            return processRow(rXml, [
-              item.sem || 'VI',
-              item.code,
-              item.title,
-              item.cie1Marks !== undefined ? item.cie1Marks : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.cie2Marks !== undefined ? item.cie2Marks : '',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.modelMarks !== undefined ? item.modelMarks : '',
-              item.modelMarks !== undefined ? (item.modelMarks >= 50 ? 'PASS' : 'FAIL') : '',
-            ]);
+            return [
+              r.sem || 'VI',
+              r.code,
+              r.title,
+              r.cie1Marks !== undefined ? r.cie1Marks : '',
+              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              r.cie2Marks !== undefined ? r.cie2Marks : '',
+              r.cie2Marks !== undefined ? (r.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              r.modelMarks !== undefined ? r.modelMarks : '',
+              r.modelMarks !== undefined ? (r.modelMarks >= 50 ? 'PASS' : 'FAIL') : '',
+            ];
           } else if (isCie2) {
-            return processRow(rXml, [
-              item.sem || 'VI',
-              item.code,
-              item.title,
-              item.cie1Marks !== undefined ? item.cie1Marks : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.cie2Marks !== undefined ? item.cie2Marks : '',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
-            ]);
+            return [
+              r.sem || 'VI',
+              r.code,
+              r.title,
+              r.cie1Marks !== undefined ? r.cie1Marks : '',
+              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              r.cie2Marks !== undefined ? r.cie2Marks : '',
+              r.cie2Marks !== undefined ? (r.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
+            ];
           } else {
-            return processRow(rXml, [
-              item.sem || 'VI',
-              item.code,
-              item.title,
-              item.cie1Marks !== undefined ? item.cie1Marks : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-            ]);
+            return [
+              r.sem || 'VI',
+              r.code,
+              r.title,
+              r.cie1Marks !== undefined ? r.cie1Marks : '',
+              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+            ];
           }
-        }
-
-        return processRow(rXml, ['', '', '', '', '', '', '', '', '']);
-      });
+        });
+        tblParts[i] = updateTableRows(tblParts[i], intRows, 2);
+      }
     }
+  }
 
-    return tblXml;
-  });
+  xml = tblParts.join('');
 
   zip.file('word/document.xml', xml);
   return zip.generate({ type: 'uint8array' });
