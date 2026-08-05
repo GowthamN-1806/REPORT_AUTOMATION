@@ -24,7 +24,10 @@ export interface MergeEngineResult {
   mergedCount: number;
   missingRecordsCount: number;
   duplicateRegNosCount: number;
+  missingGpaCount: number;
+  missingSubjectsCount: number;
   invalidRowsCount: number;
+  validationWarnings: string[];
   isReadyForPreview: boolean;
   mergedStudents: StudentRecord[];
 }
@@ -58,6 +61,8 @@ export const mergeExcelDatasets = (
   const cie2Count = cie2Students.length;
   const modelCount = modelStudents.length;
 
+  const validationWarnings: string[] = [];
+
   // Backend Automatic Template Selection Rules:
   // Rule 1: University + CIE 1 => template_cie1.docx
   // Rule 2: University + CIE 1 + CIE 2 => template_cie1_cie2.docx
@@ -80,11 +85,13 @@ export const mergeExcelDatasets = (
     activePattern = 'pattern2';
   }
 
-  // Base student dataset comes from University Results (or CIE 1 if University is empty)
+  // Base student dataset comes from University Results
   const baseStudents = univCount > 0 ? univStudents : cie1Students;
 
   const mergedStudentsMap = new Map<string, StudentRecord>();
   let duplicateRegNosCount = 0;
+  let missingGpaCount = 0;
+  let missingSubjectsCount = 0;
 
   baseStudents.forEach((s) => {
     const key = normalizeRegNo(s.regNo);
@@ -92,6 +99,7 @@ export const mergeExcelDatasets = (
 
     if (mergedStudentsMap.has(key)) {
       duplicateRegNosCount++;
+      validationWarnings.push(`Duplicate Register Number: ${s.regNo} (${s.name})`);
     } else {
       const clonedInternal: InternalEvalResult[] = (s.internalEvalResults || []).map((ie) => ({
         ...ie,
@@ -100,7 +108,6 @@ export const mergeExcelDatasets = (
         modelMarks: ie.modelMarks !== undefined ? ie.modelMarks : 84,
       }));
 
-      // Populate internalEvalResults from universityResults if empty
       if (clonedInternal.length === 0 && s.universityResults && s.universityResults.length > 0) {
         s.universityResults.forEach((ur) => {
           clonedInternal.push({
@@ -113,6 +120,14 @@ export const mergeExcelDatasets = (
             passFail: ur.passFail,
           });
         });
+      }
+
+      if (!s.cgpa && !s.gpa) {
+        missingGpaCount++;
+      }
+
+      if ((s.universityResults?.length || 0) === 0 && (clonedInternal.length === 0)) {
+        missingSubjectsCount++;
       }
 
       mergedStudentsMap.set(key, {
@@ -133,34 +148,15 @@ export const mergeExcelDatasets = (
     mergedStudentsMap.forEach((student, regKey) => {
       const cie1Match = cie1Map.get(regKey);
       if (cie1Match) {
-        const incomingSubs =
-          cie1Match.internalEvalResults && cie1Match.internalEvalResults.length > 0
-            ? cie1Match.internalEvalResults
-            : (cie1Match.universityResults as any[]) || [];
-
-        if ((!student.internalEvalResults || student.internalEvalResults.length === 0) && incomingSubs.length > 0) {
-          student.internalEvalResults = incomingSubs.map((sub: any) => ({
-            sem: sub.sem || 'VI',
-            code: sub.code,
-            title: sub.title,
-            cie1Marks: sub.cie1Marks !== undefined ? sub.cie1Marks : (sub.marks !== undefined ? sub.marks : 80),
-          }));
-        } else {
-          student.internalEvalResults = student.internalEvalResults.map((ie) => {
-            const matchSub = incomingSubs.find(
-              (cSub: any) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
-            );
-            return {
-              ...ie,
-              cie1Marks:
-                matchSub && matchSub.cie1Marks !== undefined
-                  ? matchSub.cie1Marks
-                  : matchSub && matchSub.marks !== undefined
-                  ? matchSub.marks
-                  : ie.cie1Marks,
-            };
-          });
-        }
+        student.internalEvalResults = student.internalEvalResults.map((ie) => {
+          const matchSub = (cie1Match.internalEvalResults || []).find(
+            (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
+          );
+          return {
+            ...ie,
+            cie1Marks: matchSub && matchSub.cie1Marks !== undefined ? matchSub.cie1Marks : ie.cie1Marks,
+          };
+        });
       } else {
         missingRecordsCount++;
       }
@@ -175,21 +171,15 @@ export const mergeExcelDatasets = (
     mergedStudentsMap.forEach((student, regKey) => {
       const cie2Match = cie2Map.get(regKey);
       if (cie2Match) {
-        const incomingSubs =
-          cie2Match.internalEvalResults && cie2Match.internalEvalResults.length > 0
-            ? cie2Match.internalEvalResults
-            : (cie2Match.universityResults as any[]) || [];
-
         student.internalEvalResults = student.internalEvalResults.map((ie) => {
-          const matchSub = incomingSubs.find(
-            (cSub: any) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
+          const matchSub = (cie2Match.internalEvalResults || []).find(
+            (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
           );
           return {
             ...ie,
-            cie2Marks:
-              matchSub && (matchSub.cie2Marks !== undefined || matchSub.cie1Marks !== undefined || matchSub.marks !== undefined)
-                ? (matchSub.cie2Marks !== undefined ? matchSub.cie2Marks : matchSub.cie1Marks !== undefined ? matchSub.cie1Marks : matchSub.marks)
-                : ie.cie2Marks,
+            cie2Marks: matchSub && (matchSub.cie2Marks !== undefined || matchSub.cie1Marks !== undefined)
+              ? (matchSub.cie2Marks !== undefined ? matchSub.cie2Marks : matchSub.cie1Marks)
+              : ie.cie2Marks,
           };
         });
       }
@@ -204,21 +194,15 @@ export const mergeExcelDatasets = (
     mergedStudentsMap.forEach((student, regKey) => {
       const modelMatch = modelMap.get(regKey);
       if (modelMatch) {
-        const incomingSubs =
-          modelMatch.internalEvalResults && modelMatch.internalEvalResults.length > 0
-            ? modelMatch.internalEvalResults
-            : (modelMatch.universityResults as any[]) || [];
-
         student.internalEvalResults = student.internalEvalResults.map((ie) => {
-          const matchSub = incomingSubs.find(
-            (mSub: any) => normalizeRegNo(mSub.code) === normalizeRegNo(ie.code)
+          const matchSub = (modelMatch.internalEvalResults || []).find(
+            (mSub) => normalizeRegNo(mSub.code) === normalizeRegNo(ie.code)
           );
           return {
             ...ie,
-            modelMarks:
-              matchSub && (matchSub.modelMarks !== undefined || matchSub.cie1Marks !== undefined || matchSub.marks !== undefined)
-                ? (matchSub.modelMarks !== undefined ? matchSub.modelMarks : matchSub.cie1Marks !== undefined ? matchSub.cie1Marks : matchSub.marks)
-                : ie.modelMarks,
+            modelMarks: matchSub && (matchSub.modelMarks !== undefined || matchSub.cie1Marks !== undefined)
+              ? (matchSub.modelMarks !== undefined ? matchSub.modelMarks : matchSub.cie1Marks)
+              : ie.modelMarks,
           };
         });
       }
@@ -239,7 +223,10 @@ export const mergeExcelDatasets = (
     mergedCount: mergedStudents.length,
     missingRecordsCount,
     duplicateRegNosCount,
+    missingGpaCount,
+    missingSubjectsCount,
     invalidRowsCount: 0,
+    validationWarnings,
     isReadyForPreview,
     mergedStudents,
   };

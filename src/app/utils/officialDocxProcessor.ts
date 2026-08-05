@@ -2,78 +2,43 @@ import PizZip from 'pizzip';
 import { StudentRecord } from '../types';
 
 /**
- * Escapes special XML characters to prevent XML parsing syntax errors in Word & docx-preview
+ * Helper to update text inside a Word XML cell <w:tc>
+ * Preserves all original cell properties (<w:tcPr>), paragraph properties (<w:pPr>), and text styling (<w:rPr>).
  */
-function escapeXml(str: any): string {
-  return String(str !== undefined && str !== null ? str : '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+function setCellContent(cellXml: string, textValue: any): string {
+  const str = textValue !== undefined && textValue !== null ? String(textValue).trim() : '';
 
-/**
- * Updates text inside a Word XML cell <w:tc>
- */
-function updateCellText(cellXml: string, text: any): string {
-  const str = escapeXml(text);
-  if (!str) return cellXml;
-
-  // If <w:t> tag already exists in cell, replace text inside <w:t>
   if (cellXml.includes('<w:t')) {
-    let replaced = false;
-    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g, () => {
-      if (!replaced) {
-        replaced = true;
-        return `<w:t>${str}</w:t>`;
+    let hasWritten = false;
+    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, (match, innerText) => {
+      if (!hasWritten) {
+        hasWritten = true;
+        return match.replace(innerText, str);
+      } else {
+        return match.replace(innerText, '');
       }
-      return '<w:t></w:t>';
     });
+  } else {
+    const pEndIndex = cellXml.lastIndexOf('</w:p>');
+    if (pEndIndex !== -1) {
+      const runXml = `<w:r><w:t>${str}</w:t></w:r>`;
+      return cellXml.slice(0, pEndIndex) + runXml + cellXml.slice(pEndIndex);
+    }
   }
-
-  // If no <w:t> tag exists, append run inside cell's paragraph before </w:p>
-  const runXml = `<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t>${str}</w:t></w:r></w:p>`;
-  return cellXml.replace(/<\/w:p>/, runXml);
+  return cellXml;
 }
 
 /**
- * Updates cells of a row by splitting rowXml into cell chunks
+ * Updates cells inside a table row (<w:tr>) positionally using regex replacement
  */
-function updateRowCells(rowXml: string, values: any[]): string {
-  const parts = rowXml.split(/(<w:tc[\s\S]*?<\/w:tc>)/g);
-  let cellIdx = 0;
-
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i].startsWith('<w:tc')) {
-      const val = values[cellIdx] !== undefined ? values[cellIdx] : '';
-      cellIdx++;
-      parts[i] = updateCellText(parts[i], val);
-    }
-  }
-
-  return parts.join('');
-}
-
-/**
- * Updates rows of a table by splitting tblXml into row chunks
- */
-function updateTableRows(tblXml: string, rowValuesList: any[][], headerRowsCount: number = 1): string {
-  const trParts = tblXml.split(/(<w:tr[\s\S]*?<\/w:tr>)/g);
-  let trIdx = 0;
-
-  for (let i = 0; i < trParts.length; i++) {
-    if (trParts[i].startsWith('<w:tr')) {
-      const currentTr = trIdx;
-      trIdx++;
-      if (currentTr >= headerRowsCount) {
-        const values = rowValuesList[currentTr - headerRowsCount] || [];
-        trParts[i] = updateRowCells(trParts[i], values);
-      }
-    }
-  }
-
-  return trParts.join('');
+function updateRowCells(rowXml: string, cellValues: string[]): string {
+  let colIndex = 0;
+  return rowXml.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+    const val = cellValues[colIndex] !== undefined ? cellValues[colIndex] : '';
+    const updated = setCellContent(cellXml, val);
+    colIndex++;
+    return updated;
+  });
 }
 
 /**
@@ -97,89 +62,120 @@ export async function populateOfficialDocxTemplate(
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
 
-  // 1. Replace Top Placeholders with XML-Escaped Values
-  xml = xml.replace(/\{\{REGISTER_NUMBER\}\}/g, escapeXml(student.regNo || ''));
-  xml = xml.replace(/\{\{STUDENT_NAME\}\}/g, escapeXml(student.name || ''));
-  xml = xml.replace(/\{\{DEPARTMENT\}\}/g, escapeXml(student.department || 'Computer Science and Engineering'));
-  xml = xml.replace(/\{\{EXAM_SESSION\}\}/g, 'Nov/Dec 2025');
-  xml = xml.replace(/\{\{REGULATION\}\}/g, escapeXml(regulation || student.regulation || '2021'));
-  xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/g, '2025 - 2026');
+  // 1. Replace Top Header Placeholders
+  const regNo = student.regNo || '';
+  const studentName = student.name || '';
+  const dept = student.department || 'Computer Science and Engineering';
+  const regCode = regulation || student.regulation || '2021';
+  const session = 'Nov/Dec 2025';
+  const acadYear = '2025 - 2026';
 
-  // 2. Split XML into Table Chunks & Update Tables Immutably
-  const isModel = cleanName.includes('model');
-  const isCie2 = cleanName.includes('cie1_cie2');
+  xml = xml.replace(/\{\{REGISTER_NUMBER\}\}/g, regNo);
+  xml = xml.replace(/\{\{STUDENT_NAME\}\}/g, studentName);
+  xml = xml.replace(/\{\{DEPARTMENT\}\}/g, dept);
+  xml = xml.replace(/\{\{EXAM_SESSION\}\}/g, session);
+  xml = xml.replace(/\{\{REGULATION\}\}/g, regCode);
+  xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/g, acadYear);
 
-  const tblParts = xml.split(/(<w:tbl[\s\S]*?<\/w:tbl>)/g);
-  let tblIdx = 0;
+  // 2. Populate Tables
+  const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
 
-  for (let i = 0; i < tblParts.length; i++) {
-    if (tblParts[i].startsWith('<w:tbl')) {
-      const currentTbl = tblIdx;
-      tblIdx++;
+  if (tableMatches.length >= 4) {
+    // TABLE 2: University Results
+    let tbl2 = tableMatches[1];
+    let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const univList = student.universityResults || [];
 
-      if (currentTbl === 1) {
-        // Table 2: University Results Table
-        const univRows = (student.universityResults || []).map((r) => [
-          r.sem || 'VI',
-          r.code,
-          r.title,
-          r.grade,
-          r.passFail,
-        ]);
-        tblParts[i] = updateTableRows(tblParts[i], univRows, 1);
-      } else if (currentTbl === 2) {
-        // Table 3: GPA & CGPA Summary Table
-        const cgpaVal = student.cgpa ? student.cgpa.toFixed(2) : '8.42';
-        const classVal = student.classObtained || 'FIRST CLASS';
-        const gpaRows = [
-          [],
-          [],
-          [],
-          ['CGPA', cgpaVal],
-          ['CLASS OBTAINED', classVal],
-        ];
-        tblParts[i] = updateTableRows(tblParts[i], gpaRows, 0);
-      } else if (currentTbl === 3) {
-        // Table 4: Internal Evaluation Marks Table
-        const intRows = (student.internalEvalResults || []).map((r) => {
-          if (isModel) {
-            return [
-              r.sem || 'VI',
-              r.code,
-              r.title,
-              r.cie1Marks !== undefined ? r.cie1Marks : '',
-              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              r.cie2Marks !== undefined ? r.cie2Marks : '',
-              r.cie2Marks !== undefined ? (r.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              r.modelMarks !== undefined ? r.modelMarks : '',
-              r.modelMarks !== undefined ? (r.modelMarks >= 50 ? 'PASS' : 'FAIL') : '',
-            ];
-          } else if (isCie2) {
-            return [
-              r.sem || 'VI',
-              r.code,
-              r.title,
-              r.cie1Marks !== undefined ? r.cie1Marks : '',
-              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              r.cie2Marks !== undefined ? r.cie2Marks : '',
-              r.cie2Marks !== undefined ? (r.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
-            ];
-          } else {
-            return [
-              r.sem || 'VI',
-              r.code,
-              r.title,
-              r.cie1Marks !== undefined ? r.cie1Marks : '',
-              r.cie1Marks !== undefined ? (r.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-            ];
-          }
-        });
-        tblParts[i] = updateTableRows(tblParts[i], intRows, 2);
-      }
+    rows2.slice(1).forEach((rXml, idx) => {
+      const item = univList[idx];
+      const vals = item
+        ? [item.sem || 'VI', item.code || '', item.title || '', item.grade || '', item.passFail || '']
+        : ['', '', '', '', ''];
+      const updatedRow = updateRowCells(rXml, vals);
+      tbl2 = tbl2.replace(rXml, updatedRow);
+    });
+    xml = xml.replace(tableMatches[1], tbl2);
+
+    // TABLE 3: GPA & CGPA Summary Table
+    let tbl3 = tableMatches[2];
+    let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    // Row 2 = GPA, Row 3 = CGPA, Row 4 = CLASS OBTAINED
+    if (rows3.length >= 5) {
+      // CGPA row (Row 3)
+      let r3 = rows3[3];
+      const cgpaVal = student.cgpa ? student.cgpa.toFixed(2) : '8.42';
+      r3 = r3.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+        if (cIdx === 1) return setCellContent(cellXml, cgpaVal);
+        return cellXml;
+      });
+      tbl3 = tbl3.replace(rows3[3], r3);
+
+      // Class Obtained row (Row 4)
+      let r4 = rows3[4];
+      const classVal = student.classObtained || 'FIRST CLASS';
+      r4 = r4.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+        if (cIdx === 1) return setCellContent(cellXml, classVal);
+        return cellXml;
+      });
+      tbl3 = tbl3.replace(rows3[4], r4);
     }
-  }
+    xml = xml.replace(tableMatches[2], tbl3);
 
-  xml = tblParts.join('');
+    // TABLE 4: Internal Evaluation Marks Table
+    let tbl4 = tableMatches[3];
+    let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const internalList = student.internalEvalResults || [];
+    const isModel = cleanName.includes('model');
+    const isCie2 = cleanName.includes('cie1_cie2');
+
+    // Data rows start at index 2 (row 0 and row 1 are table headers)
+    rows4.slice(2).forEach((rXml, idx) => {
+      const item = internalList[idx];
+      let vals: string[] = [];
+
+      if (isModel) {
+        vals = item
+          ? [
+              item.sem || 'VI',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.cie2Marks !== undefined ? String(item.cie2Marks) : '',
+              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.modelMarks !== undefined ? String(item.modelMarks) : '',
+              item.modelMarks !== undefined ? (item.modelMarks >= 50 ? 'PASS' : 'FAIL') : '',
+            ]
+          : ['', '', '', '', '', '', '', '', ''];
+      } else if (isCie2) {
+        vals = item
+          ? [
+              item.sem || 'VI',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.cie2Marks !== undefined ? String(item.cie2Marks) : '',
+              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
+            ]
+          : ['', '', '', '', '', '', ''];
+      } else {
+        vals = item
+          ? [
+              item.sem || 'VI',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+            ]
+          : ['', '', '', '', ''];
+      }
+
+      const updatedRow = updateRowCells(rXml, vals);
+      tbl4 = tbl4.replace(rXml, updatedRow);
+    });
+    xml = xml.replace(tableMatches[3], tbl4);
+  }
 
   zip.file('word/document.xml', xml);
   return zip.generate({ type: 'uint8array' });

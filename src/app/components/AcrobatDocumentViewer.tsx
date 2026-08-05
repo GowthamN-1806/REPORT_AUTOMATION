@@ -10,13 +10,16 @@ import {
   ChevronRight,
   Edit3,
   Sparkles,
-  FileCheck2,
   RefreshCw,
+  Download,
+  FileText,
 } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { StudentRecord } from '../types';
 import { StudentEditorModal } from './StudentEditorModal';
 import { populateOfficialDocxTemplate } from '../utils/officialDocxProcessor';
+import { generateSingleWordDocument } from '../utils/docGenerator';
+import { generateCombinedPDF } from '../utils/pdfGenerator';
 
 interface AcrobatDocumentViewerProps {
   students: StudentRecord[];
@@ -121,6 +124,18 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
     }
   };
 
+  const handleDownloadSingleDocx = async () => {
+    if (currentStudent) {
+      await generateSingleWordDocument(currentStudent, cleanTemplateName, regulation);
+    }
+  };
+
+  const handleDownloadSinglePdf = async () => {
+    if (currentStudent) {
+      await generateCombinedPDF([currentStudent], null, undefined, regulation);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -198,8 +213,30 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           </div>
         )}
 
-        {/* Right: Actions (Edit Record, Zoom, Fullscreen, Print) */}
+        {/* Right: Actions (Edit Record, Download DOCX/PDF, Zoom, Fullscreen, Print) */}
         <div className="flex items-center gap-2">
+          {currentStudent && (
+            <>
+              <button
+                onClick={handleDownloadSingleDocx}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700"
+                title="Download Current Student DOCX"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>DOCX</span>
+              </button>
+
+              <button
+                onClick={handleDownloadSinglePdf}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-red-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700"
+                title="Download Current Student PDF"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>PDF</span>
+              </button>
+            </>
+          )}
+
           {currentStudent && onUpdateStudent && (
             <button
               onClick={() => setEditingStudent(currentStudent)}
@@ -253,13 +290,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
         {isLoadingDocx && (
           <div className="absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3">
             <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
-            <p className="text-xs font-bold font-mono">Loading official template preview ({cleanTemplateName})...</p>
+            <p className="text-xs font-bold font-mono">Generating & rendering completed document for {currentStudent?.name} ({currentStudent?.regNo})...</p>
           </div>
         )}
 
         {previewError ? (
           <div className="w-full max-w-2xl m-auto bg-red-950/40 border border-red-800 rounded-2xl p-6 text-center text-red-200">
-            <p className="text-sm font-bold mb-2">Failed to render official DOCX template in preview</p>
+            <p className="text-sm font-bold mb-2">Failed to render completed DOCX template in preview</p>
             <p className="text-xs font-mono text-red-400 mb-4">{previewError}</p>
           </div>
         ) : (
