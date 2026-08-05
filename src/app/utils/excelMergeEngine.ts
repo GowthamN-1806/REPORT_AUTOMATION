@@ -15,6 +15,7 @@ export interface UploadedFileSlot {
 
 export interface MergeEngineResult {
   pattern: ResultPattern;
+  detectedPatternName: string;
   templateFile: string;
   univCount: number;
   cie1Count: number;
@@ -30,8 +31,6 @@ export interface MergeEngineResult {
 
 export const getTemplateForPattern = (pattern: ResultPattern): string => {
   switch (pattern) {
-    case 'pattern1':
-      return 'template_university.docx';
     case 'pattern2':
       return 'template_cie1.docx';
     case 'pattern3':
@@ -39,7 +38,7 @@ export const getTemplateForPattern = (pattern: ResultPattern): string => {
     case 'pattern4':
       return 'template_cie1_cie2_model.docx';
     default:
-      return 'template_university.docx';
+      return 'template_cie1.docx';
   }
 };
 
@@ -59,31 +58,34 @@ export const mergeExcelDatasets = (
   const cie2Count = cie2Students.length;
   const modelCount = modelStudents.length;
 
-  // Determine active uploaded count & dynamic pattern matching
-  let activePattern = pattern;
-  const uploadedFilesCount = (univCount > 0 ? 1 : 0) + (cie1Count > 0 ? 1 : 0) + (cie2Count > 0 ? 1 : 0) + (modelCount > 0 ? 1 : 0);
+  // Backend Automatic Template Selection Rules:
+  // Rule 1: University + CIE 1 => template_cie1.docx
+  // Rule 2: University + CIE 1 + CIE 2 => template_cie1_cie2.docx
+  // Rule 3: University + CIE 1 + CIE 2 + Model Exam => template_cie1_cie2_model.docx
+  let templateFile = 'template_cie1.docx';
+  let detectedPatternName = 'University + CIE 1';
+  let activePattern: ResultPattern = 'pattern2';
 
-  if (uploadedFilesCount === 1) activePattern = 'pattern1';
-  else if (uploadedFilesCount === 2) activePattern = 'pattern2';
-  else if (uploadedFilesCount === 3) activePattern = 'pattern3';
-  else if (uploadedFilesCount >= 4) activePattern = 'pattern4';
+  if (cie2Count > 0 && modelCount > 0) {
+    templateFile = 'template_cie1_cie2_model.docx';
+    detectedPatternName = 'University + CIE 1 + CIE 2 + Model Exam';
+    activePattern = 'pattern4';
+  } else if (cie2Count > 0) {
+    templateFile = 'template_cie1_cie2.docx';
+    detectedPatternName = 'University + CIE 1 + CIE 2';
+    activePattern = 'pattern3';
+  } else {
+    templateFile = 'template_cie1.docx';
+    detectedPatternName = 'University + CIE 1';
+    activePattern = 'pattern2';
+  }
 
-  const templateFile = getTemplateForPattern(activePattern);
-
-  // Select base student dataset from available files in order of priority: univ -> cie1 -> cie2 -> model
-  const baseStudents =
-    univCount > 0
-      ? univStudents
-      : cie1Count > 0
-      ? cie1Students
-      : cie2Count > 0
-      ? cie2Students
-      : modelStudents;
+  // Base student dataset comes from University Results
+  const baseStudents = univCount > 0 ? univStudents : cie1Students;
 
   const mergedStudentsMap = new Map<string, StudentRecord>();
   let duplicateRegNosCount = 0;
 
-  // Populate base student map
   baseStudents.forEach((s) => {
     const key = normalizeRegNo(s.regNo);
     if (!key) return;
@@ -122,25 +124,7 @@ export const mergeExcelDatasets = (
 
   let missingRecordsCount = 0;
 
-  // Merge University Results if present and not base
-  if (univCount > 0 && baseStudents !== univStudents) {
-    const univMap = new Map<string, StudentRecord>();
-    univStudents.forEach((s) => univMap.set(normalizeRegNo(s.regNo), s));
-
-    mergedStudentsMap.forEach((student, regKey) => {
-      const match = univMap.get(regKey);
-      if (match) {
-        if (match.universityResults && match.universityResults.length > 0) {
-          student.universityResults = match.universityResults;
-        }
-        if (match.gpa) student.gpa = match.gpa;
-        if (match.cgpa) student.cgpa = match.cgpa;
-        if (match.classObtained) student.classObtained = match.classObtained;
-      }
-    });
-  }
-
-  // Merge CIE 1 Excel if present
+  // Merge CIE 1 Excel (Mandatory)
   if (cie1Count > 0) {
     const cie1Map = new Map<string, StudentRecord>();
     cie1Students.forEach((s) => cie1Map.set(normalizeRegNo(s.regNo), s));
@@ -163,7 +147,7 @@ export const mergeExcelDatasets = (
     });
   }
 
-  // Merge CIE 2 Excel if present
+  // Merge CIE 2 Excel (Optional)
   if (cie2Count > 0) {
     const cie2Map = new Map<string, StudentRecord>();
     cie2Students.forEach((s) => cie2Map.set(normalizeRegNo(s.regNo), s));
@@ -182,13 +166,11 @@ export const mergeExcelDatasets = (
               : ie.cie2Marks,
           };
         });
-      } else {
-        missingRecordsCount++;
       }
     });
   }
 
-  // Merge Model Exam Excel if present
+  // Merge Model Exam Excel (Optional)
   if (modelCount > 0) {
     const modelMap = new Map<string, StudentRecord>();
     modelStudents.forEach((s) => modelMap.set(normalizeRegNo(s.regNo), s));
@@ -207,8 +189,6 @@ export const mergeExcelDatasets = (
               : ie.modelMarks,
           };
         });
-      } else {
-        missingRecordsCount++;
       }
     });
   }
@@ -218,6 +198,7 @@ export const mergeExcelDatasets = (
 
   return {
     pattern: activePattern,
+    detectedPatternName,
     templateFile,
     univCount,
     cie1Count,

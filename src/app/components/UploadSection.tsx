@@ -7,6 +7,7 @@ import {
   FileCheck2,
   Sparkles,
   ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { ResultPattern, UploadedFileSlotInfo } from '../types';
 import { MergeEngineResult } from '../utils/excelMergeEngine';
@@ -70,19 +71,18 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
   const allSlotKeys: ('univ' | 'cie1' | 'cie2' | 'model')[] = ['univ', 'cie1', 'cie2', 'model'];
 
-  const hasUploadedFiles = Object.values(fileSlots).some(
-    (slot) => slot && slot.file !== null && slot.students && slot.students.length > 0
-  );
+  // Mandatory uploads: University Result Excel & CIE 1 Excel
+  const mandatoryUploaded = !!fileSlots.univ?.file && !!fileSlots.cie1?.file;
 
   return (
     <div className="w-full flex flex-col gap-6">
 
-      {/* STEP 1: Upload Required Excel Files (4 Slots Grid matching Image 2) */}
+      {/* STEP 1: Upload Excel File Slots (University & CIE 1 Mandatory, CIE 2 & Model Optional) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md ring-4 ring-blue-50 shrink-0">
-              2
+              1
             </div>
             <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
               Upload Required Excel Files
@@ -108,7 +108,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           </div>
         </div>
 
-        {/* Upload Slots Grid (4 Cards as in Image 2) */}
+        {/* Upload Slots Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {allSlotKeys.map((key) => {
             const slot = fileSlots[key] || {
@@ -133,6 +133,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
             const inputRef = getSlotRef(key);
             const isUploaded = slot.file !== null;
+            const isMandatory = key === 'univ' || key === 'cie1';
+
             const slotLabel =
               key === 'univ'
                 ? 'University Result Excel'
@@ -150,7 +152,9 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 className={`rounded-2xl border p-4 transition-all duration-300 ${
                   isUploaded
                     ? 'border-emerald-300 bg-emerald-50/20'
-                    : 'border-blue-200/90 bg-gradient-to-b from-blue-50/30 to-transparent hover:border-blue-400'
+                    : isMandatory
+                    ? 'border-blue-200/90 bg-gradient-to-b from-blue-50/30 to-transparent hover:border-blue-400'
+                    : 'border-slate-200 bg-slate-50/30 hover:border-slate-300'
                 }`}
               >
                 <input
@@ -176,9 +180,13 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       Uploaded
                     </span>
+                  ) : isMandatory ? (
+                    <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                      Mandatory
+                    </span>
                   ) : (
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      Required
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                      Optional
                     </span>
                   )}
                 </div>
@@ -237,11 +245,15 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
         </div>
 
         {/* Action: Run Excel Merge Engine Button */}
-        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-end">
+        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-400 font-medium">
+            {!mandatoryUploaded ? 'Upload Mandatory Files (University Result & CIE 1 Excel) to merge' : 'Mandatory files uploaded. Ready to merge.'}
+          </p>
+
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!hasUploadedFiles || isProcessing}
+            disabled={!mandatoryUploaded || isProcessing}
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
@@ -252,41 +264,64 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
       </div>
 
-      {/* STEP 2: Merge Validation Summary & Auto Template Selection */}
+      {/* STEP 2: Automatic Pattern Status Card & Merge Validation Display */}
       {mergeResult && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between gap-3 mb-4">
+          
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md ring-4 ring-emerald-50 shrink-0">
                 2
               </div>
-              <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
-                Excel Merge Validation & Auto Template Selection
-              </h3>
+              <div>
+                <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
+                  Automatic Backend Template Selection & Validation
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Status Card: Backend detected pattern and selected master template
+                </p>
+              </div>
             </div>
 
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-mono text-xs font-bold border border-emerald-300">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-900 font-mono text-xs font-extrabold border border-emerald-300 shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              Template: {mergeResult.templateFile}
+              Status: Automatically Selected
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <div className="bg-slate-50 border border-slate-200/90 p-3 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase">Univ Students</p>
-              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.univCount}</p>
+          {/* Status Details Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 mb-5">
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Detected Pattern</p>
+              <p className="text-xs font-black text-blue-950 font-mono mt-1">{mergeResult.detectedPatternName || 'University + CIE 1'}</p>
             </div>
-            <div className="bg-slate-50 border border-slate-200/90 p-3 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase">CIE 1 Students</p>
-              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.cie1Count || '-'}</p>
+
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Selected Template</p>
+              <p className="text-xs font-black text-emerald-700 font-mono mt-1">{mergeResult.templateFile}</p>
             </div>
-            <div className="bg-slate-50 border border-slate-200/90 p-3 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase">CIE 2 Students</p>
-              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.cie2Count || '-'}</p>
+
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ready For Preview</p>
+              <p className="text-xs font-black text-emerald-600 font-mono mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Ready (100%)
+              </p>
             </div>
-            <div className="bg-slate-50 border border-slate-200/90 p-3 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase">Model Students</p>
-              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.modelCount || '-'}</p>
+
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Merged Students</p>
+              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.mergedCount}</p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Missing Students</p>
+              <p className="text-base font-black text-slate-700 font-mono mt-0.5">{mergeResult.missingRecordsCount}</p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Duplicate Reg Numbers</p>
+              <p className="text-base font-black text-slate-700 font-mono mt-0.5">{mergeResult.duplicateRegNosCount}</p>
             </div>
           </div>
 
