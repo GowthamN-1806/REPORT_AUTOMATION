@@ -142,16 +142,16 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
   return (
     <div
-      className={`w-full flex flex-col bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 transition-all duration-300 ${
+      className={`w-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-xl border border-blue-200/80 transition-all duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : 'h-[900px]'
       }`}
     >
       {/* Top Toolbar */}
-      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white">
+      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white shadow-md">
         
         {/* Left: Template Badge & Student Select Dropdown */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-blue-950/80 text-blue-300 text-xs font-mono font-bold px-3 py-1.5 rounded-xl border border-blue-800/60 shadow-inner">
+          <div className="flex items-center gap-2 bg-blue-900/60 text-blue-200 text-xs font-mono font-bold px-3 py-1.5 rounded-xl border border-blue-700/60 shadow-inner">
             <Sparkles className="w-3.5 h-3.5 text-blue-400" />
             <span>Master Template: {cleanTemplateName}</span>
           </div>
@@ -161,7 +161,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
               <select
                 value={currentPageIndex}
                 onChange={(e) => onPageChange(Number(e.target.value))}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-mono text-xs font-bold px-3 py-1.5 pr-8 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all appearance-none"
+                className="bg-slate-800/90 hover:bg-slate-700 text-white font-mono text-xs font-bold px-3 py-1.5 pr-8 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all appearance-none shadow-sm"
               >
                 {activeStudents.map((s, idx) => (
                   <option key={s.id || idx} value={idx}>
@@ -180,20 +180,20 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             <button
               onClick={handlePrevStudent}
               disabled={currentPageIndex === 0}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
               title="Previous Student"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800/70 px-3 py-1 rounded-xl border border-slate-700/60">
+            <span className="text-xs font-mono font-bold text-slate-200 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/60 shadow-sm">
               Report {currentPageIndex + 1} of {totalReports}
             </span>
 
             <button
               onClick={handleNextStudent}
               disabled={currentPageIndex === totalReports - 1}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
               title="Next Student"
             >
               <ChevronRight className="w-4 h-4" />
@@ -207,7 +207,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                 placeholder="Go #"
                 value={targetReportIndex}
                 onChange={(e) => setTargetReportIndex(e.target.value)}
-                className="w-14 text-xs font-mono px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-14 text-xs font-mono px-2 py-1 bg-slate-800/90 border border-slate-700 rounded-lg text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
               />
             </form>
           </div>
@@ -219,19 +219,19 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             <>
               <button
                 onClick={handleDownloadSingleDocx}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700"
+                className="px-2.5 py-1.5 rounded-xl bg-blue-900/80 hover:bg-blue-800 text-blue-200 text-xs font-bold transition-all flex items-center gap-1 border border-blue-700/70 shadow-sm"
                 title="Download Current Student DOCX"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 text-blue-300" />
                 <span>DOCX</span>
               </button>
 
               <button
                 onClick={handleDownloadSinglePdf}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-red-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700"
+                className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-200 text-xs font-bold transition-all flex items-center gap-1 border border-rose-800/70 shadow-sm"
                 title="Download Current Student PDF"
               >
-                <FileText className="w-3.5 h-3.5" />
+                <FileText className="w-3.5 h-3.5 text-rose-300" />
                 <span>PDF</span>
               </button>
             </>
@@ -247,7 +247,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             </button>
           )}
 
-          <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
+          <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700 shadow-sm">
             <button
               onClick={handleZoomOut}
               className="p-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
@@ -269,7 +269,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -277,7 +277,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
           <button
             onClick={handlePrint}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
             title="Print Preview"
           >
             <Printer className="w-4 h-4" />
@@ -286,18 +286,20 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
       </div>
 
       {/* Main Document Display Container */}
-      <div className="flex-1 bg-slate-950 overflow-auto p-6 flex justify-center relative">
+      <div className="flex-1 bg-[#F2F6FC] border-t border-slate-200/80 overflow-auto p-6 flex justify-center relative shadow-inner">
         {isLoadingDocx && (
-          <div className="absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3">
-            <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
-            <p className="text-xs font-bold font-mono">Generating & rendering completed document for {currentStudent?.name} ({currentStudent?.regNo})...</p>
+          <div className="absolute inset-0 z-20 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3">
+            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
+            <p className="text-xs font-bold font-mono bg-blue-950/90 text-blue-200 px-4 py-2 rounded-xl shadow-lg border border-blue-800">
+              Generating & rendering completed document for {currentStudent?.name} ({currentStudent?.regNo})...
+            </p>
           </div>
         )}
 
         {previewError ? (
-          <div className="w-full max-w-2xl m-auto bg-red-950/40 border border-red-800 rounded-2xl p-6 text-center text-red-200">
+          <div className="w-full max-w-2xl m-auto bg-red-50 border border-red-200 rounded-2xl p-6 text-center text-red-900 shadow-md">
             <p className="text-sm font-bold mb-2">Failed to render completed DOCX template in preview</p>
-            <p className="text-xs font-mono text-red-400 mb-4">{previewError}</p>
+            <p className="text-xs font-mono text-red-600 mb-4">{previewError}</p>
           </div>
         ) : (
           <div
@@ -306,7 +308,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           >
             <div
               ref={docxContainerRef}
-              className="w-full max-w-[850px] min-h-[1100px] bg-white rounded-xl shadow-2xl p-2 text-slate-900 border border-slate-200"
+              className="w-full max-w-[850px] min-h-[1100px] bg-white rounded-xl shadow-[0_12px_40px_rgba(30,58,138,0.15)] p-4 text-slate-900 border border-slate-200/90"
             />
           </div>
         )}

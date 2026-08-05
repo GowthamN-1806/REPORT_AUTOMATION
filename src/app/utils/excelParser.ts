@@ -482,6 +482,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
           if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
 
+          // Filter out header label rows (e.g. S.No, Sl.No, Register Number, Name of the Student)
+          if (
+            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(regNoStr) ||
+            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(nameStr)
+          ) {
+            continue;
+          }
+
           // Skip non-student rows
           if (!regNoStr && !nameStr) continue;
 
