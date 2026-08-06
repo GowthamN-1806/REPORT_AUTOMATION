@@ -56,7 +56,7 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * NO HARDCODED DEFAULTS: All unsupplied or missing fields remain empty strings ("").
+ * Ensures 100% exact placeholder name mapping for DOCX templates.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -66,11 +66,6 @@ export async function populateOfficialDocxTemplateWithLogs(
   if (!student) {
     throw new Error('No student data provided for DOCX template rendering.');
   }
-
-  // 1. Parsed Excel student object
-  console.log('=================== DEBUG PIPELINE: 1. PARSED EXCEL STUDENT OBJECT ===================');
-  console.log(student);
-  console.log('=====================================================================================');
 
   const parsedSubjects = student.universityResults || [];
   const gpa = student.gpaBySem || {};
@@ -92,15 +87,30 @@ export async function populateOfficialDocxTemplateWithLogs(
   const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : '');
   const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : '');
 
-  // 2. Final placeholder JSON passed to Docxtemplater / XML renderer (NO HARDCODED DEFAULTS)
+  // Exact Placeholder Object matching all DOCX Template keys and aliases
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
+    register_no: student.regNo || '',
+    REGISTER_NUMBER: student.regNo || '',
+    register_number: student.regNo || '',
+
     STUDENT_NAME: student.name || '',
+    student_name: student.name || '',
+
     REGULATION: regulation || student.regulation || '',
+    regulation: regulation || student.regulation || '',
+
     DEPARTMENT: student.department || '',
+    department: student.department || '',
+
     SEMESTER: student.semester || '',
+    semester: student.semester || '',
+
     EXAM_SESSION: '',
+    exam_session: '',
+
     ACADEMIC_YEAR: '',
+    academic_year: '',
 
     UNIVERSITY_SUBJECTS: parsedSubjects.map((ur) => ({
       SEM: ur.sem || student.semester || '',
@@ -108,6 +118,11 @@ export async function populateOfficialDocxTemplateWithLogs(
       TITLE: ur.title || '',
       GRADE: ur.grade || '',
       PASS_FAIL: ur.passFail || '',
+      sem: ur.sem || student.semester || '',
+      code: ur.code || '',
+      title: ur.title || '',
+      grade: ur.grade || '',
+      passFail: ur.passFail || '',
     })),
 
     GPA01: gpa01,
@@ -129,22 +144,18 @@ export async function populateOfficialDocxTemplateWithLogs(
     ARREARS07: arr07,
 
     CLASS_OBTAINED: student.classObtained || '',
+    CLASS: student.classObtained || '',
   };
 
-  console.log('=================== DEBUG PIPELINE: 2. FINAL PLACEHOLDER JSON ===================');
+  console.log('=================== DEBUG PIPELINE: EXACT PLACEHOLDER JSON ===================');
   console.log(JSON.stringify(placeholderObject, null, 2));
-  console.log('================================================================================');
+  console.log('=============================================================================');
 
-  // 3. Absolute path / URL of the template being loaded
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
     .replace(/^\/?(backend\/templates\/|templates\/|public\/templates\/)?/, '');
 
   const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
-  console.log('=================== DEBUG PIPELINE: 3. TEMPLATE BEING LOADED ===================');
-  console.log(`Template Name: ${cleanName}`);
-  console.log(`Resolved URL: ${loadedTemplatePath}`);
-  console.log('================================================================================');
 
   const candidateUrls = [
     `/templates/${cleanName}`,
@@ -175,12 +186,10 @@ export async function populateOfficialDocxTemplateWithLogs(
     throw new Error(`Failed to fetch template "${cleanName}". Ensure template_cie1.docx exists in public/templates/.`);
   }
 
-  console.log(`Successfully fetched template buffer (${arrayBuffer.byteLength} bytes) from "${fetchedUrl}"`);
-
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
 
-  // 4. All placeholder keys found inside the DOCX template
+  // Scan all placeholder keys inside the DOCX template
   const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s#\/]+)(?:<[^>]+>)*?\}\}/g;
   let match;
   const foundPlaceholders = new Set<string>();
@@ -190,33 +199,11 @@ export async function populateOfficialDocxTemplateWithLogs(
     if (phName) foundPlaceholders.add(phName);
   }
 
-  console.log('=================== DEBUG PIPELINE: 4. PLACEHOLDER KEYS IN DOCX TEMPLATE ===================');
+  console.log('=================== PLACEHOLDERS FOUND IN DOCX TEMPLATE ===================');
   console.log(Array.from(foundPlaceholders));
-  console.log('=============================================================================================');
+  console.log('============================================================================');
 
-  // 5. Number of tables found in the DOCX
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
-  console.log('=================== DEBUG PIPELINE: 5. NUMBER OF TABLES IN DOCX ===================');
-  console.log(`Total Tables Found: ${tableMatches.length}`);
-  console.log('===================================================================================');
-
-  // 6. Which table index is being populated for University Subjects
-  console.log('=================== DEBUG PIPELINE: 6. UNIVERSITY SUBJECTS TABLE INDEX ===================');
-  console.log(`Target Table Index: 1 (Table 2 in Word Document, 0-indexed position 1)`);
-  console.log('=========================================================================================');
-
-  // 7. Confirm whether UNIVERSITY_SUBJECTS exists and contains data at render time
-  console.log('=================== DEBUG PIPELINE: 7. UNIVERSITY_SUBJECTS AT RENDER TIME ===================');
-  console.log(`UNIVERSITY_SUBJECTS exists: ${Array.isArray(placeholderObject.UNIVERSITY_SUBJECTS)}`);
-  console.log(`UNIVERSITY_SUBJECTS count: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  console.log(placeholderObject.UNIVERSITY_SUBJECTS);
-  console.log('============================================================================================');
-
-  // 8. The object passed into render engine
-  console.log('=================== DEBUG PIPELINE: 8. OBJECT PASSED INTO RENDER ENGINE ===================');
-  console.log(placeholderObject);
-  console.log('============================================================================================');
-
   const mappingLogs: PlaceholderMappingLog[] = [];
   const mappedPlaceholders: string[] = [];
   const unmappedPlaceholders: string[] = [];
@@ -440,13 +427,10 @@ export async function populateOfficialDocxTemplateWithLogs(
     }
   }
 
-  // Save rendered placeholder JSON to window.__LAST_DEBUG_JSON__ & trigger debug.json save
+  // Save rendered placeholder JSON to window.__LAST_DEBUG_JSON__
   try {
     if (typeof window !== 'undefined') {
       (window as any).__LAST_DEBUG_JSON__ = placeholderObject;
-      console.log('=================== DEBUG PIPELINE: 9. SAVED RENDERED JSON TO debug.json ===================');
-      console.log('Placeholder Object saved in window.__LAST_DEBUG_JSON__');
-      console.log('============================================================================================');
     }
   } catch (err) {
     console.error('Failed to attach debug.json:', err);
