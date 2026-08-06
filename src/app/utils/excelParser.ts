@@ -59,13 +59,13 @@ const isDateCell = (str: string): boolean => {
   return false;
 };
 
-// Helper to detect if a cell string is Title, Department Header, Credit Row, or Faculty metadata
-const isFacultyNameCell = (str: string): boolean => {
+// Helper to detect if a cell string is Title, Logo, Department Header, Credit Row, or Faculty metadata
+const isMetadataRowCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
          /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
-         /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|credit value|credit|academic year|year\/sem|test name)/i.test(clean);
+         /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|credit value|credit|academic year|year\/sem|test name|result analysis)/i.test(clean);
 };
 
 /**
@@ -159,6 +159,11 @@ const findColIndex = (headers: string[], candidates: string[]): number => {
   return -1;
 };
 
+/**
+ * Universal Dynamic Excel Parser
+ * Automatically detects the student table by searching for "Reg No" / "REG.NO" and "Name".
+ * Works dynamically across all departments without hardcoded row numbers or column indexes.
+ */
 export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -173,7 +178,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         const allStudentsMap = new Map<string, StudentRecord>();
 
-        // Filter valid worksheets (e.g. Table 1, Table 2; ignore Table 3 / Summary)
+        // Filter out summary/statistics sheets (e.g. Table 3, Summary, Abstract)
         const validSheetNames = workbook.SheetNames.filter((sName) => {
           const cleanS = sName.trim().toLowerCase();
           if (
@@ -194,14 +199,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
           if (!rawMatrix || rawMatrix.length === 0) return;
 
-          // STEP 1: Dynamically locate the exact Header Row containing "Reg No" or "REG.NO" or "Register No" and "Name"
+          // STEP 1: Dynamically locate the exact Header Row containing "Reg No" / "REG.NO" / "Register No" and "Name"
           let headerRowIndex = -1;
           let regNoColIndex = -1;
           let nameColIndex = -1;
           let deptColIndex = -1;
           let reguColIndex = -1;
 
-          for (let r = 0; r < Math.min(40, rawMatrix.length); r++) {
+          for (let r = 0; r < Math.min(50, rawMatrix.length); r++) {
             const rowCells = rawMatrix[r] || [];
             let foundReg = -1;
             let foundName = -1;
@@ -209,6 +214,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             for (let c = 0; c < rowCells.length; c++) {
               const cellText = String(rowCells[c] || '').trim().toLowerCase();
               if (cellText === '') continue;
+
+              // Ignore title rows, logo rows, branch rows, credit value rows
+              if (isMetadataRowCell(cellText)) continue;
 
               if (foundReg === -1 && /^(reg|reg\.?\s*no|reg_no|regno|roll|roll\.?\s*no|rollno|register|registration|register\s*no|register\s*number)/i.test(cellText)) {
                 foundReg = c;
@@ -245,13 +253,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const prevVal = String((rawMatrix[Math.max(0, headerRowIndex - 1)] || [])[c] || '').trim();
               const nextVal = String((rawMatrix[headerRowIndex + 1] || [])[c] || '').trim();
               const combined = prevVal || nextVal;
-              if (combined && !isDateCell(combined) && !isFacultyNameCell(combined)) {
+              if (combined && !isDateCell(combined) && !isMetadataRowCell(combined)) {
                 headerNames[c] = combined;
               }
             }
           }
 
-          // Metadata Extraction from top title rows (rows above headerRowIndex) without hardcoded defaults
+          // Dynamic Metadata Extraction across any department (CSE, ECE, EEE, MECH, CIVIL, IT, AI&DS, etc.)
           let extractedDepartment = '';
           let extractedRegulation = '';
           let extractedSemester = '';
@@ -260,11 +268,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const rCells = rawMatrix[r] || [];
             for (let c = 0; c < rCells.length; c++) {
               const txt = String(rCells[c] || '').trim();
-              if (/dept/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
-                const val = String(rCells[c + 1]).trim();
-                if (val) extractedDepartment = val;
+              if (/department\s+of\s+([A-Za-z0-9\s&,.-]+)/i.test(txt)) {
+                const match = txt.match(/department\s+of\s+([A-Za-z0-9\s&,.-]+)/i);
+                if (match && match[1]) extractedDepartment = `Department of ${match[1].trim()}`;
               } else if (/dept\s*:\s*(.*)/i.test(txt)) {
                 const match = txt.match(/dept\s*:\s*(.*)/i);
+                if (match && match[1]) extractedDepartment = match[1].trim();
+              } else if (/branch\s*:\s*(.*)/i.test(txt)) {
+                const match = txt.match(/branch\s*:\s*(.*)/i);
                 if (match && match[1]) extractedDepartment = match[1].trim();
               } else if (/regulation/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
                 const val = String(rCells[c + 1]).trim();
@@ -350,7 +361,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           for (let c = 0; c < headerNames.length; c++) {
             if (c === regNoColIndex || c === nameColIndex || c === deptColIndex || c === reguColIndex) continue;
             const txt = headerNames[c];
-            if (!txt || isPlaceholderToken(txt) || isDateCell(txt) || isFacultyNameCell(txt)) continue;
+            if (!txt || isPlaceholderToken(txt) || isDateCell(txt) || isMetadataRowCell(txt)) continue;
 
             const cleanH = txt.toLowerCase().replace(/[^a-z0-9]/g, '');
             
@@ -362,7 +373,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               continue;
             }
 
-            // Extract subject code from header string (e.g. "ACS108", "CS3591", "CS503")
+            // Extract subject code from header string
             const codeMatch = txt.match(/\b([A-Za-z]{2,5}\s*\d{3,5}[A-Za-z]?)\b/);
             const codeStr = codeMatch ? codeMatch[1].replace(/\s+/g, '').toUpperCase() : txt.toUpperCase();
 
@@ -378,7 +389,22 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaColIdx = findColIndex(headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'sem 5 cgpa', 'cgpa5']);
           const arrearsColIdx = findColIndex(headerNames, ['arrears', 'no of arrears', 'no. of arrears', 'arr', 'total arrears', 'arrear']);
 
-          // Read Student Rows starting after headerRowIndex
+          // Console Logs for Dynamic Header Row & Student Table Detection Debugging
+          console.log('=================== DYNAMIC STUDENT TABLE DETECTION DEBUG ===================');
+          console.log(`[Parser Debug] Sheet Analyzed: "${sheetName}"`);
+          console.log(`[Parser Debug] Header Row Detected: Row Index ${headerRowIndex + 1} (0-indexed ${headerRowIndex})`);
+          console.log(`[Parser Debug] Reg No Column Index: ${regNoColIndex} ("${headerNames[regNoColIndex] || ''}")`);
+          console.log(`[Parser Debug] Student Name Column Index: ${nameColIndex} ("${headerNames[nameColIndex] || ''}")`);
+          console.log(`[Parser Debug] Department Extracted: "${extractedDepartment}"`);
+          console.log(`[Parser Debug] Regulation Extracted: "${extractedRegulation}"`);
+          console.log(`[Parser Debug] Semester Extracted: "${extractedSemester}"`);
+          console.log(`[Parser Debug] GPA Column Index: ${gpaColIdx !== -1 ? `${gpaColIdx} ("${headerNames[gpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
+          console.log(`[Parser Debug] CGPA Column Index: ${cgpaColIdx !== -1 ? `${cgpaColIdx} ("${headerNames[cgpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
+          console.log(`[Parser Debug] Arrears Column Index: ${arrearsColIdx !== -1 ? `${arrearsColIdx} ("${headerNames[arrearsColIdx]}")` : 'Not Found / Dynamic Search'}`);
+          console.log(`[Parser Debug] Subject Columns Detected (${directSubjectCols.length}):`, directSubjectCols.map(s => `${s.code} (Col ${s.colIndex})`));
+          console.log('=============================================================================');
+
+          // Read Student Rows starting after headerRowIndex until table ends
           const studentDataStartRowIndex = headerRowIndex + 1;
           let parsedRowCount = 0;
 
@@ -393,10 +419,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             let regNoStr = normalizeRegNo(rawRegVal);
             let nameStr = String(rawNameVal || '').trim();
 
-            if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
-            if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
+            if (isDateCell(regNoStr) || isMetadataRowCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
+            if (isDateCell(nameStr) || isMetadataRowCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
 
-            // Filter out summary, staff, date, total, statistics label rows
+            // Filter out summary, staff, date, total, statistics label rows (End of Student Table)
             if (
               /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge|credit)/i.test(regNoStr) ||
               /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge|credit)/i.test(nameStr)
@@ -421,7 +447,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const cgpaVal = rawCGPA !== undefined && rawCGPA !== null && String(rawCGPA).trim() !== '' ? (isNaN(Number(rawCGPA)) ? String(rawCGPA) : Number(rawCGPA)) : undefined;
             const classObtained = rawClass !== undefined && rawClass !== null ? String(rawClass).trim().toUpperCase() : '';
 
-            // Read Semester GPAs, CGPAs, Arrears strictly for Semesters 1-7 without default fallbacks
+            // Read Semester GPAs, CGPAs, Arrears strictly for Semesters 1-7
             const gpaBySem: Record<string, number | string> = {};
             const cgpaBySem: Record<string, number | string> = {};
             const arrearsMap: Record<string, number | string> = {};
@@ -556,7 +582,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               });
             }
 
-            // Student Record Storage & Consolidation without hardcoded defaults
+            // Student Record Storage & Consolidation
             let existing = allStudentsMap.get(studentKey);
             if (!existing) {
               existing = {
