@@ -622,6 +622,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
           // Fallback for Direct Column Mark Sheet format
           if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
+            let isNumericMarkSheet = false;
+
             directSubjectCols.forEach((sub) => {
               const cellVal = rowCells[sub.colIndex];
               let markNum: number | string = '';
@@ -633,18 +635,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 const parsedNum = Number(valStr);
 
                 if (!isNaN(parsedNum)) {
+                  isNumericMarkSheet = true;
                   markNum = parsedNum;
                   passFail = parsedNum >= 50 ? 'PASS' : 'FAIL';
-
-                  if (parsedNum >= 90) grade = 'O';
-                  else if (parsedNum >= 81) grade = 'A+';
-                  else if (parsedNum >= 73) grade = 'A';
-                  else if (parsedNum >= 65) grade = 'B+';
-                  else if (parsedNum >= 50) grade = 'B';
-                  else {
-                    grade = 'RA';
-                    passFail = 'FAIL';
-                  }
                 } else {
                   grade = valStr.toUpperCase();
                   passFail = evaluatePassFail(valStr, grade);
@@ -652,21 +645,23 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 }
               }
 
-              universityResults.push({
-                sem: 'V',
-                code: sub.code,
-                title: sub.title,
-                grade,
-                passFail,
-              });
-
-              internalEvalResults.push({
-                sem: 'VI',
-                code: sub.code,
-                title: sub.title,
-                cie1Marks: markNum,
-                passFail,
-              });
+              if (!isNumericMarkSheet && grade) {
+                universityResults.push({
+                  sem: 'V',
+                  code: sub.code,
+                  title: sub.title,
+                  grade,
+                  passFail,
+                });
+              } else {
+                internalEvalResults.push({
+                  sem: 'VI',
+                  code: sub.code,
+                  title: sub.title,
+                  cie1Marks: markNum,
+                  passFail,
+                });
+              }
             });
           }
 
