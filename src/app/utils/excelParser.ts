@@ -37,20 +37,6 @@ const knownTitles: Record<string, string> = {
   CIVIL: 'Civil Engineering',
 };
 
-// Non-subject metadata headers to ignore when identifying subject columns
-const nonSubjectHeaders = [
-  's.no', 's.no.', 'sl.no', 'sl.no.', 'sno', 'slno', 'id', 's_no', 'sl_no',
-  'reg.no', 'reg.no.', 'reg no', 'register no', 'register_no', 'register number', 'register number:', 'regno', 'reg_no', 'registration no', 'registration_no', 'roll no', 'rollno',
-  'name', 'student name', 'student_name', 'name of the student', 'name of the student:', 'studentname', 'name_of_the_student',
-  'academic year', 'academic_year', 'academic year:', 'ay', 'year',
-  'date', 'dates', 'date:',
-  'staff name', 'staff names', 'staff_name', 'faculty', 'faculty name', 'staff',
-  'department', 'department name', 'dept', 'branch', 'department:',
-  'regulation', 'regulation:',
-  'gpa', 'cgpa', 'class', 'class obtained', 'class_obtained', 'class_obtained:',
-  'arrears', 'total', 'total marks', 'total_marks', 'percentage', 'result', 'pass/fail', 'passfail', 'status'
-];
-
 // Helper to detect if a cell string is an Exam Date
 const isDateCell = (str: string): boolean => {
   if (!str) return false;
@@ -67,6 +53,16 @@ const isFacultyNameCell = (str: string): boolean => {
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
          /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
          /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name)/i.test(clean);
+};
+
+/**
+ * Normalizes Register Numbers to ensure exact matching across independent Excel files.
+ * Handles numeric values, floats, strings with spaces, hyphens, and leading zeros.
+ */
+export const normalizeRegNo = (regNo: any): string => {
+  if (regNo === undefined || regNo === null) return '';
+  let str = typeof regNo === 'number' ? String(Math.floor(regNo)) : String(regNo);
+  return str.trim().replace(/[\s_.-]+/g, '').toUpperCase();
 };
 
 // Helper to identify placeholder tokens or __EMPTY strings
@@ -139,17 +135,6 @@ const findCellValue = (rowCells: any[], headers: string[], keyCandidates: (strin
   return undefined;
 };
 
-// Find matching column index by candidate header names
-const findColIndex = (headers: string[], candidates: string[]): number => {
-  const cleanHeaders = headers.map((h) => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
-  for (let candidate of candidates) {
-    const cleanCand = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const idx = cleanHeaders.findIndex((h) => h === cleanCand || h.includes(cleanCand));
-    if (idx !== -1) return idx;
-  }
-  return -1;
-};
-
 export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -164,7 +149,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         const allStudentsMap = new Map<string, StudentRecord>();
 
-        // Filter and iterate over valid worksheets (e.g., Table 1, Table 2; ignore Table 3 / Summary)
+        // Filter valid worksheets (e.g. Table 1, Table 2; ignore Table 3 / Summary)
         const validSheetNames = workbook.SheetNames.filter((sName) => {
           const cleanS = sName.trim().toLowerCase();
           // Explicitly ignore summary/statistics sheets like "Table 3", "Summary", "Statistics", "Abstract"
@@ -183,7 +168,6 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const worksheet = workbook.Sheets[sheetName];
           if (!worksheet) return;
 
-          // Read raw 2D matrix (header: 1)
           const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
           if (!rawMatrix || rawMatrix.length === 0) return;
 
@@ -194,7 +178,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           let deptColIndex = -1;
           let reguColIndex = -1;
 
-          for (let r = 0; r < Math.min(30, rawMatrix.length); r++) {
+          for (let r = 0; r < Math.min(35, rawMatrix.length); r++) {
             const rowCells = rawMatrix[r] || [];
             let foundReg = -1;
             let foundName = -1;
@@ -384,14 +368,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
             if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
 
-            // Filter out header label rows (e.g. S.No, Sl.No, Register Number, Name of the Student)
+            // Filter out summary, staff, date, total, statistics label rows
             if (
-              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(regNoStr) ||
-              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(nameStr)
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge)/i.test(regNoStr) ||
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge)/i.test(nameStr)
             ) {
               continue;
             }
 
+            // Stop reading sheet when Reg No and Name columns are empty
             if (!regNoStr && !nameStr) continue;
 
             const studentKey = regNoStr || normalizeRegNo(nameStr);
