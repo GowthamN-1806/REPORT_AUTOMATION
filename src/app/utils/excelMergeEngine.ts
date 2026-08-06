@@ -81,24 +81,25 @@ export const mergeExcelDatasets = (
   const validationWarnings: string[] = [];
 
   // Automatic Backend Template Selection Rules:
-  // Case 1: Uploaded University + CIE 1 => template_cie1.docx
-  // Case 2: Uploaded University + CIE 1 + CIE 2 => template_cie1_cie2.docx
-  // Case 3: Uploaded University + CIE 1 + CIE 2 + Model Exam => template_cie1_cie2_model.docx
+  // Single or Combined file upload template matching:
+  // - If Model Exam Excel is uploaded => template_cie1_cie2_model.docx
+  // - If CIE 2 Excel is uploaded => template_cie1_cie2.docx
+  // - Otherwise (University Result Excel or CIE 1 Excel only) => template_cie1.docx
   let templateFile = 'template_cie1.docx';
-  let detectedPatternName = 'University + CIE 1';
+  let detectedPatternName = 'Report Data';
   let activePattern: ResultPattern = 'pattern2';
 
-  if (cie2Count > 0 && modelCount > 0) {
+  if (modelCount > 0) {
     templateFile = 'template_cie1_cie2_model.docx';
-    detectedPatternName = 'University + CIE 1 + CIE 2 + Model Exam';
+    detectedPatternName = 'CIE I + CIE II + Model Exam';
     activePattern = 'pattern4';
   } else if (cie2Count > 0) {
     templateFile = 'template_cie1_cie2.docx';
-    detectedPatternName = 'University + CIE 1 + CIE 2';
+    detectedPatternName = 'CIE I + CIE II';
     activePattern = 'pattern3';
   } else {
     templateFile = 'template_cie1.docx';
-    detectedPatternName = 'University + CIE 1';
+    detectedPatternName = 'University Result / CIE I';
     activePattern = 'pattern2';
   }
 

@@ -71,13 +71,17 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
   const allSlotKeys: ('univ' | 'cie1' | 'cie2' | 'model')[] = ['univ', 'cie1', 'cie2', 'model'];
 
-  // Mandatory uploads: University Result Excel & CIE 1 Excel
-  const mandatoryUploaded = !!fileSlots.univ?.file && !!fileSlots.cie1?.file;
+  // Enable processing whenever AT LEAST ONE Excel file is uploaded
+  const hasAnyUploaded =
+    !!fileSlots.univ?.file ||
+    !!fileSlots.cie1?.file ||
+    !!fileSlots.cie2?.file ||
+    !!fileSlots.model?.file;
 
   return (
     <div className="w-full flex flex-col gap-6">
 
-      {/* STEP 1: Upload Excel File Slots (University & CIE 1 Mandatory, CIE 2 & Model Optional) */}
+      {/* STEP 1: Upload Excel File Slots (Any single Excel file can be processed independently) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
@@ -85,7 +89,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
               1
             </div>
             <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
-              Upload Required Excel Files
+              Upload Excel Files
             </h3>
           </div>
 
@@ -133,7 +137,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
             const inputRef = getSlotRef(key);
             const isUploaded = slot.file !== null;
-            const isMandatory = key === 'univ' || key === 'cie1';
 
             const slotLabel =
               key === 'univ'
@@ -152,8 +155,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 className={`rounded-2xl border p-4 transition-all duration-300 ${
                   isUploaded
                     ? 'border-emerald-300 bg-emerald-50/20'
-                    : isMandatory
-                    ? 'border-blue-200/90 bg-gradient-to-b from-blue-50/30 to-transparent hover:border-blue-400'
                     : 'border-slate-200 bg-slate-50/30 hover:border-slate-300'
                 }`}
               >
@@ -179,10 +180,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       Uploaded
-                    </span>
-                  ) : isMandatory ? (
-                    <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                      Mandatory
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
@@ -247,13 +244,13 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
         {/* Action: Process & Map Reports Data Button */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 font-medium">
-            {!mandatoryUploaded ? 'Upload Mandatory Files (University Result & CIE 1 Excel) to process & map' : 'Mandatory files uploaded. Ready to process & map.'}
+            {!hasAnyUploaded ? 'Upload at least one Excel file to process & map reports data.' : 'Excel file uploaded. Ready to process & map.'}
           </p>
 
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!mandatoryUploaded || isProcessing}
+            disabled={!hasAnyUploaded || isProcessing}
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
