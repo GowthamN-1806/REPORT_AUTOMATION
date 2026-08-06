@@ -45,10 +45,27 @@ export const getTemplateForPattern = (pattern: ResultPattern): string => {
   }
 };
 
-const normalizeRegNo = (regNo: string): string => {
-  return String(regNo || '').trim().replace(/[\s_.-]+/g, '').toUpperCase();
+/**
+ * Normalizes Register Numbers to ensure exact matching across independent Excel files.
+ * Handles numeric values, floats, strings with spaces, hyphens, and leading zeros.
+ */
+export const normalizeRegNo = (regNo: any): string => {
+  if (regNo === undefined || regNo === null) return '';
+  let str = '';
+  if (typeof regNo === 'number') {
+    str = String(Math.floor(regNo));
+  } else {
+    str = String(regNo);
+  }
+  return str.trim().replace(/[\s_.-]+/g, '').toUpperCase();
 };
 
+/**
+ * Data Mapping Engine (Replaces Old Merge Engine)
+ * Reads University, CIE 1, CIE 2, and Model Exam Excel files independently.
+ * Matches records strictly using Register Number only.
+ * Fills corresponding sections without hardcoding or overwriting data.
+ */
 export const mergeExcelDatasets = (
   pattern: ResultPattern,
   univStudents: StudentRecord[] = [],
@@ -192,7 +209,7 @@ export const mergeExcelDatasets = (
     }
 
     mergedStudents.push({
-      id: `std-merged-${regKey}`,
+      id: `std-mapped-${regKey}`,
       regNo,
       name,
       department,
@@ -207,6 +224,40 @@ export const mergeExcelDatasets = (
       internalEvalResults,
     });
   });
+
+  // Diagnostic Logs Execution (Required User Debug Specification)
+  console.log('==================================================');
+  console.log('🔍 BACKEND DATA MAPPING ENGINE RUNNING...');
+  console.log(`- Uploaded Files: Univ=${univCount}, CIE1=${cie1Count}, CIE2=${cie2Count}, Model=${modelCount}`);
+  console.log(`- Selected Template: ${templateFile} (${detectedPatternName})`);
+  console.log('==================================================');
+
+  mergedStudents.forEach((s) => {
+    const univSubCount = s.universityResults?.length || 0;
+    const cie1SubCount = cie1Students.length > 0 ? (s.internalEvalResults?.filter(i => i.cie1Marks !== undefined && i.cie1Marks !== null && String(i.cie1Marks).trim() !== '').length || 0) : 0;
+    const cie2SubCount = cie2Students.length > 0 ? (s.internalEvalResults?.filter(i => i.cie2Marks !== undefined && i.cie2Marks !== null && String(i.cie2Marks).trim() !== '').length || 0) : 0;
+    const modelSubCount = modelStudents.length > 0 ? (s.internalEvalResults?.filter(i => i.modelMarks !== undefined && i.modelMarks !== null && String(i.modelMarks).trim() !== '').length || 0) : 0;
+
+    console.log(`\nStudent ${s.regNo} (${s.name})`);
+    console.log(`  Register No: ${s.regNo}`);
+    console.log(`  University Subjects Found: ${univSubCount}`);
+    console.log(`  University GPA: ${s.gpa !== undefined ? s.gpa : 'Blank'}`);
+    console.log(`  University CGPA: ${s.cgpa !== undefined ? s.cgpa : 'Blank'}`);
+    console.log(`  CIE I Subjects Found: ${cie1Count > 0 ? cie1SubCount : 'Not Uploaded'}`);
+    console.log(`  CIE I Marks Found: ${cie1Count > 0 ? cie1SubCount : 'Not Uploaded'}`);
+    console.log(`  CIE II Subjects Found: ${cie2Count > 0 ? cie2SubCount : 'Not Uploaded'}`);
+    console.log(`  CIE II Marks Found: ${cie2Count > 0 ? cie2SubCount : 'Not Uploaded'}`);
+    console.log(`  Model Subjects Found: ${modelCount > 0 ? modelSubCount : 'Not Uploaded'}`);
+    console.log(`  Model Marks Found: ${modelCount > 0 ? modelSubCount : 'Not Uploaded'}`);
+
+    if (univSubCount === 0 && cie1SubCount === 0) {
+      console.warn(`  Reason: Student ${s.regNo} missing from uploaded Excel files.`);
+    } else {
+      console.log(`  Status: Ready For Preview`);
+    }
+  });
+
+  console.log('==================================================');
 
   return {
     pattern: activePattern,

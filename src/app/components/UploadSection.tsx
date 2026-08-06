@@ -244,10 +244,10 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           />
         </div>
 
-        {/* Action: Run Excel Merge Engine Button */}
+        {/* Action: Process & Map Reports Data Button */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 font-medium">
-            {!mandatoryUploaded ? 'Upload Mandatory Files (University Result & CIE 1 Excel) to merge' : 'Mandatory files uploaded. Ready to merge.'}
+            {!mandatoryUploaded ? 'Upload Mandatory Files (University Result & CIE 1 Excel) to process & map' : 'Mandatory files uploaded. Ready to process & map.'}
           </p>
 
           <button
@@ -257,7 +257,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
-            <span>Run Excel Merge Engine</span>
+            <span>Process & Map Reports Data</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

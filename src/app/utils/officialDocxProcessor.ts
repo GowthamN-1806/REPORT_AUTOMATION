@@ -20,12 +20,17 @@ export interface DocxPopulationResult {
   unmappedPlaceholders: string[];
 }
 
-/**
- * Helper to update text inside a Word XML cell <w:tc>
- * Preserves all original cell properties (<w:tcPr>), paragraph properties (<w:pPr>), and text styling (<w:rPr>).
- */
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function setCellContent(cellXml: string, textValue: any): string {
-  const str = textValue !== undefined && textValue !== null ? String(textValue).trim() : '';
+  const str = escapeXml(textValue !== undefined && textValue !== null ? String(textValue).trim() : '');
 
   if (cellXml.includes('<w:t')) {
     let hasWritten = false;
