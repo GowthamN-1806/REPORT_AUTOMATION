@@ -56,6 +56,8 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically using Header-Based Dynamic Table Detection.
+ * Populates University Results and GPA/CGPA tables when University Excel is uploaded.
+ * Leaves CIE table blank when no CIE Excel is uploaded (generates 0 default CIE values).
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -156,32 +158,28 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
 
-  // RENDER PIPELINE DEBUG PRINTS BEFORE DOCX RENDER
-  console.log('=================== RENDER PIPELINE DEBUG LOGS ===================');
-  console.log('1. Complete Parsed Student Object:');
-  console.log(student);
-
-  console.log('2. Complete Placeholder JSON Passed into Render Engine:');
-  console.log(JSON.stringify(placeholderObject, null, 2));
-
-  console.log(`3. UNIVERSITY_SUBJECTS Array Length: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-
-  console.log('4. Every UNIVERSITY_SUBJECTS Item:');
+  // PRINT ALL REQUIRED DIAGNOSTICS BEFORE RENDER
+  console.log('=================== UNIVERSITY RESULT RENDER DIAGNOSTICS ===================');
+  console.log(`1. Selected Student Register Number : "${placeholderObject.REGISTER_NO}"`);
+  console.log(`2. Selected Student Name            : "${placeholderObject.STUDENT_NAME}"`);
+  console.log(`3. universityResults Length          : ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  
+  console.log(`4. Every Subject (Code, Title, Grade, Pass/Fail):`);
   placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
-    console.log(`   [Subject ${idx + 1}] SEM: "${sub.SEM}", CODE: "${sub.CODE}", TITLE: "${sub.TITLE}", GRADE: "${sub.GRADE}", PASS_FAIL: "${sub.PASS_FAIL}"`);
+    console.log(`   [Subject ${idx + 1}] Code="${sub.CODE}", Title="${sub.TITLE}", Grade="${sub.GRADE}", Pass/Fail="${sub.PASS_FAIL}"`);
   });
 
-  console.log('5. GPA01-GPA07:');
+  console.log(`5. GPA Values:`);
   console.log(`   GPA01: "${placeholderObject.GPA01}", GPA02: "${placeholderObject.GPA02}", GPA03: "${placeholderObject.GPA03}", GPA04: "${placeholderObject.GPA04}", GPA05: "${placeholderObject.GPA05}", GPA06: "${placeholderObject.GPA06}", GPA07: "${placeholderObject.GPA07}"`);
 
   console.log(`6. CGPA: "${placeholderObject.CGPA}"`);
 
-  console.log('7. ARREARS01-ARREARS07:');
+  console.log(`7. Arrears:`);
   console.log(`   ARREARS01: "${placeholderObject.ARREARS01}", ARREARS02: "${placeholderObject.ARREARS02}", ARREARS03: "${placeholderObject.ARREARS03}", ARREARS04: "${placeholderObject.ARREARS04}", ARREARS05: "${placeholderObject.ARREARS05}", ARREARS06: "${placeholderObject.ARREARS06}", ARREARS07: "${placeholderObject.ARREARS07}"`);
 
-  console.log(`8. CLASS_OBTAINED: "${placeholderObject.CLASS_OBTAINED}"`);
+  console.log(`8. Class Obtained: "${placeholderObject.CLASS_OBTAINED}"`);
   console.log(`Loaded Template Path: ${loadedTemplatePath}`);
-  console.log('==================================================================');
+  console.log('=============================================================================');
 
   const candidateUrls = [
     `/templates/${cleanName}`,
@@ -330,7 +328,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   // Populate DYNAMICALLY Detected Tables in Word XML
   if (tableMatches.length > 0) {
-    // 1. Populate University Results Table at univTableIdx
+    // 1. Populate University Results Table at univTableIdx using ONLY universityResults
     if (univTableIdx !== -1 && tableMatches[univTableIdx]) {
       let tblUniv = tableMatches[univTableIdx];
       let rowsUniv = tblUniv.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
@@ -451,7 +449,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       xml = xml.replace(tableMatches[gpaTableIdx], tblGpa);
     }
 
-    // 3. Populate CIE / Internal Evaluation Table at cieTableIdx
+    // 3. Populate CIE / Internal Evaluation Table at cieTableIdx (LEAVE BLANK if no CIE Excel uploaded)
     if (cieTableIdx !== -1 && tableMatches[cieTableIdx]) {
       let tblCie = tableMatches[cieTableIdx];
       let rowsCie = tblCie.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
@@ -502,6 +500,11 @@ export async function populateOfficialDocxTemplateWithLogs(
 
         const table4InnerContent = [headerRow1, headerRow2, ...newRowsXml].join('');
         const newTblCieXml = tblCie.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
+        xml = xml.replace(tableMatches[cieTableIdx], newTblCieXml);
+      } else if (internalList.length === 0) {
+        // Since NO CIE Excel was uploaded: Leave the CIE table blank, do not generate default CIE values
+        const headerRowsXml = rowsCie.slice(0, Math.min(2, rowsCie.length)).join('');
+        const newTblCieXml = tblCie.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${headerRowsXml}$2`);
         xml = xml.replace(tableMatches[cieTableIdx], newTblCieXml);
       }
     }
