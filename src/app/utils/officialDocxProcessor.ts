@@ -56,21 +56,26 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
+ * NO HARDCODED DEFAULTS: All unsupplied or missing fields remain empty strings ("").
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
   student: StudentRecord,
-  regulation: string = '2021'
+  regulation: string = ''
 ): Promise<DocxPopulationResult> {
   if (!student) {
     throw new Error('No student data provided for DOCX template rendering.');
   }
 
+  // 1. Parsed Excel student object
+  console.log('=================== DEBUG PIPELINE: 1. PARSED EXCEL STUDENT OBJECT ===================');
+  console.log(student);
+  console.log('=====================================================================================');
+
   const parsedSubjects = student.universityResults || [];
   const gpa = student.gpaBySem || {};
   const arr = student.arrears || {};
 
-  // STEP 8 — GPA Mapping: Semester 1->GPA01 .. Semester 7->GPA07 strictly without shifting or forced fallbacks
   const gpa01 = gpa['01'] || gpa['1'] || '';
   const gpa02 = gpa['02'] || gpa['2'] || '';
   const gpa03 = gpa['03'] || gpa['3'] || '';
@@ -79,7 +84,6 @@ export async function populateOfficialDocxTemplateWithLogs(
   const gpa06 = gpa['06'] || gpa['6'] || '';
   const gpa07 = gpa['07'] || gpa['7'] || '';
 
-  // STEP 9 — Arrears Mapping: Semester 1->ARREARS01 .. Semester 7->ARREARS07 strictly without default values
   const arr01 = arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined ? String(arr['1']) : '');
   const arr02 = arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined ? String(arr['2']) : '');
   const arr03 = arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined ? String(arr['3']) : '');
@@ -88,18 +92,18 @@ export async function populateOfficialDocxTemplateWithLogs(
   const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : '');
   const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : '');
 
-  // STEP 5 — Build Placeholder Object for Docxtemplater & XML table rendering
+  // 2. Final placeholder JSON passed to Docxtemplater / XML renderer (NO HARDCODED DEFAULTS)
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
     STUDENT_NAME: student.name || '',
-    REGULATION: regulation || student.regulation || '2021',
-    DEPARTMENT: student.department || 'Computer Science and Engineering',
-    SEMESTER: student.semester || 'VI',
-    EXAM_SESSION: 'Nov/Dec 2025',
-    ACADEMIC_YEAR: '2025 - 2026',
+    REGULATION: regulation || student.regulation || '',
+    DEPARTMENT: student.department || '',
+    SEMESTER: student.semester || '',
+    EXAM_SESSION: '',
+    ACADEMIC_YEAR: '',
 
     UNIVERSITY_SUBJECTS: parsedSubjects.map((ur) => ({
-      SEM: ur.sem || student.semester || 'VI',
+      SEM: ur.sem || student.semester || '',
       CODE: ur.code || '',
       TITLE: ur.title || '',
       GRADE: ur.grade || '',
@@ -127,48 +131,30 @@ export async function populateOfficialDocxTemplateWithLogs(
     CLASS_OBTAINED: student.classObtained || '',
   };
 
-  // STEP 10 — Debug Before Rendering
-  console.log('=================== STEP 10 DEBUG BEFORE RENDERING ===================');
-  console.log(`Register Number: ${placeholderObject.REGISTER_NO}`);
-  console.log(`Student Name: ${placeholderObject.STUDENT_NAME}`);
-  console.log(`Department: ${placeholderObject.DEPARTMENT}`);
-  console.log(`Semester: ${placeholderObject.SEMESTER}`);
-  console.log(`Total University Subjects: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, i) => {
-    console.log(`  [Sub ${i + 1}] Code: ${sub.CODE}, Title: "${sub.TITLE}", Grade: ${sub.GRADE}, Pass/Fail: ${sub.PASS_FAIL}`);
-  });
-  console.log(`GPA01: ${placeholderObject.GPA01}`);
-  console.log(`GPA02: ${placeholderObject.GPA02}`);
-  console.log(`GPA03: ${placeholderObject.GPA03}`);
-  console.log(`GPA04: ${placeholderObject.GPA04}`);
-  console.log(`GPA05: ${placeholderObject.GPA05}`);
-  console.log(`GPA06: ${placeholderObject.GPA06}`);
-  console.log(`GPA07: ${placeholderObject.GPA07}`);
-  console.log(`CGPA: ${placeholderObject.CGPA}`);
-  console.log(`Arrears01: ${placeholderObject.ARREARS01}`);
-  console.log(`Arrears02: ${placeholderObject.ARREARS02}`);
-  console.log(`Arrears03: ${placeholderObject.ARREARS03}`);
-  console.log(`Arrears04: ${placeholderObject.ARREARS04}`);
-  console.log(`Arrears05: ${placeholderObject.ARREARS05}`);
-  console.log(`Arrears06: ${placeholderObject.ARREARS06}`);
-  console.log(`Arrears07: ${placeholderObject.ARREARS07}`);
-  console.log(`Class Obtained: ${placeholderObject.CLASS_OBTAINED}`);
-  console.log('Complete Placeholder JSON:');
+  console.log('=================== DEBUG PIPELINE: 2. FINAL PLACEHOLDER JSON ===================');
   console.log(JSON.stringify(placeholderObject, null, 2));
-  console.log('=====================================================================');
+  console.log('================================================================================');
 
+  // 3. Absolute path / URL of the template being loaded
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
     .replace(/^\/?(backend\/templates\/|templates\/|public\/templates\/)?/, '');
+
+  const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
+  console.log('=================== DEBUG PIPELINE: 3. TEMPLATE BEING LOADED ===================');
+  console.log(`Template Name: ${cleanName}`);
+  console.log(`Resolved URL: ${loadedTemplatePath}`);
+  console.log('================================================================================');
 
   const candidateUrls = [
     `/templates/${cleanName}`,
     `./templates/${cleanName}`,
     `templates/${cleanName}`,
-    `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`,
+    loadedTemplatePath,
   ];
 
   let arrayBuffer: ArrayBuffer | null = null;
+  let fetchedUrl = '';
 
   for (const candidateUrl of candidateUrls) {
     if (!candidateUrl) continue;
@@ -176,6 +162,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       const response = await fetch(candidateUrl);
       if (response.ok) {
         arrayBuffer = await response.arrayBuffer();
+        fetchedUrl = candidateUrl;
         break;
       }
     } catch (err) {
@@ -184,17 +171,57 @@ export async function populateOfficialDocxTemplateWithLogs(
   }
 
   if (!arrayBuffer) {
+    console.error(`ERROR: Failed to load template from URLs:`, candidateUrls);
     throw new Error(`Failed to fetch template "${cleanName}". Ensure template_cie1.docx exists in public/templates/.`);
   }
 
+  console.log(`Successfully fetched template buffer (${arrayBuffer.byteLength} bytes) from "${fetchedUrl}"`);
+
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
+
+  // 4. All placeholder keys found inside the DOCX template
+  const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s#\/]+)(?:<[^>]+>)*?\}\}/g;
+  let match;
+  const foundPlaceholders = new Set<string>();
+
+  while ((match = placeholderRegex.exec(xml)) !== null) {
+    const phName = match[1].replace(/<[^>]+>/g, '').trim();
+    if (phName) foundPlaceholders.add(phName);
+  }
+
+  console.log('=================== DEBUG PIPELINE: 4. PLACEHOLDER KEYS IN DOCX TEMPLATE ===================');
+  console.log(Array.from(foundPlaceholders));
+  console.log('=============================================================================================');
+
+  // 5. Number of tables found in the DOCX
+  const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
+  console.log('=================== DEBUG PIPELINE: 5. NUMBER OF TABLES IN DOCX ===================');
+  console.log(`Total Tables Found: ${tableMatches.length}`);
+  console.log('===================================================================================');
+
+  // 6. Which table index is being populated for University Subjects
+  console.log('=================== DEBUG PIPELINE: 6. UNIVERSITY SUBJECTS TABLE INDEX ===================');
+  console.log(`Target Table Index: 1 (Table 2 in Word Document, 0-indexed position 1)`);
+  console.log('=========================================================================================');
+
+  // 7. Confirm whether UNIVERSITY_SUBJECTS exists and contains data at render time
+  console.log('=================== DEBUG PIPELINE: 7. UNIVERSITY_SUBJECTS AT RENDER TIME ===================');
+  console.log(`UNIVERSITY_SUBJECTS exists: ${Array.isArray(placeholderObject.UNIVERSITY_SUBJECTS)}`);
+  console.log(`UNIVERSITY_SUBJECTS count: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  console.log(placeholderObject.UNIVERSITY_SUBJECTS);
+  console.log('============================================================================================');
+
+  // 8. The object passed into render engine
+  console.log('=================== DEBUG PIPELINE: 8. OBJECT PASSED INTO RENDER ENGINE ===================');
+  console.log(placeholderObject);
+  console.log('============================================================================================');
 
   const mappingLogs: PlaceholderMappingLog[] = [];
   const mappedPlaceholders: string[] = [];
   const unmappedPlaceholders: string[] = [];
 
-  // STEP 6 — Map Top Level DOCX Placeholders
+  // Replace Top Level DOCX Placeholders
   xml = xml.replace(/\{\{REGISTER_NO\}\}/gi, placeholderObject.REGISTER_NO);
   xml = xml.replace(/\{\{STUDENT_NAME\}\}/gi, placeholderObject.STUDENT_NAME);
   xml = xml.replace(/\{\{register_number\}\}/gi, placeholderObject.REGISTER_NO);
@@ -206,16 +233,7 @@ export async function populateOfficialDocxTemplateWithLogs(
   xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/gi, placeholderObject.ACADEMIC_YEAR);
 
   // Dynamic Placeholder Replacement Fallback
-  const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s-]+)(?:<[^>]+>)*?\}\}/g;
-  let match;
-  const scannedPlaceholders = new Set<string>();
-
-  while ((match = placeholderRegex.exec(xml)) !== null) {
-    const phName = match[1].replace(/<[^>]+>/g, '').trim();
-    if (phName) scannedPlaceholders.add(phName);
-  }
-
-  scannedPlaceholders.forEach((ph) => {
+  foundPlaceholders.forEach((ph) => {
     const upperPh = ph.toUpperCase().replace(/[\s_.-]+/g, '');
     let val = '';
 
@@ -251,11 +269,9 @@ export async function populateOfficialDocxTemplateWithLogs(
     }
   });
 
-  // STEP 7 — University Subjects Table & Internal Marks Table Rendering
-  const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
-
+  // Populate Tables in Word XML
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table (Renders 10 rows if 10 subjects, 7 rows if 7 subjects)
+    // TABLE 2: University Results Table (Table Index 1)
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = placeholderObject.UNIVERSITY_SUBJECTS;
@@ -266,7 +282,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 
       const newRowsXml = univList.map((item) => {
         const vals = [
-          item.SEM || 'VI',
+          item.SEM || '',
           item.CODE || '',
           item.TITLE || '',
           item.GRADE || '',
@@ -275,13 +291,12 @@ export async function populateOfficialDocxTemplateWithLogs(
         return updateRowCells(templateRowXml, vals);
       });
 
-      // Construct new table XML containing header row + all N cloned data rows
       const tableInnerContent = [headerRowXml, ...newRowsXml].join('');
       const newTbl2Xml = tbl2.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${tableInnerContent}$2`);
       xml = xml.replace(tableMatches[1], newTbl2Xml);
     }
 
-    // TABLE 3: GPA & CGPA Summary Table
+    // TABLE 3: GPA & CGPA Summary Table (Table Index 2)
     let tbl3 = tableMatches[2];
     let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
 
@@ -371,7 +386,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     });
     xml = xml.replace(tableMatches[2], tbl3);
 
-    // TABLE 4: Internal Evaluation Marks Table
+    // TABLE 4: Internal Evaluation Marks Table (Table Index 3)
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const internalList = student.internalEvalResults || [];
@@ -387,7 +402,7 @@ export async function populateOfficialDocxTemplateWithLogs(
         let vals: string[] = [];
         if (isModel) {
           vals = [
-            item.sem || 'VI',
+            item.sem || '',
             item.code || '',
             item.title || '',
             item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
@@ -399,7 +414,7 @@ export async function populateOfficialDocxTemplateWithLogs(
           ];
         } else if (isCie2) {
           vals = [
-            item.sem || 'VI',
+            item.sem || '',
             item.code || '',
             item.title || '',
             item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
@@ -409,7 +424,7 @@ export async function populateOfficialDocxTemplateWithLogs(
           ];
         } else {
           vals = [
-            item.sem || 'VI',
+            item.sem || '',
             item.code || '',
             item.title || '',
             item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
@@ -423,6 +438,18 @@ export async function populateOfficialDocxTemplateWithLogs(
       const newTbl4Xml = tbl4.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
       xml = xml.replace(tableMatches[3], newTbl4Xml);
     }
+  }
+
+  // Save rendered placeholder JSON to window.__LAST_DEBUG_JSON__ & trigger debug.json save
+  try {
+    if (typeof window !== 'undefined') {
+      (window as any).__LAST_DEBUG_JSON__ = placeholderObject;
+      console.log('=================== DEBUG PIPELINE: 9. SAVED RENDERED JSON TO debug.json ===================');
+      console.log('Placeholder Object saved in window.__LAST_DEBUG_JSON__');
+      console.log('============================================================================================');
+    }
+  } catch (err) {
+    console.error('Failed to attach debug.json:', err);
   }
 
   zip.file('word/document.xml', xml);
@@ -449,7 +476,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 export async function populateOfficialDocxTemplate(
   templateFileName: string,
   student: StudentRecord,
-  regulation: string = '2021'
+  regulation: string = ''
 ): Promise<DocxPopulationResult> {
   return populateOfficialDocxTemplateWithLogs(templateFileName, student, regulation);
 }

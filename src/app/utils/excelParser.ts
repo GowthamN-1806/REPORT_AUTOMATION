@@ -251,7 +251,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // STEP 1 Metadata Extraction from top title rows (rows above headerRowIndex)
+          // Metadata Extraction from top title rows (rows above headerRowIndex) without hardcoded defaults
           let extractedDepartment = '';
           let extractedRegulation = '';
           let extractedSemester = '';
@@ -279,7 +279,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // STEP 2 — Detect Columns Automatically (Subject Codes, Result, GPA, Rank)
+          // Grouped Subject Suffix Columns (_1, _2, _3 ... _n)
           interface SubjectGroupSpec {
             groupNum: number;
             codeCol: number;
@@ -378,19 +378,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaColIdx = findColIndex(headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'sem 5 cgpa', 'cgpa5']);
           const arrearsColIdx = findColIndex(headerNames, ['arrears', 'no of arrears', 'no. of arrears', 'arr', 'total arrears', 'arrear']);
 
-          // STEP 10 — Diagnostic Console Logs for Backend Excel Parser Debugging
-          console.log('=================== UNIVERSITY EXCEL PARSER DEBUG ===================');
-          console.log(`[Parser Debug] Sheet Analyzed: "${sheetName}"`);
-          console.log(`[Parser Debug] Header Row Detected: Row Index ${headerRowIndex + 1} (0-indexed ${headerRowIndex})`);
-          console.log(`[Parser Debug] Reg No Column Index: ${regNoColIndex} ("${headerNames[regNoColIndex] || ''}")`);
-          console.log(`[Parser Debug] Student Name Column Index: ${nameColIndex} ("${headerNames[nameColIndex] || ''}")`);
-          console.log(`[Parser Debug] GPA Column Detected: ${gpaColIdx !== -1 ? `Index ${gpaColIdx} ("${headerNames[gpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] CGPA Column Detected: ${cgpaColIdx !== -1 ? `Index ${cgpaColIdx} ("${headerNames[cgpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] Arrears Column Detected: ${arrearsColIdx !== -1 ? `Index ${arrearsColIdx} ("${headerNames[arrearsColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] Subject Columns Detected (${directSubjectCols.length}):`, directSubjectCols.map(s => `${s.code} (Col ${s.colIndex})`));
-          console.log('=====================================================================');
-
-          // STEP 3 — Read Student Rows starting after headerRowIndex
+          // Read Student Rows starting after headerRowIndex
           const studentDataStartRowIndex = headerRowIndex + 1;
           let parsedRowCount = 0;
 
@@ -424,7 +412,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
             parsedRowCount++;
 
-            // Read GPA / CGPA / Class Obtained strictly from Excel
+            // Read GPA / CGPA / Class Obtained strictly from Excel without hardcoded defaults
             const rawGPA = findCellValue(rowCells, headerNames, ['gpa', 'gpa_05', 'gpa 5', 'gpa_5', 'sem 5 gpa', 'gpa5', 'sgpa', /gpa/i]);
             const rawCGPA = findCellValue(rowCells, headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'cgpa_5', 'sem 5 cgpa', 'cgpa5', /cgpa/i]);
             const rawClass = findCellValue(rowCells, headerNames, ['class_obtained', 'class obtained', 'class', 'classification', /class/i]);
@@ -433,7 +421,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const cgpaVal = rawCGPA !== undefined && rawCGPA !== null && String(rawCGPA).trim() !== '' ? (isNaN(Number(rawCGPA)) ? String(rawCGPA) : Number(rawCGPA)) : undefined;
             const classObtained = rawClass !== undefined && rawClass !== null ? String(rawClass).trim().toUpperCase() : '';
 
-            // STEP 8 & 9 — Read Semester GPAs, CGPAs, Arrears strictly for Semesters 1-7
+            // Read Semester GPAs, CGPAs, Arrears strictly for Semesters 1-7 without default fallbacks
             const gpaBySem: Record<string, number | string> = {};
             const cgpaBySem: Record<string, number | string> = {};
             const arrearsMap: Record<string, number | string> = {};
@@ -475,7 +463,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
 
-            // STEP 4 — Build University Subjects
+            // Build University Subjects strictly without hardcoded default values
             const universityResults: SubjectResult[] = [];
             const internalEvalResults: InternalEvalResult[] = [];
 
@@ -496,7 +484,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
 
               const passFail = evaluatePassFail(passStr, gradeStr);
-              const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || 'VI');
+              const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || '');
 
               universityResults.push({
                 sem,
@@ -527,7 +515,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
 
                 const passFail = evaluatePassFail(passStr, cie1MarksStr);
-                const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || 'VI');
+                const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || '');
 
                 internalEvalResults.push({
                   sem,
@@ -548,7 +536,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                   const valStr = String(cellVal).trim();
                   if (isCieFile) {
                     internalEvalResults.push({
-                      sem: extractedSemester || 'VI',
+                      sem: extractedSemester || '',
                       code: sub.code,
                       title: sub.title,
                       cie1Marks: valStr,
@@ -557,7 +545,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                     });
                   } else {
                     universityResults.push({
-                      sem: extractedSemester || 'VI',
+                      sem: extractedSemester || '',
                       code: sub.code,
                       title: sub.title,
                       grade: valStr.toUpperCase(),
@@ -568,7 +556,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               });
             }
 
-            // Student Record Storage & Consolidation
+            // Student Record Storage & Consolidation without hardcoded defaults
             let existing = allStudentsMap.get(studentKey);
             if (!existing) {
               existing = {
@@ -576,8 +564,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 regNo: regNoStr,
                 name: nameStr,
                 department: extractedDepartment || '',
-                regulation: extractedRegulation || '2021',
-                semester: extractedSemester || 'VI',
+                regulation: extractedRegulation || '',
+                semester: extractedSemester || '',
                 universityResults: [],
                 gpa: gpaVal,
                 cgpa: cgpaVal,
@@ -600,7 +588,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             if (cgpaVal !== undefined) existing.cgpa = cgpaVal;
             if (classObtained) existing.classObtained = classObtained;
 
-            console.log(`[Parser Debug] Student ${regNoStr} (${nameStr}) mapped ${universityResults.length} University Subjects, GPA=${gpaVal !== undefined ? gpaVal : 'Blank'}, CGPA=${cgpaVal !== undefined ? cgpaVal : 'Blank'}`);
+            console.log(`[Parser Debug] Student ${regNoStr} (${nameStr}) mapped ${universityResults.length} University Subjects, GPA=${gpaVal !== undefined ? gpaVal : ''}, CGPA=${cgpaVal !== undefined ? cgpaVal : ''}`);
           }
 
           console.log(`[Parser Debug] Sheet "${sheetName}" Parsed ${parsedRowCount} Student Rows Successfully.`);

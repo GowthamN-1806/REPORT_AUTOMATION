@@ -80,11 +80,6 @@ export const mergeExcelDatasets = (
 
   const validationWarnings: string[] = [];
 
-  // Automatic Backend Template Selection Rules:
-  // Single or Combined file upload template matching:
-  // - If Model Exam Excel is uploaded => template_cie1_cie2_model.docx
-  // - If CIE 2 Excel is uploaded => template_cie1_cie2.docx
-  // - Otherwise (University Result Excel or CIE 1 Excel only) => template_cie1.docx
   let templateFile = 'template_cie1.docx';
   let detectedPatternName = 'Report Data';
   let activePattern: ResultPattern = 'pattern2';
@@ -143,11 +138,12 @@ export const mergeExcelDatasets = (
     const cie2Rec = cie2Map.get(regKey);
     const modelRec = modelMap.get(regKey);
 
-    // Identify Student Metadata (RegNo, Name, Dept, Regulation)
+    // Identify Student Metadata (RegNo, Name, Dept, Regulation) without hardcoded defaults
     const regNo = univRec?.regNo || cie1Rec?.regNo || cie2Rec?.regNo || modelRec?.regNo || regKey;
     const name = univRec?.name || cie1Rec?.name || cie2Rec?.name || modelRec?.name || '';
     const department = univRec?.department || cie1Rec?.department || cie2Rec?.department || modelRec?.department || '';
     const regulation = univRec?.regulation || cie1Rec?.regulation || cie2Rec?.regulation || modelRec?.regulation || '';
+    const semester = univRec?.semester || cie1Rec?.semester || cie2Rec?.semester || modelRec?.semester || '';
 
     // 1. University Section: Reads ONLY from University Result Excel
     const universityResults = univRec ? (univRec.universityResults || []).map((ur) => ({ ...ur })) : [];
@@ -184,7 +180,7 @@ export const mergeExcelDatasets = (
       const c2Sub = cie2List[i];
       const mSub = modelList[i];
 
-      const sem = uSub?.sem || c1Sub?.sem || c2Sub?.sem || mSub?.sem || 'VI';
+      const sem = uSub?.sem || c1Sub?.sem || c2Sub?.sem || mSub?.sem || semester || '';
       const code = uSub?.code || c1Sub?.code || c2Sub?.code || mSub?.code || '';
       const title = uSub?.title || c1Sub?.title || c2Sub?.title || mSub?.title || '';
 
@@ -198,23 +194,30 @@ export const mergeExcelDatasets = (
         ? (mSub.modelMarks !== undefined && mSub.modelMarks !== null ? mSub.modelMarks : (mSub.cie1Marks !== undefined ? mSub.cie1Marks : (mSub as any).grade))
         : '';
 
-      internalEvalResults.push({
-        sem,
-        code,
-        title,
-        cie1Marks: cie1Marks !== undefined && cie1Marks !== null ? cie1Marks : '',
-        cie2Marks: cie2Marks !== undefined && cie2Marks !== null ? cie2Marks : '',
-        modelMarks: modelMarks !== undefined && modelMarks !== null ? modelMarks : '',
-        passFail: c1Sub?.passFail || c2Sub?.passFail || mSub?.passFail || uSub?.passFail || '',
-      });
+      const cie1PassFail = cie1Marks !== '' ? (Number(cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(cie1Marks)) ? '' : 'FAIL')) : '';
+      const cie2PassFail = cie2Marks !== '' ? (Number(cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(cie2Marks)) ? '' : 'FAIL')) : '';
+      const modelPassFail = modelMarks !== '' ? (Number(cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(modelMarks)) ? '' : 'FAIL')) : '';
+
+      if (code || title || cie1Marks || cie2Marks || modelMarks) {
+        internalEvalResults.push({
+          sem,
+          code,
+          title,
+          cie1Marks: cie1Marks ? String(cie1Marks) : '',
+          cie2Marks: cie2Marks ? String(cie2Marks) : '',
+          modelMarks: modelMarks ? String(modelMarks) : '',
+          passFail: modelPassFail || cie2PassFail || cie1PassFail || '',
+        });
+      }
     }
 
     mergedStudents.push({
-      id: `std-mapped-${regKey}`,
+      id: `merged-${regKey}`,
       regNo,
       name,
       department,
       regulation,
+      semester,
       universityResults,
       gpa,
       cgpa,
@@ -225,40 +228,6 @@ export const mergeExcelDatasets = (
       internalEvalResults,
     });
   });
-
-  // Diagnostic Logs Execution (Required User Debug Specification)
-  console.log('==================================================');
-  console.log('🔍 BACKEND DATA MAPPING ENGINE RUNNING...');
-  console.log(`- Uploaded Files: Univ=${univCount}, CIE1=${cie1Count}, CIE2=${cie2Count}, Model=${modelCount}`);
-  console.log(`- Selected Template: ${templateFile} (${detectedPatternName})`);
-  console.log('==================================================');
-
-  mergedStudents.forEach((s) => {
-    const univSubCount = s.universityResults?.length || 0;
-    const cie1SubCount = cie1Students.length > 0 ? (s.internalEvalResults?.filter(i => i.cie1Marks !== undefined && i.cie1Marks !== null && String(i.cie1Marks).trim() !== '').length || 0) : 0;
-    const cie2SubCount = cie2Students.length > 0 ? (s.internalEvalResults?.filter(i => i.cie2Marks !== undefined && i.cie2Marks !== null && String(i.cie2Marks).trim() !== '').length || 0) : 0;
-    const modelSubCount = modelStudents.length > 0 ? (s.internalEvalResults?.filter(i => i.modelMarks !== undefined && i.modelMarks !== null && String(i.modelMarks).trim() !== '').length || 0) : 0;
-
-    console.log(`\nStudent ${s.regNo} (${s.name})`);
-    console.log(`  Register No: ${s.regNo}`);
-    console.log(`  University Subjects Found: ${univSubCount}`);
-    console.log(`  University GPA: ${s.gpa !== undefined ? s.gpa : 'Blank'}`);
-    console.log(`  University CGPA: ${s.cgpa !== undefined ? s.cgpa : 'Blank'}`);
-    console.log(`  CIE I Subjects Found: ${cie1Count > 0 ? cie1SubCount : 'Not Uploaded'}`);
-    console.log(`  CIE I Marks Found: ${cie1Count > 0 ? cie1SubCount : 'Not Uploaded'}`);
-    console.log(`  CIE II Subjects Found: ${cie2Count > 0 ? cie2SubCount : 'Not Uploaded'}`);
-    console.log(`  CIE II Marks Found: ${cie2Count > 0 ? cie2SubCount : 'Not Uploaded'}`);
-    console.log(`  Model Subjects Found: ${modelCount > 0 ? modelSubCount : 'Not Uploaded'}`);
-    console.log(`  Model Marks Found: ${modelCount > 0 ? modelSubCount : 'Not Uploaded'}`);
-
-    if (univSubCount === 0 && cie1SubCount === 0) {
-      console.warn(`  Reason: Student ${s.regNo} missing from uploaded Excel files.`);
-    } else {
-      console.log(`  Status: Ready For Preview`);
-    }
-  });
-
-  console.log('==================================================');
 
   return {
     pattern: activePattern,
