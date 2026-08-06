@@ -13,6 +13,11 @@ export interface PlaceholderMappingLog {
 export interface DocxPopulationResult {
   docBytes: Uint8Array;
   mappingLogs: PlaceholderMappingLog[];
+  studentData: any;
+  mappedCount: number;
+  unmappedCount: number;
+  mappedPlaceholders: string[];
+  unmappedPlaceholders: string[];
 }
 
 /**
@@ -64,6 +69,30 @@ export async function populateOfficialDocxTemplateWithLogs(
   student: StudentRecord,
   regulation: string = '2021'
 ): Promise<DocxPopulationResult> {
+  // Validate student data object
+  if (!student || (!student.regNo && !student.name && (!student.universityResults || student.universityResults.length === 0))) {
+    console.error('=== ERROR: Student Data Object is empty! ===', student);
+    throw new Error('No data was bound to the template. Check placeholder mapping.');
+  }
+
+  // Construct structured Student Data Object for logging & binding
+  const studentData = {
+    register_number: student.regNo || '',
+    student_name: student.name || '',
+    department: student.department || 'Computer Science and Engineering',
+    semester: student.semester || 'VI',
+    exam_session: 'Nov/Dec 2025',
+    academic_year: '2025 - 2026',
+    regulation: regulation || student.regulation || '2021',
+    cgpa: student.cgpa || 8.42,
+    gpa: student.gpaBySem || {},
+    class_obtained: student.classObtained || 'FIRST CLASS',
+    university_results: student.universityResults || [],
+    internal_results: student.internalEvalResults || [],
+  };
+
+  console.log('=== POPULATING DOCX WITH STUDENT DATA ===', studentData);
+
   const cleanName = templateFileName.replace(/^\/?(backend\/templates\/|templates\/)?/, '');
   const url = `/templates/${cleanName}`;
 
@@ -77,6 +106,8 @@ export async function populateOfficialDocxTemplateWithLogs(
   let xml = zip.file('word/document.xml')?.asText() || '';
 
   const mappingLogs: PlaceholderMappingLog[] = [];
+  const mappedPlaceholders: string[] = [];
+  const unmappedPlaceholders: string[] = [];
 
   // 1. Dynamic Placeholder Scan & Map
   const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s-]+)(?:<[^>]+>)*?\}\}/g;
@@ -95,27 +126,30 @@ export async function populateOfficialDocxTemplateWithLogs(
     let reason = '';
 
     if (cleanPh.includes('regulation')) {
-      val = regulation || student.regulation || '2021';
+      val = studentData.regulation;
       foundCol = 'Regulation';
     } else if (cleanPh.includes('registernumber') || cleanPh.includes('regno') || cleanPh === 'reg' || cleanPh.includes('register')) {
-      val = student.regNo || 'Not Available';
+      val = studentData.register_number || 'Not Available';
       foundCol = 'Register Number';
     } else if (cleanPh.includes('studentname') || cleanPh.includes('name')) {
-      val = student.name || 'Not Available';
+      val = studentData.student_name || 'Not Available';
       foundCol = 'Student Name';
     } else if (cleanPh.includes('department') || cleanPh.includes('dept')) {
-      val = student.department || 'Computer Science and Engineering';
+      val = studentData.department || 'Computer Science and Engineering';
       foundCol = 'Department';
     } else if (cleanPh.includes('examsession') || cleanPh.includes('session')) {
-      val = 'Nov/Dec 2025';
+      val = studentData.exam_session;
       foundCol = 'Exam Session';
     } else if (cleanPh.includes('academicyear') || cleanPh.includes('year')) {
-      val = '2025 - 2026';
+      val = studentData.academic_year;
       foundCol = 'Academic Year';
+    } else if (cleanPh.includes('semester') || cleanPh.includes('sem')) {
+      val = studentData.semester;
+      foundCol = 'Semester';
     } else {
       // Dynamic Subject placeholder matching
-      const sub = (student.internalEvalResults || []).find(
-        (s) => s.code.toLowerCase().replace(/[\s_.-]+/g, '') === cleanPh
+      const sub = studentData.internal_results.find(
+        (s: any) => s.code.toLowerCase().replace(/[\s_.-]+/g, '') === cleanPh
       );
       if (sub) {
         val = String(sub.cie1Marks !== undefined ? sub.cie1Marks : 'Pending');
@@ -126,12 +160,19 @@ export async function populateOfficialDocxTemplateWithLogs(
       }
     }
 
-    const status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE' =
-      val && val !== 'Pending' && val !== 'Not Available'
-        ? 'SUCCESS'
-        : val === 'Pending'
-        ? 'PENDING'
-        : 'NOT_AVAILABLE';
+    const isSuccess = val && val !== 'Pending' && val !== 'Not Available';
+
+    if (isSuccess) {
+      mappedPlaceholders.push(`{{${ph}}}`);
+    } else {
+      unmappedPlaceholders.push(`{{${ph}}}`);
+    }
+
+    const status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE' = isSuccess
+      ? 'SUCCESS'
+      : val === 'Pending'
+      ? 'PENDING'
+      : 'NOT_AVAILABLE';
 
     mappingLogs.push({
       placeholder: `{{${ph}}}`,
@@ -142,20 +183,20 @@ export async function populateOfficialDocxTemplateWithLogs(
       reason,
     });
 
-    // Replace in XML with fallback value if missing
+    // Replace in XML with extracted student value or fallback
     const fillValue = val || 'Pending';
     const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
     xml = xml.replace(replaceRegex, fillValue);
   });
 
-  // 2. Populate Tables
+  // 2. Populate Tables with studentData
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
 
   if (tableMatches.length >= 4) {
     // TABLE 2: University Results Table
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const univList = student.universityResults || [];
+    const univList = studentData.university_results;
 
     rows2.slice(1).forEach((rXml, idx) => {
       const item = univList[idx];
@@ -170,11 +211,10 @@ export async function populateOfficialDocxTemplateWithLogs(
     // TABLE 3: GPA & CGPA Summary Table
     let tbl3 = tableMatches[2];
     let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    // Row 2 = GPA, Row 3 = CGPA, Row 4 = CLASS OBTAINED
     if (rows3.length >= 5) {
       // CGPA row (Row 3)
       let r3 = rows3[3];
-      const cgpaVal = student.cgpa ? student.cgpa.toFixed(2) : '8.42';
+      const cgpaVal = studentData.cgpa ? Number(studentData.cgpa).toFixed(2) : '8.42';
       r3 = r3.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, cgpaVal);
         return cellXml;
@@ -183,7 +223,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 
       // Class Obtained row (Row 4)
       let r4 = rows3[4];
-      const classVal = student.classObtained || 'FIRST CLASS';
+      const classVal = studentData.class_obtained || 'FIRST CLASS';
       r4 = r4.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, classVal);
         return cellXml;
@@ -195,7 +235,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     // TABLE 4: Internal Evaluation Marks Table
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const internalList = student.internalEvalResults || [];
+    const internalList = studentData.internal_results;
     const isModel = cleanName.includes('model');
     const isCie2 = cleanName.includes('cie1_cie2');
 
@@ -251,9 +291,18 @@ export async function populateOfficialDocxTemplateWithLogs(
   zip.file('word/document.xml', xml);
   const docBytes = zip.generate({ type: 'uint8array' });
 
+  if (!docBytes || docBytes.length === 0) {
+    throw new Error('No data was bound to the template. Check placeholder mapping.');
+  }
+
   return {
     docBytes,
     mappingLogs,
+    studentData,
+    mappedCount: mappedPlaceholders.length,
+    unmappedCount: unmappedPlaceholders.length,
+    mappedPlaceholders,
+    unmappedPlaceholders,
   };
 }
 
