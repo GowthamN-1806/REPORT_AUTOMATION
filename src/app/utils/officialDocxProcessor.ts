@@ -56,7 +56,8 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * Ensures 100% exact placeholder name mapping for DOCX templates.
+ * Renders exactly N rows for N subjects in UNIVERSITY_SUBJECTS.
+ * Never creates empty rows. Never uses default values.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -87,7 +88,7 @@ export async function populateOfficialDocxTemplateWithLogs(
   const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : '');
   const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : '');
 
-  // Exact Placeholder Object matching all DOCX Template keys and aliases
+  // Exact Placeholder Object for University Subjects
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
     register_no: student.regNo || '',
@@ -112,18 +113,21 @@ export async function populateOfficialDocxTemplateWithLogs(
     ACADEMIC_YEAR: '',
     academic_year: '',
 
-    UNIVERSITY_SUBJECTS: parsedSubjects.map((ur) => ({
-      SEM: ur.sem || student.semester || '',
-      CODE: ur.code || '',
-      TITLE: ur.title || '',
-      GRADE: ur.grade || '',
-      PASS_FAIL: ur.passFail || '',
-      sem: ur.sem || student.semester || '',
-      code: ur.code || '',
-      title: ur.title || '',
-      grade: ur.grade || '',
-      passFail: ur.passFail || '',
-    })),
+    // UNIVERSITY_SUBJECTS contains only valid subjects from Excel (no empty rows, no hardcoded defaults)
+    UNIVERSITY_SUBJECTS: parsedSubjects
+      .filter((ur) => ur.code || ur.title || ur.grade)
+      .map((ur) => ({
+        SEM: ur.sem || student.semester || '',
+        CODE: ur.code || '',
+        TITLE: ur.title || '',
+        GRADE: ur.grade || '',
+        PASS_FAIL: ur.passFail || '',
+        sem: ur.sem || student.semester || '',
+        code: ur.code || '',
+        title: ur.title || '',
+        grade: ur.grade || '',
+        passFail: ur.passFail || '',
+      })),
 
     GPA01: gpa01,
     GPA02: gpa02,
@@ -147,9 +151,13 @@ export async function populateOfficialDocxTemplateWithLogs(
     CLASS: student.classObtained || '',
   };
 
-  console.log('=================== DEBUG PIPELINE: EXACT PLACEHOLDER JSON ===================');
-  console.log(JSON.stringify(placeholderObject, null, 2));
-  console.log('=============================================================================');
+  console.log('=================== UNIVERSITY SUBJECTS TABLE RENDERING DEBUG ===================');
+  console.log(`Student: ${placeholderObject.STUDENT_NAME} (${placeholderObject.REGISTER_NO})`);
+  console.log(`Total Valid University Subjects: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, i) => {
+    console.log(`  [Row ${i + 1}] Sem: "${sub.SEM}", Code: "${sub.CODE}", Title: "${sub.TITLE}", Grade: "${sub.GRADE}", Pass/Fail: "${sub.PASS_FAIL}"`);
+  });
+  console.log('==================================================================================');
 
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
@@ -198,10 +206,6 @@ export async function populateOfficialDocxTemplateWithLogs(
     const phName = match[1].replace(/<[^>]+>/g, '').trim();
     if (phName) foundPlaceholders.add(phName);
   }
-
-  console.log('=================== PLACEHOLDERS FOUND IN DOCX TEMPLATE ===================');
-  console.log(Array.from(foundPlaceholders));
-  console.log('============================================================================');
 
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
   const mappingLogs: PlaceholderMappingLog[] = [];
@@ -258,12 +262,12 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   // Populate Tables in Word XML
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table (Table Index 1)
+    // TABLE 2: University Results Table (Renders 1 table row per subject, exactly N rows for N subjects)
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = placeholderObject.UNIVERSITY_SUBJECTS;
 
-    if (rows2.length >= 2) {
+    if (rows2.length >= 2 && univList.length > 0) {
       const headerRowXml = rows2[0];
       const templateRowXml = rows2[1]; // Template data row
 
