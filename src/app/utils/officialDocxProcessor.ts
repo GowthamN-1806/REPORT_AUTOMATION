@@ -98,15 +98,36 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   console.log('=== POPULATING DOCX WITH STUDENT DATA ===', studentData);
 
-  const cleanName = templateFileName.replace(/^\/?(backend\/templates\/|templates\/)?/, '');
-  const url = `/templates/${cleanName}`;
+  const cleanName = (templateFileName || 'template_cie1.docx')
+    .replace(/^https?:\/\/[^\/]+/, '')
+    .replace(/^\/?(backend\/templates\/|templates\/|public\/templates\/)?/, '');
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load official template ${cleanName} from ${url}`);
+  const candidateUrls = [
+    `/templates/${cleanName}`,
+    `./templates/${cleanName}`,
+    `templates/${cleanName}`,
+    `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`,
+  ];
+
+  let arrayBuffer: ArrayBuffer | null = null;
+
+  for (const candidateUrl of candidateUrls) {
+    if (!candidateUrl) continue;
+    try {
+      const response = await fetch(candidateUrl);
+      if (response.ok) {
+        arrayBuffer = await response.arrayBuffer();
+        break;
+      }
+    } catch (err) {
+      // Continue to next candidate URL
+    }
   }
 
-  const arrayBuffer = await response.arrayBuffer();
+  if (!arrayBuffer) {
+    throw new Error(`Failed to fetch template "${cleanName}". Ensure template_cie1.docx exists in public/templates/.`);
+  }
+
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
 
@@ -253,36 +274,36 @@ export async function populateOfficialDocxTemplateWithLogs(
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || 'Not Available',
-              item.title || 'Not Available',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
-              item.cie2Marks !== undefined ? String(item.cie2Marks) : 'Pending',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
-              item.modelMarks !== undefined ? String(item.modelMarks) : 'Pending',
-              item.modelMarks !== undefined ? (item.modelMarks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
+              item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '',
+              item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? (Number(item.modelMarks) >= 50 ? 'PASS' : (isNaN(Number(item.modelMarks)) ? '' : 'FAIL')) : '',
             ]
           : ['', '', '', '', '', '', '', '', ''];
       } else if (isCie2) {
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || 'Not Available',
-              item.title || 'Not Available',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
-              item.cie2Marks !== undefined ? String(item.cie2Marks) : 'Pending',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
             ]
           : ['', '', '', '', '', '', ''];
       } else {
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || 'Not Available',
-              item.title || 'Not Available',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.code || '',
+              item.title || '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
             ]
           : ['', '', '', '', ''];
       }
