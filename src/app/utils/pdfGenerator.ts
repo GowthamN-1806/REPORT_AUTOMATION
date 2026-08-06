@@ -134,11 +134,11 @@ export const generateCombinedPDF = async (
     pdf.setFontSize(10.5);
 
     // Header Row
-    const colW1 = [65, 85, 235, 65, 65];
+    const colW1 = [65, 85, 235, 65, 75];
     let currX = margin;
     
-    pdf.rect(margin, y, contentWidth, 20);
     ['Semester', 'Subject Code', 'Subject Name', 'Grade', 'Pass/Fail'].forEach((h, hIdx) => {
+      pdf.rect(currX, y, colW1[hIdx], 20);
       pdf.text(h, currX + (hIdx === 2 ? 6 : colW1[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
       currX += colW1[hIdx];
     });
@@ -152,18 +152,22 @@ export const generateCombinedPDF = async (
 
     for (let r = 0; r < maxUnivRows; r++) {
       const item = univList[r];
-      pdf.rect(margin, y, contentWidth, 18);
+      let x = margin;
+      colW1.forEach((w) => {
+        pdf.rect(x, y, w, 18);
+        x += w;
+      });
       
       if (item) {
-        let x = margin;
-        pdf.text(item.sem || '', x + colW1[0] / 2, y + 12, { align: 'center' }); x += colW1[0];
+        let cx = margin;
+        pdf.text(item.sem || '', cx + colW1[0] / 2, y + 12, { align: 'center' }); cx += colW1[0];
         pdf.setFont('times', 'bold');
-        pdf.text(item.code || '', x + colW1[1] / 2, y + 12, { align: 'center' }); x += colW1[1];
+        pdf.text(item.code || '', cx + colW1[1] / 2, y + 12, { align: 'center' }); cx += colW1[1];
         pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 48), x + 6, y + 12); x += colW1[2];
+        pdf.text((item.title || '').substring(0, 48), cx + 6, y + 12); cx += colW1[2];
         pdf.setFont('times', 'bold');
-        pdf.text(item.grade || '', x + colW1[3] / 2, y + 12, { align: 'center' }); x += colW1[3];
-        pdf.text(item.passFail || '', x + colW1[4] / 2, y + 12, { align: 'center' });
+        pdf.text(item.grade || '', cx + colW1[3] / 2, y + 12, { align: 'center' }); cx += colW1[3];
+        pdf.text(item.passFail || '', cx + colW1[4] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;
@@ -183,8 +187,12 @@ export const generateCombinedPDF = async (
     const matrixCols = [100, ...Array(7).fill((contentWidth - 100) / 7)];
 
     // Matrix Header: SEMESTER | 01 | 02 | 03 | 04 | 05 | 06 | 07
-    pdf.rect(margin, y, contentWidth, 18);
     let mX = margin;
+    matrixCols.forEach((w) => {
+      pdf.rect(mX, y, w, 18);
+      mX += w;
+    });
+    mX = margin;
     pdf.text('SEMESTER', mX + 8, y + 12); mX += matrixCols[0];
     for (let c = 1; c <= 7; c++) {
       pdf.text(`0${c}`, mX + matrixCols[c] / 2, y + 12, { align: 'center' });
@@ -193,7 +201,11 @@ export const generateCombinedPDF = async (
 
     // Row: ARREARS
     y += 18;
-    pdf.rect(margin, y, contentWidth, 18);
+    mX = margin;
+    matrixCols.forEach((w) => {
+      pdf.rect(mX, y, w, 18);
+      mX += w;
+    });
     mX = margin;
     pdf.text('ARREARS', mX + 8, y + 12); mX += matrixCols[0];
     pdf.setFont('times', 'normal');
@@ -206,8 +218,12 @@ export const generateCombinedPDF = async (
 
     // Row: GPA
     y += 18;
+    mX = margin;
+    matrixCols.forEach((w) => {
+      pdf.rect(mX, y, w, 18);
+      mX += w;
+    });
     pdf.setFont('times', 'bold');
-    pdf.rect(margin, y, contentWidth, 18);
     mX = margin;
     pdf.text('GPA', mX + 8, y + 12); mX += matrixCols[0];
     pdf.setFont('times', 'normal');
@@ -220,8 +236,12 @@ export const generateCombinedPDF = async (
 
     // Row: CGPA
     y += 18;
+    mX = margin;
+    matrixCols.forEach((w) => {
+      pdf.rect(mX, y, w, 18);
+      mX += w;
+    });
     pdf.setFont('times', 'bold');
-    pdf.rect(margin, y, contentWidth, 18);
     mX = margin;
     pdf.text('CGPA', mX + 8, y + 12); mX += matrixCols[0];
     pdf.setFont('times', 'normal');
@@ -235,9 +255,11 @@ export const generateCombinedPDF = async (
     // Row: CLASS OBTAINED
     y += 18;
     pdf.setFont('times', 'bold');
-    pdf.rect(margin, y, contentWidth, 18);
+    pdf.rect(margin, y, 100, 18);
+    pdf.rect(margin + 100, y, contentWidth - 100, 18);
     pdf.text('CLASS OBTAINED', margin + 8, y + 12);
-    pdf.text(student.classObtained || '', margin + 120, y + 12);
+    pdf.setFont('times', 'normal');
+    pdf.text(student.classObtained || '', margin + 108, y + 12);
 
     // Continuous Internal Evaluation Header
     y += 30;
@@ -245,13 +267,14 @@ export const generateCombinedPDF = async (
     pdf.setFontSize(11);
     pdf.text('Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:', margin, y);
 
-    // Continuous Internal Evaluation Table
+    // Continuous Internal Evaluation Table (7 Columns: Semester, Subject Code, Subject Name, CIE I Marks, CIE II Marks, Model Marks, Pass/Fail)
     y += 10;
-    const colW2 = [55, 75, 205, 60, 60, 60];
+    const colW2 = [45, 65, 165, 60, 60, 60, 70];
     currX = margin;
     
-    pdf.rect(margin, y, contentWidth, 20);
-    ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Pass/Fail'].forEach((h, hIdx) => {
+    const cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Model Marks', 'Pass/Fail'];
+    cieHeaders.forEach((h, hIdx) => {
+      pdf.rect(currX, y, colW2[hIdx], 20);
       pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
       currX += colW2[hIdx];
     });
@@ -263,19 +286,24 @@ export const generateCombinedPDF = async (
 
     for (let r = 0; r < maxCieRows; r++) {
       const item = cieList[r];
-      pdf.rect(margin, y, contentWidth, 18);
+      let x = margin;
+      colW2.forEach((w) => {
+        pdf.rect(x, y, w, 18);
+        x += w;
+      });
       
       if (item) {
-        let x = margin;
-        pdf.text(item.sem || '', x + colW2[0] / 2, y + 12, { align: 'center' }); x += colW2[0];
+        let cx = margin;
+        pdf.text(item.sem || 'VI', cx + colW2[0] / 2, y + 12, { align: 'center' }); cx += colW2[0];
         pdf.setFont('times', 'bold');
-        pdf.text(item.code || '', x + colW2[1] / 2, y + 12, { align: 'center' }); x += colW2[1];
+        pdf.text(item.code || '', cx + colW2[1] / 2, y + 12, { align: 'center' }); cx += colW2[1];
         pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 42), x + 6, y + 12); x += colW2[2];
+        pdf.text((item.title || '').substring(0, 34), cx + 6, y + 12); cx += colW2[2];
         pdf.setFont('times', 'bold');
-        pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', x + colW2[3] / 2, y + 12, { align: 'center' }); x += colW2[3];
-        pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', x + colW2[4] / 2, y + 12, { align: 'center' }); x += colW2[4];
-        pdf.text(item.passFail || '', x + colW2[5] / 2, y + 12, { align: 'center' });
+        pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', cx + colW2[3] / 2, y + 12, { align: 'center' }); cx += colW2[3];
+        pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', cx + colW2[4] / 2, y + 12, { align: 'center' }); cx += colW2[4];
+        pdf.text(item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '', cx + colW2[5] / 2, y + 12, { align: 'center' }); cx += colW2[5];
+        pdf.text(item.passFail || '', cx + colW2[6] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;
@@ -311,8 +339,8 @@ export const generateCombinedPDF = async (
     pdf.text('To', margin, p2Y);
 
     p2Y += 15;
-    pdf.setFont('times', 'bold');
-    pdf.text(`The Class Counsellor, Department of ${student.department ? student.department : ''},`, pageWidth / 2, p2Y, { align: 'center' });
+    const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
+    pdf.text(`The Class Counsellor, Department of ${deptStr},`, pageWidth / 2, p2Y, { align: 'center' });
 
     p2Y += 15;
     pdf.setFont('times', 'normal');

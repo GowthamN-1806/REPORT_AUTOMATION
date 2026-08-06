@@ -6,6 +6,7 @@ export interface SubjectResult {
   title: string;
   grade: string;
   passFail: 'PASS' | 'FAIL' | '';
+  mark?: number | string;
 }
 
 export interface InternalEvalResult {

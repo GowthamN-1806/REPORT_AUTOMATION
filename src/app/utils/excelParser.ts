@@ -15,6 +15,11 @@ const knownTitles: Record<string, string> = {
   ACS309: 'Software Engineering',
   AEEC304: 'Professional Ethics & Human Values',
   AEEC104: 'Professional Ethics & Human Values',
+  PC: 'Parallel Computing',
+  'AI & M': 'Artificial Intelligence & Machine Learning',
+  AIM: 'Artificial Intelligence & Machine Learning',
+  'SE 2': 'Software Engineering II',
+  SE2: 'Software Engineering II',
   NS: 'Network Security',
   OOSE: 'Object Oriented Software Engineering',
   'ESA IOT': 'Embedded Systems & IoT',
@@ -85,8 +90,8 @@ const isDateCell = (str: string): boolean => {
 const isFacultyNameCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
-  return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
-         /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
+  return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/|dr\s+|prof\s+)/i.test(clean) ||
+         /\b(soloman|dhanalakshmi|raghavan|sree|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
          /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name|credit|credits|cerdit|cerdits|cr\b|d\/h|t\/e|no\.?\s*of\s*ar?rears|rank)/i.test(clean);
 };
 
@@ -190,38 +195,58 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           throw new Error('Excel sheet is empty or invalid.');
         }
 
-        // STEP 0: Extract Subject Code -> Subject Name dictionary from Excel sheet (reference block at bottom)
+        // STEP 0: Extract Subject Code -> Subject Name dictionary & ordered list from Excel sheet (reference block at bottom)
+        interface ExcelSubjectRef {
+          code: string;
+          title: string;
+          sem?: string;
+        }
+
+        const excelSubjectList: ExcelSubjectRef[] = [];
         const excelSubjectMaster: Record<string, string> = {};
 
         for (let r = 0; r < rawMatrix.length; r++) {
           const rowCells = rawMatrix[r] || [];
           let codeColIdx = -1;
           let nameColIdx = -1;
+          let semColIdx = -1;
 
           for (let c = 0; c < rowCells.length; c++) {
             const cellText = String(rowCells[c] || '').trim().toLowerCase().replace(/[\s_.-]+/g, '');
-            if (cellText === 'subjectcode' || cellText === 'subcode' || cellText === 'coursecode' || cellText === 'code') {
+            if (
+              cellText === 'subjectcode' || cellText === 'subcode' || cellText === 'coursecode' ||
+              cellText === 'code' || cellText === 'sub.code' || cellText === 'subject_code'
+            ) {
               codeColIdx = c;
-            } else if (cellText === 'subjectname' || cellText === 'subname' || cellText === 'coursename' || cellText === 'subjecttitle' || cellText === 'subject') {
+            } else if (
+              cellText === 'subjectname' || cellText === 'subname' || cellText === 'coursename' ||
+              cellText === 'subjecttitle' || cellText === 'coursetitle' || cellText === 'subject' ||
+              cellText === 'title' || cellText === 'sub.name' || cellText === 'subject_name'
+            ) {
               nameColIdx = c;
+            } else if (cellText === 'sem' || cellText === 'semester') {
+              semColIdx = c;
             }
           }
 
           if (codeColIdx !== -1 && nameColIdx !== -1) {
-            for (let subR = r + 1; subR < Math.min(r + 35, rawMatrix.length); subR++) {
+            for (let subR = r + 1; subR < Math.min(r + 40, rawMatrix.length); subR++) {
               const subCells = rawMatrix[subR] || [];
               const rawCode = String(subCells[codeColIdx] || '').trim().toUpperCase();
               const rawName = String(subCells[nameColIdx] || '').trim();
+              const rawSem = semColIdx !== -1 ? String(subCells[semColIdx] || '').trim() : '';
 
               if (
                 rawCode &&
                 rawName &&
                 !isFacultyNameCell(rawCode) &&
-                !isDateCell(rawCode) &&
                 !isGradeValue(rawName) &&
                 !/credit|cerdit|value|type|mark|score|grade|status|result|pass|fail|ar?rear|rank/i.test(rawName.toLowerCase())
               ) {
                 excelSubjectMaster[rawCode] = rawName;
+                if (!excelSubjectList.some((s) => s.code === rawCode)) {
+                  excelSubjectList.push({ code: rawCode, title: rawName, sem: rawSem });
+                }
               }
             }
           }
@@ -327,28 +352,82 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         let subjectHeaderRowIndex = bestHeaderRowIndex;
 
-        // Extract metadata strings ONLY if present in top rows of Excel
+        // Line-by-line scanner across ALL rows of rawMatrix to find exact value next to 'Department' / 'Dept' / 'Branch'
         let extractedDepartment = '';
         let extractedRegulation = '';
 
-        for (let r = 0; r < Math.max(anchorRowIndex, 5); r++) {
+        for (let r = 0; r < rawMatrix.length; r++) {
           const rCells = rawMatrix[r] || [];
           for (let c = 0; c < rCells.length; c++) {
-            const txt = String(rCells[c] || '').trim();
-            if (/dept/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
-              const val = String(rCells[c + 1]).trim();
-              if (val) extractedDepartment = val;
-            } else if (/dept\s*:\s*(.*)/i.test(txt)) {
-              const match = txt.match(/dept\s*:\s*(.*)/i);
-              if (match && match[1]) extractedDepartment = match[1].trim();
-            } else if (/regulation/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
-              const val = String(rCells[c + 1]).trim();
-              if (val) extractedRegulation = val;
-            } else if (/regulation\s*:\s*(.*)/i.test(txt)) {
-              const match = txt.match(/regulation\s*:\s*(.*)/i);
-              if (match && match[1]) extractedRegulation = match[1].trim();
+            const cellText = String(rCells[c] || '').trim();
+            if (!cellText) continue;
+
+            // Pattern 1: Inline "Department: IT" or "Dept: CSE" or "Branch: IT"
+            const inlineMatch = cellText.match(/^(?:department|dept|branch)\s*[:.-]\s*(.+)$/i);
+            if (inlineMatch && inlineMatch[1] && inlineMatch[1].trim()) {
+              const val = inlineMatch[1].trim();
+              if (val && !extractedDepartment) {
+                extractedDepartment = val;
+              }
+            }
+
+            // Pattern 2: Inline "DEPARTMENT OF INFORMATION TECHNOLOGY" or "DEPARTMENT OF IT"
+            const deptOfMatch = cellText.match(/^department\s+of\s+(.+)$/i);
+            if (deptOfMatch && deptOfMatch[1] && deptOfMatch[1].trim()) {
+              const val = deptOfMatch[1].trim();
+              if (val && !extractedDepartment) {
+                extractedDepartment = val;
+              }
+            }
+
+            // Pattern 3: Key cell is "Department" or "Dept" or "Branch", value cell is c + 1
+            if (/^(department|dept|branch)$/i.test(cellText)) {
+              if (c + 1 < rCells.length && rCells[c + 1]) {
+                const nextVal = String(rCells[c + 1]).trim();
+                if (nextVal && !extractedDepartment && !/^(of|code|name|sem|no)/i.test(nextVal)) {
+                  extractedDepartment = nextVal;
+                }
+              }
+            }
+
+            // Pattern 4: Regulation
+            const reguMatch = cellText.match(/regulation\s*:?\s*(\d{4})/i);
+            if (reguMatch && reguMatch[1] && !extractedRegulation) {
+              extractedRegulation = reguMatch[1];
+            } else if (/^regulation$/i.test(cellText) && c + 1 < rCells.length && rCells[c + 1]) {
+              const nextVal = String(rCells[c + 1]).trim();
+              if (nextVal && !extractedRegulation) {
+                extractedRegulation = nextVal;
+              }
             }
           }
+        }
+
+        // STEP 2.5: Determine Student Data Start Row
+        let studentDataStartRowIndex = anchorRowIndex + 1;
+
+        while (studentDataStartRowIndex < rawMatrix.length) {
+          const rCells = rawMatrix[studentDataStartRowIndex] || [];
+          const txtReg = regNoColIndex !== -1 ? String(rCells[regNoColIndex] || '').trim() : '';
+          const txtName = nameColIndex !== -1 ? String(rCells[nameColIndex] || '').trim() : '';
+
+          if (
+            isFacultyNameCell(txtReg) ||
+            isFacultyNameCell(txtName) ||
+            isDateCell(txtReg) ||
+            isDateCell(txtName) ||
+            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtReg) ||
+            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtName)
+          ) {
+            studentDataStartRowIndex++;
+            continue;
+          }
+
+          if (txtReg || txtName) {
+            break;
+          }
+
+          studentDataStartRowIndex++;
         }
 
         // STEP 3: Detect Grouped Subject Suffix Columns (_1, _2, _3 ... _n) for University & CIE
@@ -490,6 +569,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
 
         if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
+          const candidateCols: number[] = [];
+
           for (let c = 0; c < headerNames.length; c++) {
             if (c === regNoColIndex || c === nameColIndex) continue;
 
@@ -498,7 +579,6 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
             if (
               !rawHeader ||
-              isDateCell(rawHeader) ||
               isFacultyNameCell(rawHeader) ||
               isPlaceholderToken(rawHeader) ||
               cleanHeader.startsWith('__empty')
@@ -520,66 +600,32 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               continue;
             }
 
-            const code = rawHeader.toUpperCase();
-            let title = excelSubjectMaster[code] || knownTitles[code] || '';
+            candidateCols.push(c);
+          }
 
-            if (!title) {
-              // Search ONLY header rows near bestHeaderRowIndex (never student grade rows) for subject name text
-              const startScan = Math.max(0, bestHeaderRowIndex - 5);
-              const endScan = bestHeaderRowIndex + 1;
-              for (let checkRowIdx = startScan; checkRowIdx <= endScan; checkRowIdx++) {
-                const cellText = String((rawMatrix[checkRowIdx] || [])[c] || '').trim();
-                const cleanTxt = cellText.toLowerCase();
+          candidateCols.forEach((c, idx) => {
+            let finalCode = '';
+            let finalTitle = '';
 
-                if (
-                  cellText &&
-                  !isDateCell(cellText) &&
-                  !isFacultyNameCell(cellText) &&
-                  !isPlaceholderToken(cellText) &&
-                  !isGradeValue(cellText) &&
-                  !/^\d+$/.test(cellText) &&
-                  cellText.toUpperCase() !== code &&
-                  !/credit|cerdit|value|type|mark|score|grade|status|result|pass|fail|ar?rear|rank/i.test(cleanTxt) &&
-                  !nonSubjectHeaders.some((ik) => cleanTxt.replace(/[\s_.-]+/g, '') === ik.replace(/[\s_.-]+/g, ''))
-                ) {
-                  title = cellText;
-                  break;
-                }
+            // Priority 1: Positional mapping from excelSubjectList if available
+            if (excelSubjectList[idx]) {
+              finalCode = excelSubjectList[idx].code;
+              finalTitle = excelSubjectList[idx].title;
+            } else {
+              const rawHeader = String(headerNames[c] || '').trim();
+              const baseCode = rawHeader.toUpperCase();
+
+              if (excelSubjectMaster[baseCode]) {
+                finalCode = baseCode;
+                finalTitle = excelSubjectMaster[baseCode];
+              } else {
+                finalCode = baseCode;
+                finalTitle = baseCode;
               }
             }
 
-            if (!title || isGradeValue(title) || /credit|cerdit|value|ar?rear|rank/i.test(title)) {
-              title = excelSubjectMaster[code] || knownTitles[code] || code;
-            }
-            directSubjectCols.push({ colIndex: c, code, title });
-          }
-        }
-
-        // STEP 4: Determine Student Data Start Row
-        let studentDataStartRowIndex = anchorRowIndex + 1;
-
-        while (studentDataStartRowIndex < rawMatrix.length) {
-          const rCells = rawMatrix[studentDataStartRowIndex] || [];
-          const txtReg = regNoColIndex !== -1 ? String(rCells[regNoColIndex] || '').trim() : '';
-          const txtName = nameColIndex !== -1 ? String(rCells[nameColIndex] || '').trim() : '';
-
-          if (
-            isFacultyNameCell(txtReg) ||
-            isFacultyNameCell(txtName) ||
-            isDateCell(txtReg) ||
-            isDateCell(txtName) ||
-            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtReg) ||
-            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtName)
-          ) {
-            studentDataStartRowIndex++;
-            continue;
-          }
-
-          if (txtReg || txtName) {
-            break;
-          }
-
-          studentDataStartRowIndex++;
+            directSubjectCols.push({ colIndex: c, code: finalCode, title: finalTitle });
+          });
         }
 
         // STEP 5: Process Every Student Data Row dynamically
@@ -757,12 +803,16 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 }
               }
 
+              // Resolve title using sub.title or excelSubjectMaster
+              const resolvedTitle = sub.title || excelSubjectMaster[sub.code] || sub.code;
+
               universityResults.push({
                 sem: 'V',
                 code: sub.code,
-                title: sub.title,
+                title: resolvedTitle,
                 grade,
                 passFail,
+                mark: markNum,
               });
             });
           }

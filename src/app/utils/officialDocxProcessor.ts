@@ -135,7 +135,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       val = studentData.student_name || 'Not Available';
       foundCol = 'Student Name';
     } else if (cleanPh.includes('department') || cleanPh.includes('dept')) {
-      val = studentData.department || 'Computer Science and Engineering';
+      val = studentData.department || '';
       foundCol = 'Department';
     } else if (cleanPh.includes('examsession') || cleanPh.includes('session')) {
       val = studentData.exam_session;
