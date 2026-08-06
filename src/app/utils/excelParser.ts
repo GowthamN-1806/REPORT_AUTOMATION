@@ -1,15 +1,13 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Subject Master Mapping Dictionary for clean human-readable titles (optional lookup)
+// Subject Master Mapping Dictionary for clean human-readable titles
 const knownTitles: Record<string, string> = {
-  NS: 'Network Security',
-  OOSE: 'Object Oriented Software Engineering',
-  'ESA IOT': 'Embedded Systems & IoT',
-  MA: 'Mobile Applications',
-  STA: 'Software Testing & Automation',
-  DW: 'Data Warehousing & Data Mining',
-  OCE351: 'Environment and Social Impact Assessment',
+  ACS108: 'Network Security',
+  ACS109: 'Embedded Systems & IoT',
+  ACS110: 'Mobile Applications Laboratory',
+  ACS111: 'Software Testing & Automation',
+  CS503: 'Design and Analysis of Algorithms',
   CS3591: 'Computer Networks',
   CS3501: 'Compiler Design',
   CB3491: 'Cryptography and Cyber Security',
@@ -32,6 +30,13 @@ const knownTitles: Record<string, string> = {
   GE3171: 'Problem Solving and Python Programming Laboratory',
   BS3171: 'Physics and Chemistry Laboratory',
   GE3172: 'English Laboratory',
+  NS: 'Network Security',
+  OOSE: 'Object Oriented Software Engineering',
+  'ESA IOT': 'Embedded Systems & IoT',
+  MA: 'Mobile Applications',
+  STA: 'Software Testing & Automation',
+  DW: 'Data Warehousing & Data Mining',
+  OCE351: 'Environment and Social Impact Assessment',
   AI: 'Artificial Intelligence',
   ML: 'Machine Learning',
   DBMS: 'Database Management Systems',
@@ -54,13 +59,13 @@ const isDateCell = (str: string): boolean => {
   return false;
 };
 
-// Helper to detect if a cell string is Title, Department Header, or Faculty/Staff row metadata
+// Helper to detect if a cell string is Title, Department Header, Credit Row, or Faculty metadata
 const isFacultyNameCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/)/i.test(clean) ||
          /\b(soloman|dhanalakshmi|raghavan|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
-         /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name)/i.test(clean);
+         /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|credit value|credit|academic year|year\/sem|test name)/i.test(clean);
 };
 
 /**
@@ -143,6 +148,17 @@ const findCellValue = (rowCells: any[], headers: string[], keyCandidates: (strin
   return undefined;
 };
 
+// Search matching column index by candidate header names
+const findColIndex = (headers: string[], candidates: string[]): number => {
+  const cleanHeaders = headers.map((h) => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+  for (let candidate of candidates) {
+    const cleanCand = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const idx = cleanHeaders.findIndex((h) => h === cleanCand || h.includes(cleanCand));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+};
+
 export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -178,14 +194,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
           if (!rawMatrix || rawMatrix.length === 0) return;
 
-          // STEP 1: Dynamically locate the exact Header Row containing "Register No", "Reg No", "REG.NO", "Roll No"
+          // STEP 1: Dynamically locate the exact Header Row containing "Reg No" or "REG.NO" or "Register No" and "Name"
           let headerRowIndex = -1;
           let regNoColIndex = -1;
           let nameColIndex = -1;
           let deptColIndex = -1;
           let reguColIndex = -1;
 
-          for (let r = 0; r < Math.min(35, rawMatrix.length); r++) {
+          for (let r = 0; r < Math.min(40, rawMatrix.length); r++) {
             const rowCells = rawMatrix[r] || [];
             let foundReg = -1;
             let foundName = -1;
@@ -235,9 +251,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // Metadata extraction from top title rows (rows above headerRowIndex)
+          // STEP 1 Metadata Extraction from top title rows (rows above headerRowIndex)
           let extractedDepartment = '';
           let extractedRegulation = '';
+          let extractedSemester = '';
 
           for (let r = 0; r < headerRowIndex; r++) {
             const rCells = rawMatrix[r] || [];
@@ -255,11 +272,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               } else if (/regulation\s*:\s*(.*)/i.test(txt)) {
                 const match = txt.match(/regulation\s*:\s*(.*)/i);
                 if (match && match[1]) extractedRegulation = match[1].trim();
+              } else if (/sem(ester)?\s*:\s*([A-Za-z0-9]+)/i.test(txt)) {
+                const match = txt.match(/sem(ester)?\s*:\s*([A-Za-z0-9]+)/i);
+                if (match && match[2]) extractedSemester = match[2].trim().toUpperCase();
               }
             }
           }
 
-          // Process Grouped Subject Suffix Columns (_1, _2, _3 ... _n)
+          // STEP 2 — Detect Columns Automatically (Subject Codes, Result, GPA, Rank)
           interface SubjectGroupSpec {
             groupNum: number;
             codeCol: number;
@@ -306,38 +326,25 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const spec = targetMap.get(num)!;
 
             if (isCieHeader) {
-              if (cleanPrefix.includes('code')) {
-                spec.codeCol = c;
-              } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
-                spec.titleCol = c;
-              } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2')) {
-                spec.cie2MarksCol = c;
-              } else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('mark')) {
-                spec.cie1MarksCol = c;
-              } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
-                spec.passCol = c;
-              } else if (cleanPrefix.includes('sem')) {
-                spec.semCol = c;
-              }
+              if (cleanPrefix.includes('code')) spec.codeCol = c;
+              else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) spec.titleCol = c;
+              else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2')) spec.cie2MarksCol = c;
+              else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('mark')) spec.cie1MarksCol = c;
+              else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) spec.passCol = c;
+              else if (cleanPrefix.includes('sem')) spec.semCol = c;
             } else {
-              if (cleanPrefix.includes('code')) {
-                spec.codeCol = c;
-              } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
-                spec.titleCol = c;
-              } else if (cleanPrefix.includes('grade')) {
-                spec.gradeCol = c;
-              } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
-                spec.passCol = c;
-              } else if (cleanPrefix.includes('sem')) {
-                spec.semCol = c;
-              }
+              if (cleanPrefix.includes('code')) spec.codeCol = c;
+              else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) spec.titleCol = c;
+              else if (cleanPrefix.includes('grade')) spec.gradeCol = c;
+              else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) spec.passCol = c;
+              else if (cleanPrefix.includes('sem')) spec.semCol = c;
             }
           }
 
           const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
           const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
 
-          // Direct Subject Columns Detection (For Subject Code Headers like ACS108, CS3591, etc.)
+          // Direct Subject Columns Detection (e.g., ACS108, ACS109, ACS110, ACS111, CS503, etc.)
           const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
           
           for (let c = 0; c < headerNames.length; c++) {
@@ -349,20 +356,20 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             
             // Skip non-subject metadata columns
             if (
-              /^(reg|name|sno|slno|gpa|cgpa|arr|class|total|dept|regulation|status|result|pass|fail|overall|remarks|percentage)/i.test(cleanH) ||
-              cleanH.startsWith('gpa') || cleanH.startsWith('cgpa') || cleanH.startsWith('arr') || cleanH.startsWith('class')
+              /^(reg|name|sno|slno|gpa|cgpa|arr|class|total|dept|regulation|status|result|pass|fail|overall|remarks|percentage|rank|credit)/i.test(cleanH) ||
+              cleanH.startsWith('gpa') || cleanH.startsWith('cgpa') || cleanH.startsWith('arr') || cleanH.startsWith('class') || cleanH.startsWith('rank')
             ) {
               continue;
             }
 
-            // Extract subject code from header string (e.g. "ACS108", "CS3591 - Computer Networks", "CB3491")
+            // Extract subject code from header string (e.g. "ACS108", "CS3591", "CS503")
             const codeMatch = txt.match(/\b([A-Za-z]{2,5}\s*\d{3,5}[A-Za-z]?)\b/);
             const codeStr = codeMatch ? codeMatch[1].replace(/\s+/g, '').toUpperCase() : txt.toUpperCase();
 
             directSubjectCols.push({
               colIndex: c,
               code: codeStr,
-              title: knownTitles[codeStr] || txt,
+              title: knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || txt,
             });
           }
 
@@ -371,19 +378,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaColIdx = findColIndex(headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'sem 5 cgpa', 'cgpa5']);
           const arrearsColIdx = findColIndex(headerNames, ['arrears', 'no of arrears', 'no. of arrears', 'arr', 'total arrears', 'arrear']);
 
-          // Diagnostic Console Logs for Backend Excel Parser Debugging
+          // STEP 10 — Diagnostic Console Logs for Backend Excel Parser Debugging
           console.log('=================== UNIVERSITY EXCEL PARSER DEBUG ===================');
           console.log(`[Parser Debug] Sheet Analyzed: "${sheetName}"`);
           console.log(`[Parser Debug] Header Row Detected: Row Index ${headerRowIndex + 1} (0-indexed ${headerRowIndex})`);
           console.log(`[Parser Debug] Reg No Column Index: ${regNoColIndex} ("${headerNames[regNoColIndex] || ''}")`);
           console.log(`[Parser Debug] Student Name Column Index: ${nameColIndex} ("${headerNames[nameColIndex] || ''}")`);
-          console.log(`[Parser Debug] GPA Column Detected: ${gpaColIdx !== -1 ? `Index ${gpaColIdx} ("${headerNames[gpaColIdx]}")` : 'Not Found / Using Dynamic Search'}`);
-          console.log(`[Parser Debug] CGPA Column Detected: ${cgpaColIdx !== -1 ? `Index ${cgpaColIdx} ("${headerNames[cgpaColIdx]}")` : 'Not Found / Using Dynamic Search'}`);
-          console.log(`[Parser Debug] Arrears Column Detected: ${arrearsColIdx !== -1 ? `Index ${arrearsColIdx} ("${headerNames[arrearsColIdx]}")` : 'Not Found / Using Dynamic Search'}`);
+          console.log(`[Parser Debug] GPA Column Detected: ${gpaColIdx !== -1 ? `Index ${gpaColIdx} ("${headerNames[gpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
+          console.log(`[Parser Debug] CGPA Column Detected: ${cgpaColIdx !== -1 ? `Index ${cgpaColIdx} ("${headerNames[cgpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
+          console.log(`[Parser Debug] Arrears Column Detected: ${arrearsColIdx !== -1 ? `Index ${arrearsColIdx} ("${headerNames[arrearsColIdx]}")` : 'Not Found / Dynamic Search'}`);
           console.log(`[Parser Debug] Subject Columns Detected (${directSubjectCols.length}):`, directSubjectCols.map(s => `${s.code} (Col ${s.colIndex})`));
           console.log('=====================================================================');
 
-          // Process Student Data Rows starting after headerRowIndex
+          // STEP 3 — Read Student Rows starting after headerRowIndex
           const studentDataStartRowIndex = headerRowIndex + 1;
           let parsedRowCount = 0;
 
@@ -403,8 +410,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
             // Filter out summary, staff, date, total, statistics label rows
             if (
-              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge)/i.test(regNoStr) ||
-              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge)/i.test(nameStr)
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge|credit)/i.test(regNoStr) ||
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|total|summary|statistic|stats|percentage|pass|fail|staff|faculty|date|counsellor|incharge|credit)/i.test(nameStr)
             ) {
               continue;
             }
@@ -426,7 +433,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const cgpaVal = rawCGPA !== undefined && rawCGPA !== null && String(rawCGPA).trim() !== '' ? (isNaN(Number(rawCGPA)) ? String(rawCGPA) : Number(rawCGPA)) : undefined;
             const classObtained = rawClass !== undefined && rawClass !== null ? String(rawClass).trim().toUpperCase() : '';
 
-            // Read Semester GPAs, CGPAs, Arrears strictly from Excel
+            // STEP 8 & 9 — Read Semester GPAs, CGPAs, Arrears strictly for Semesters 1-7
             const gpaBySem: Record<string, number | string> = {};
             const cgpaBySem: Record<string, number | string> = {};
             const arrearsMap: Record<string, number | string> = {};
@@ -439,7 +446,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const valG = findCellValue(rowCells, headerNames, [
                 `gpa0${s}`, `gpa 0${s}`, `gpa ${s}`, `gpa_0${s}`, `gpa_${s}`, `gpa${s}`,
                 `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`, `gpa_sem_${s}`,
-                `sem_${romanSem}_gpa`, `gpa_${romanSem}`, `gpa (${romanSem})`, `gpa (sem ${romanSem})`, `sem ${romanSem}`
+                `sem_${romanSem}_gpa`, `gpa_${romanSem}`, `gpa (${romanSem})`, `gpa (sem ${romanSem})`
               ]);
 
               const valC = findCellValue(rowCells, headerNames, [
@@ -468,11 +475,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
 
-            // University & CIE Results
+            // STEP 4 — Build University Subjects
             const universityResults: SubjectResult[] = [];
             const internalEvalResults: InternalEvalResult[] = [];
 
-            // 1. University Grouped Specs (Subject Code 1, Grade 1...)
+            // 1. Grouped Specs (Subject Code 1, Grade 1...)
             sortedUnivSpecs.forEach((spec) => {
               const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
               const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
@@ -486,10 +493,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const passStr = String(passRaw || '').trim().toUpperCase();
 
               if (!codeStr && !titleStr && !gradeStr && !passStr) return;
-              if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || codeStr;
+              if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
 
               const passFail = evaluatePassFail(passStr, gradeStr);
-              const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
+              const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || 'VI');
 
               universityResults.push({
                 sem,
@@ -517,10 +524,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 const passStr = String(passRaw || '').trim().toUpperCase();
 
                 if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
-                if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || codeStr;
+                if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
 
                 const passFail = evaluatePassFail(passStr, cie1MarksStr);
-                const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
+                const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || 'VI');
 
                 internalEvalResults.push({
                   sem,
@@ -533,7 +540,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               });
             }
 
-            // 3. Direct Subject Columns (Headers containing Subject Codes like ACS108, CS3591, etc.)
+            // 3. Direct Subject Columns (ACS108 -> B+, ACS109 -> A, etc.)
             if (sortedUnivSpecs.length === 0 || isCieFile) {
               directSubjectCols.forEach((sub) => {
                 const cellVal = rowCells[sub.colIndex];
@@ -541,7 +548,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                   const valStr = String(cellVal).trim();
                   if (isCieFile) {
                     internalEvalResults.push({
-                      sem: 'VI',
+                      sem: extractedSemester || 'VI',
                       code: sub.code,
                       title: sub.title,
                       cie1Marks: valStr,
@@ -550,7 +557,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                     });
                   } else {
                     universityResults.push({
-                      sem: 'VI',
+                      sem: extractedSemester || 'VI',
                       code: sub.code,
                       title: sub.title,
                       grade: valStr.toUpperCase(),
@@ -570,6 +577,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 name: nameStr,
                 department: extractedDepartment || '',
                 regulation: extractedRegulation || '2021',
+                semester: extractedSemester || 'VI',
                 universityResults: [],
                 gpa: gpaVal,
                 cgpa: cgpaVal,
@@ -613,15 +621,4 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
     reader.onerror = () => reject('Error reading Excel file');
     reader.readAsArrayBuffer(file);
   });
-};
-
-// Find matching column index by candidate header names
-const findColIndex = (headers: string[], candidates: string[]): number => {
-  const cleanHeaders = headers.map((h) => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
-  for (let candidate of candidates) {
-    const cleanCand = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const idx = cleanHeaders.findIndex((h) => h === cleanCand || h.includes(cleanCand));
-    if (idx !== -1) return idx;
-  }
-  return -1;
 };
