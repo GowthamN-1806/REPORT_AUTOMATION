@@ -56,8 +56,7 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * Arrears Mapping: Semester 1->ARREARS01 .. Semester 7->ARREARS07 strictly from uploaded Excel.
- * No default arrears generated. Missing values remain empty strings ("").
+ * Prints complete diagnostic info before rendering.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -152,22 +151,39 @@ export async function populateOfficialDocxTemplateWithLogs(
     CLASS: student.classObtained || '',
   };
 
-  console.log('=================== ARREARS TABLE MAPPING DEBUG ===================');
-  console.log(`Student: ${placeholderObject.STUDENT_NAME} (${placeholderObject.REGISTER_NO})`);
-  console.log(`ARREARS01: "${placeholderObject.ARREARS01}"`);
-  console.log(`ARREARS02: "${placeholderObject.ARREARS02}"`);
-  console.log(`ARREARS03: "${placeholderObject.ARREARS03}"`);
-  console.log(`ARREARS04: "${placeholderObject.ARREARS04}"`);
-  console.log(`ARREARS05: "${placeholderObject.ARREARS05}"`);
-  console.log(`ARREARS06: "${placeholderObject.ARREARS06}"`);
-  console.log(`ARREARS07: "${placeholderObject.ARREARS07}"`);
-  console.log('====================================================================');
-
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
     .replace(/^\/?(backend\/templates\/|templates\/|public\/templates\/)?/, '');
 
   const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
+
+  // PRINT ALL DIAGNOSTICS BEFORE RENDER
+  console.log('=================== RENDER PIPELINE DIAGNOSTICS ===================');
+  console.log(`1. Template Path Loaded      : ${loadedTemplatePath}`);
+  console.log(`2. Register Number           : "${placeholderObject.REGISTER_NO}"`);
+  console.log(`3. Student Name              : "${placeholderObject.STUDENT_NAME}"`);
+  console.log(`4. Department                : "${placeholderObject.DEPARTMENT}"`);
+  console.log(`5. Semester                  : "${placeholderObject.SEMESTER}"`);
+  console.log(`6. University Subjects Count : ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  
+  console.log(`7. Each Subject Details:`);
+  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
+    console.log(`   Subject [${idx + 1}]: Code="${sub.CODE}", Name="${sub.TITLE}", Grade="${sub.GRADE}", Pass/Fail="${sub.PASS_FAIL}"`);
+  });
+
+  console.log(`8. GPA01-GPA07:`);
+  console.log(`   GPA01: "${placeholderObject.GPA01}", GPA02: "${placeholderObject.GPA02}", GPA03: "${placeholderObject.GPA03}", GPA04: "${placeholderObject.GPA04}", GPA05: "${placeholderObject.GPA05}", GPA06: "${placeholderObject.GPA06}", GPA07: "${placeholderObject.GPA07}"`);
+
+  console.log(`9. CGPA: "${placeholderObject.CGPA}"`);
+
+  console.log(`10. Arrears01-Arrears07:`);
+  console.log(`   ARREARS01: "${placeholderObject.ARREARS01}", ARREARS02: "${placeholderObject.ARREARS02}", ARREARS03: "${placeholderObject.ARREARS03}", ARREARS04: "${placeholderObject.ARREARS04}", ARREARS05: "${placeholderObject.ARREARS05}", ARREARS06: "${placeholderObject.ARREARS06}", ARREARS07: "${placeholderObject.ARREARS07}"`);
+
+  console.log(`11. Class Obtained           : "${placeholderObject.CLASS_OBTAINED}"`);
+
+  console.log(`12. Complete Placeholder JSON passed into doc.render():`);
+  console.log(JSON.stringify(placeholderObject, null, 2));
+  console.log('===================================================================');
 
   const candidateUrls = [
     `/templates/${cleanName}`,
@@ -177,7 +193,6 @@ export async function populateOfficialDocxTemplateWithLogs(
   ];
 
   let arrayBuffer: ArrayBuffer | null = null;
-  let fetchedUrl = '';
 
   for (const candidateUrl of candidateUrls) {
     if (!candidateUrl) continue;
@@ -185,7 +200,6 @@ export async function populateOfficialDocxTemplateWithLogs(
       const response = await fetch(candidateUrl);
       if (response.ok) {
         arrayBuffer = await response.arrayBuffer();
-        fetchedUrl = candidateUrl;
         break;
       }
     } catch (err) {
@@ -194,8 +208,8 @@ export async function populateOfficialDocxTemplateWithLogs(
   }
 
   if (!arrayBuffer) {
-    console.error(`ERROR: Failed to load template from URLs:`, candidateUrls);
-    throw new Error(`Failed to fetch template "${cleanName}". Ensure template_cie1.docx exists in public/templates/.`);
+    console.error(`ERROR: Failed to load template from URL: ${loadedTemplatePath}`);
+    throw new Error(`Failed to fetch template "${cleanName}". Ensure file exists in public/templates/.`);
   }
 
   const zip = new PizZip(arrayBuffer);
@@ -318,7 +332,6 @@ export async function populateOfficialDocxTemplateWithLogs(
       const rowTextUpper = rXml.replace(/<[^>]+>/g, '').toUpperCase().trim();
 
       if (/GPA/i.test(rowTextUpper) && !/CGPA/i.test(rowTextUpper)) {
-        // GPA Row: Columns 1..7 map strictly to GPA01..GPA07
         const gpaVals = [
           placeholderObject.GPA01,
           placeholderObject.GPA02,
@@ -339,7 +352,6 @@ export async function populateOfficialDocxTemplateWithLogs(
           return cellXml;
         });
       } else if (/ARREAR/i.test(rowTextUpper)) {
-        // Arrears Row: Columns 1..7 map strictly to ARREARS01..ARREARS07 (NO DEFAULT ARREARS)
         const arrVals = [
           placeholderObject.ARREARS01,
           placeholderObject.ARREARS02,
@@ -360,7 +372,6 @@ export async function populateOfficialDocxTemplateWithLogs(
           return cellXml;
         });
       } else if (/CGPA/i.test(rowTextUpper)) {
-        // CGPA Row: Column 1 maps strictly to CGPA
         let cIdx = 0;
         updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
           if (cIdx === 1) {
@@ -371,7 +382,6 @@ export async function populateOfficialDocxTemplateWithLogs(
           return cellXml;
         });
       } else if (/CLASS/i.test(rowTextUpper)) {
-        // Class Obtained Row: Column 1 maps strictly to CLASS_OBTAINED
         let cIdx = 0;
         updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
           if (cIdx === 1) {
@@ -439,6 +449,11 @@ export async function populateOfficialDocxTemplateWithLogs(
       const newTbl4Xml = tbl4.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
       xml = xml.replace(tableMatches[3], newTbl4Xml);
     }
+  }
+
+  // Check for Table / Placeholder Mapping Failure
+  if (tableMatches.length < 4) {
+    console.warn(`[TABLE MAPPING FAILURE] Expected at least 4 tables in DOCX template "${cleanName}", but found only ${tableMatches.length}.`);
   }
 
   // Save rendered placeholder JSON to window.__LAST_DEBUG_JSON__
