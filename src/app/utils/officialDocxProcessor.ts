@@ -56,8 +56,8 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * Renders exactly N rows for N subjects in UNIVERSITY_SUBJECTS.
- * Never creates empty rows. Never uses default values.
+ * GPA Mapping: Semester 1->GPA01 .. Semester 7->GPA07 strictly. CGPA mapped separately.
+ * Unavailable semester GPAs remain blank (""). Never shifts GPA values.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -72,23 +72,25 @@ export async function populateOfficialDocxTemplateWithLogs(
   const gpa = student.gpaBySem || {};
   const arr = student.arrears || {};
 
-  const gpa01 = gpa['01'] || gpa['1'] || '';
-  const gpa02 = gpa['02'] || gpa['2'] || '';
-  const gpa03 = gpa['03'] || gpa['3'] || '';
-  const gpa04 = gpa['04'] || gpa['4'] || '';
-  const gpa05 = gpa['05'] || gpa['5'] || '';
-  const gpa06 = gpa['06'] || gpa['6'] || '';
-  const gpa07 = gpa['07'] || gpa['7'] || '';
+  // Strict Unshifted Semester GPA Mapping (Semester 1->GPA01 .. Semester 7->GPA07)
+  const gpa01 = gpa['01'] !== undefined && gpa['01'] !== null ? String(gpa['01']) : (gpa['1'] !== undefined && gpa['1'] !== null ? String(gpa['1']) : '');
+  const gpa02 = gpa['02'] !== undefined && gpa['02'] !== null ? String(gpa['02']) : (gpa['2'] !== undefined && gpa['2'] !== null ? String(gpa['2']) : '');
+  const gpa03 = gpa['03'] !== undefined && gpa['03'] !== null ? String(gpa['03']) : (gpa['3'] !== undefined && gpa['3'] !== null ? String(gpa['3']) : '');
+  const gpa04 = gpa['04'] !== undefined && gpa['04'] !== null ? String(gpa['04']) : (gpa['4'] !== undefined && gpa['4'] !== null ? String(gpa['4']) : '');
+  const gpa05 = gpa['05'] !== undefined && gpa['05'] !== null ? String(gpa['05']) : (gpa['5'] !== undefined && gpa['5'] !== null ? String(gpa['5']) : '');
+  const gpa06 = gpa['06'] !== undefined && gpa['06'] !== null ? String(gpa['06']) : (gpa['6'] !== undefined && gpa['6'] !== null ? String(gpa['6']) : '');
+  const gpa07 = gpa['07'] !== undefined && gpa['07'] !== null ? String(gpa['07']) : (gpa['7'] !== undefined && gpa['7'] !== null ? String(gpa['7']) : '');
 
-  const arr01 = arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined ? String(arr['1']) : '');
-  const arr02 = arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined ? String(arr['2']) : '');
-  const arr03 = arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined ? String(arr['3']) : '');
-  const arr04 = arr['04'] !== undefined && arr['04'] !== null ? String(arr['04']) : (arr['4'] !== undefined ? String(arr['4']) : '');
-  const arr05 = arr['05'] !== undefined && arr['05'] !== null ? String(arr['05']) : (arr['5'] !== undefined ? String(arr['5']) : '');
-  const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : '');
-  const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : '');
+  // Strict Unshifted Semester Arrears Mapping (Semester 1->ARREARS01 .. Semester 7->ARREARS07)
+  const arr01 = arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined && arr['1'] !== null ? String(arr['1']) : '');
+  const arr02 = arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined && arr['2'] !== null ? String(arr['2']) : '');
+  const arr03 = arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined && arr['3'] !== null ? String(arr['3']) : '');
+  const arr04 = arr['04'] !== undefined && arr['04'] !== null ? String(arr['04']) : (arr['4'] !== undefined && arr['4'] !== null ? String(arr['4']) : '');
+  const arr05 = arr['05'] !== undefined && arr['05'] !== null ? String(arr['05']) : (arr['5'] !== undefined && arr['5'] !== null ? String(arr['5']) : '');
+  const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined && arr['6'] !== null ? String(arr['6']) : '');
+  const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined && arr['7'] !== null ? String(arr['7']) : '');
 
-  // Exact Placeholder Object for University Subjects
+  // Exact Placeholder Object
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
     register_no: student.regNo || '',
@@ -113,7 +115,6 @@ export async function populateOfficialDocxTemplateWithLogs(
     ACADEMIC_YEAR: '',
     academic_year: '',
 
-    // UNIVERSITY_SUBJECTS contains only valid subjects from Excel (no empty rows, no hardcoded defaults)
     UNIVERSITY_SUBJECTS: parsedSubjects
       .filter((ur) => ur.code || ur.title || ur.grade)
       .map((ur) => ({
@@ -151,13 +152,17 @@ export async function populateOfficialDocxTemplateWithLogs(
     CLASS: student.classObtained || '',
   };
 
-  console.log('=================== UNIVERSITY SUBJECTS TABLE RENDERING DEBUG ===================');
+  console.log('=================== GPA TABLE MAPPING DEBUG ===================');
   console.log(`Student: ${placeholderObject.STUDENT_NAME} (${placeholderObject.REGISTER_NO})`);
-  console.log(`Total Valid University Subjects: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, i) => {
-    console.log(`  [Row ${i + 1}] Sem: "${sub.SEM}", Code: "${sub.CODE}", Title: "${sub.TITLE}", Grade: "${sub.GRADE}", Pass/Fail: "${sub.PASS_FAIL}"`);
-  });
-  console.log('==================================================================================');
+  console.log(`GPA01: "${placeholderObject.GPA01}"`);
+  console.log(`GPA02: "${placeholderObject.GPA02}"`);
+  console.log(`GPA03: "${placeholderObject.GPA03}"`);
+  console.log(`GPA04: "${placeholderObject.GPA04}"`);
+  console.log(`GPA05: "${placeholderObject.GPA05}"`);
+  console.log(`GPA06: "${placeholderObject.GPA06}"`);
+  console.log(`GPA07: "${placeholderObject.GPA07}"`);
+  console.log(`CGPA : "${placeholderObject.CGPA}"`);
+  console.log('===============================================================');
 
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
@@ -262,14 +267,14 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   // Populate Tables in Word XML
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table (Renders 1 table row per subject, exactly N rows for N subjects)
+    // TABLE 2: University Results Table
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = placeholderObject.UNIVERSITY_SUBJECTS;
 
     if (rows2.length >= 2 && univList.length > 0) {
       const headerRowXml = rows2[0];
-      const templateRowXml = rows2[1]; // Template data row
+      const templateRowXml = rows2[1];
 
       const newRowsXml = univList.map((item) => {
         const vals = [
@@ -287,7 +292,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       xml = xml.replace(tableMatches[1], newTbl2Xml);
     }
 
-    // TABLE 3: GPA & CGPA Summary Table (Table Index 2)
+    // TABLE 3: GPA, CGPA & Arrears Summary Table
     let tbl3 = tableMatches[2];
     let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
 
@@ -311,7 +316,10 @@ export async function populateOfficialDocxTemplateWithLogs(
       updatedR = updatedR.replace(/\{\{ARREARS07\}\}/gi, placeholderObject.ARREARS07);
       updatedR = updatedR.replace(/\{\{CLASS_OBTAINED\}\}/gi, placeholderObject.CLASS_OBTAINED);
 
-      if (rIdx === 1) { // GPA Row
+      const rowTextUpper = rXml.replace(/<[^>]+>/g, '').toUpperCase().trim();
+
+      if (/GPA/i.test(rowTextUpper) && !/CGPA/i.test(rowTextUpper)) {
+        // GPA Row: Columns 1..7 map strictly to GPA01..GPA07 without shifting
         const gpaVals = [
           placeholderObject.GPA01,
           placeholderObject.GPA02,
@@ -331,7 +339,8 @@ export async function populateOfficialDocxTemplateWithLogs(
           cIdx++;
           return cellXml;
         });
-      } else if (rIdx === 2) { // Arrears Row
+      } else if (/ARREAR/i.test(rowTextUpper)) {
+        // Arrears Row: Columns 1..7 map strictly to ARREARS01..ARREARS07
         const arrVals = [
           placeholderObject.ARREARS01,
           placeholderObject.ARREARS02,
@@ -351,7 +360,8 @@ export async function populateOfficialDocxTemplateWithLogs(
           cIdx++;
           return cellXml;
         });
-      } else if (rIdx === 3) { // CGPA Row
+      } else if (/CGPA/i.test(rowTextUpper)) {
+        // CGPA Row: Column 1 maps strictly to CGPA
         let cIdx = 0;
         updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
           if (cIdx === 1) {
@@ -361,7 +371,8 @@ export async function populateOfficialDocxTemplateWithLogs(
           cIdx++;
           return cellXml;
         });
-      } else if (rIdx === 4) { // Class Obtained Row
+      } else if (/CLASS/i.test(rowTextUpper)) {
+        // Class Obtained Row: Column 1 maps strictly to CLASS_OBTAINED
         let cIdx = 0;
         updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
           if (cIdx === 1) {
@@ -377,7 +388,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     });
     xml = xml.replace(tableMatches[2], tbl3);
 
-    // TABLE 4: Internal Evaluation Marks Table (Table Index 3)
+    // TABLE 4: Internal Evaluation Marks Table
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const internalList = student.internalEvalResults || [];
