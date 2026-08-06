@@ -130,20 +130,62 @@ export const Dashboard: React.FC = () => {
 
       if (parsed && parsed.length > 0) {
         const sizeStr = `${(file.size / 1024).toFixed(0)} KB`;
-        setFileSlots((prev) => ({
-          ...prev,
-          [slotKey]: {
-            ...prev[slotKey],
-            file,
-            name: file.name,
-            size: sizeStr,
-            studentCount: parsed.length,
-            isValid: true,
-            students: parsed,
-          },
-        }));
 
-        addToast('success', 'File Uploaded', `${file.name} parsed successfully (${parsed.length} Students).`);
+        const newSlotData = {
+          ...fileSlots[slotKey],
+          file,
+          name: file.name,
+          size: sizeStr,
+          studentCount: parsed.length,
+          isValid: true,
+          students: parsed,
+        };
+
+        const updatedSlots = {
+          ...fileSlots,
+          [slotKey]: newSlotData,
+        };
+
+        setFileSlots(updatedSlots);
+
+        // Instantly run merge engine so live preview updates immediately upon uploading
+        const univList = updatedSlots.univ.students;
+        const cie1List = updatedSlots.cie1.students;
+        const cie2List = updatedSlots.cie2.students;
+        const modelList = updatedSlots.model.students;
+
+        const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+        setMergeResult(res);
+        setMergedStudents(res.mergedStudents);
+        setCurrentPageIndex(0);
+
+        const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
+        const acadYear = '2025 - 2026';
+        const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
+
+        setSummary({
+          fileName: file.name,
+          fileSize: sizeStr,
+          department: deptName,
+          academicYear: acadYear,
+          totalStudents: res.mergedStudents.length,
+          subjectsPerStudent: subCount,
+          reportsCount: res.mergedStudents.length,
+          templateUsed: res.templateFile,
+          uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+          status: 'Ready for Download',
+        });
+
+        setStats({
+          totalStudents: res.mergedStudents.length,
+          reportsGenerated: res.mergedStudents.length,
+          pdfPages: res.mergedStudents.length * 2,
+          department: deptName,
+          academicYear: acadYear,
+          uploadStatus: 'Success',
+        });
+
+        addToast('success', 'File Uploaded & Preview Updated', `${file.name} parsed (${parsed.length} Students). Report preview loaded.`);
       } else {
         addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
       }

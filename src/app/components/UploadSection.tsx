@@ -71,17 +71,13 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
   const allSlotKeys: ('univ' | 'cie1' | 'cie2' | 'model')[] = ['univ', 'cie1', 'cie2', 'model'];
 
-  // Enable processing whenever AT LEAST ONE Excel file is uploaded
-  const hasAnyUploaded =
-    !!fileSlots.univ?.file ||
-    !!fileSlots.cie1?.file ||
-    !!fileSlots.cie2?.file ||
-    !!fileSlots.model?.file;
+  // Enable merge engine when at least one file is uploaded in any slot
+  const hasAnyFileUploaded = allSlotKeys.some((k) => !!fileSlots[k]?.file);
 
   return (
     <div className="w-full flex flex-col gap-6">
 
-      {/* STEP 1: Upload Excel File Slots (Any single Excel file can be processed independently) */}
+      {/* STEP 1: Upload Excel File Slots (University & CIE 1 Mandatory, CIE 2 & Model Optional) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
@@ -89,26 +85,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
               1
             </div>
             <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
-              Upload Excel Files
+              Upload Required Excel Files
             </h3>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onDownloadSampleTemplate}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors flex items-center gap-1"
-            >
-              <span>📥</span> Download Sample Template
-            </button>
-            <span className="text-slate-300">•</span>
-            <button
-              type="button"
-              onClick={onLoadSampleData}
-              className="text-xs font-semibold text-slate-500 hover:text-blue-700 hover:underline transition-colors flex items-center gap-1"
-            >
-              <span>⚡</span> Load Demo Data
-            </button>
           </div>
         </div>
 
@@ -137,6 +115,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
             const inputRef = getSlotRef(key);
             const isUploaded = slot.file !== null;
+            const isMandatory = key === 'univ' || key === 'cie1';
 
             const slotLabel =
               key === 'univ'
@@ -155,6 +134,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 className={`rounded-2xl border p-4 transition-all duration-300 ${
                   isUploaded
                     ? 'border-emerald-300 bg-emerald-50/20'
+                    : isMandatory
+                    ? 'border-blue-200/90 bg-gradient-to-b from-blue-50/30 to-transparent hover:border-blue-400'
                     : 'border-slate-200 bg-slate-50/30 hover:border-slate-300'
                 }`}
               >
@@ -176,14 +157,10 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                     <h5 className="text-xs font-extrabold text-blue-950">{slotLabel}</h5>
                   </div>
 
-                  {isUploaded ? (
+                  {isUploaded && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       Uploaded
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                      Optional
                     </span>
                   )}
                 </div>
@@ -241,20 +218,20 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           />
         </div>
 
-        {/* Action: Process & Map Reports Data Button */}
+        {/* Action: Run Excel Merge Engine Button */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 font-medium">
-            {!hasAnyUploaded ? 'Upload at least one Excel file to process & map reports data.' : 'Excel file uploaded. Ready to process & map.'}
+            {!hasAnyFileUploaded ? 'Upload an Excel file to merge' : 'File uploaded. Ready to merge.'}
           </p>
 
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!hasAnyUploaded || isProcessing}
+            disabled={!hasAnyFileUploaded || isProcessing}
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
-            <span>Process & Map Reports Data</span>
+            <span>Run Excel Merge Engine</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

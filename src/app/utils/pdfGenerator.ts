@@ -15,8 +15,9 @@ export const generateCombinedPDF = async (
   students: StudentRecord[],
   reportContainerElement?: HTMLElement | null,
   onProgress?: (current: number, total: number) => void,
-  regulation: string = '2021'
-): Promise<void> => {
+  regulation: string = '2021',
+  returnBlobUrl: boolean = false
+): Promise<string | void> => {
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
@@ -445,6 +446,10 @@ export const generateCombinedPDF = async (
     const w8 = pdf.getTextWidth('be declared to have passed the examination in ');
     pdf.setFont('times', 'bold');
     pdf.text('Second Class.', margin + 15 + w8, p2Y);
+  }
+
+  if (returnBlobUrl) {
+    return pdf.output('bloburl') as string;
   }
 
   pdf.save('JEPPIAAR_IT_PARENTS_Mark_Reports_Combined.pdf');
