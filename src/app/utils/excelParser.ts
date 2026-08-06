@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Subject Master Mapping Dictionary for clean human-readable titles
+// Subject Master Mapping Dictionary for resolving clean human-readable titles from Subject Codes
 const knownTitles: Record<string, string> = {
+  // CSE / IT / AI&DS
   ACS108: 'Network Security',
   ACS109: 'Embedded Systems & IoT',
   ACS110: 'Mobile Applications Laboratory',
@@ -22,6 +23,15 @@ const knownTitles: Record<string, string> = {
   CS3603: 'Design and Analysis of Algorithms',
   CS3604: 'Web Technology',
   CS3605: 'Software Engineering',
+  CS3491: 'Artificial Intelligence and Machine Learning',
+  CS3451: 'Introduction to Operating Systems',
+  CS3492: 'Database Management Systems',
+  CS3401: 'Algorithms',
+  CS3391: 'Object Oriented Programming',
+  CS3351: 'Digital Principles and Computer Organization',
+  CS3301: 'Data Structures',
+
+  // General Engineering / Maths / Science
   GE3151: 'Problem Solving and Python Programming',
   MA3151: 'Matrices and Calculus',
   PH3151: 'Engineering Physics',
@@ -30,6 +40,13 @@ const knownTitles: Record<string, string> = {
   GE3171: 'Problem Solving and Python Programming Laboratory',
   BS3171: 'Physics and Chemistry Laboratory',
   GE3172: 'English Laboratory',
+  MA3251: 'Statistics and Numerical Methods',
+  MA3354: 'Discrete Mathematics',
+  MA3391: 'Probability and Statistics',
+  GE3251: 'Professional English - II',
+  GE3252: 'Tamils and Technology',
+
+  // Short Codes / Abbreviations
   NS: 'Network Security',
   OOSE: 'Object Oriented Software Engineering',
   'ESA IOT': 'Embedded Systems & IoT',
@@ -44,10 +61,6 @@ const knownTitles: Record<string, string> = {
   OS: 'Operating Systems',
   DSA: 'Data Structures & Algorithms',
   SE: 'Software Engineering',
-  ECE: 'Electronics & Communication',
-  EEE: 'Electrical & Electronics',
-  MECH: 'Mechanical Engineering',
-  CIVIL: 'Civil Engineering',
 };
 
 // Helper to detect if a cell string is an Exam Date
@@ -100,7 +113,7 @@ const isPlaceholderToken = (str: string): boolean => {
   return false;
 };
 
-// Evaluate Pass/Fail dynamically without forcing defaults
+// Evaluate Pass/Fail dynamically from grade or status without forcing defaults
 const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' | '' => {
   const str = String(value || '').trim().toUpperCase();
   const g = String(gradeStr || '').trim().toUpperCase();
@@ -161,8 +174,8 @@ const findColIndex = (headers: string[], candidates: string[]): number => {
 
 /**
  * Universal Dynamic Excel Parser
- * Automatically detects the student table by searching for "Reg No" / "REG.NO" and "Name".
- * Works dynamically across all departments without hardcoded row numbers or column indexes.
+ * Reads Subject Code and Grade for every subject, resolving Subject Name from Subject Master.
+ * Maps UNIVERSITY_SUBJECTS strictly matching uploaded Excel without shifting grades or hardcoding names.
  */
 export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
@@ -199,7 +212,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
           if (!rawMatrix || rawMatrix.length === 0) return;
 
-          // STEP 1: Dynamically locate the exact Header Row containing "Reg No" / "REG.NO" / "Register No" and "Name"
+          // STEP 1: Dynamically locate Header Row containing "Reg No" / "REG.NO" / "Register No" and "Name"
           let headerRowIndex = -1;
           let regNoColIndex = -1;
           let nameColIndex = -1;
@@ -259,7 +272,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
-          // Dynamic Metadata Extraction across any department (CSE, ECE, EEE, MECH, CIVIL, IT, AI&DS, etc.)
+          // Dynamic Metadata Extraction across any department
           let extractedDepartment = '';
           let extractedRegulation = '';
           let extractedSemester = '';
@@ -355,7 +368,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
           const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
 
-          // Direct Subject Columns Detection (e.g., ACS108, ACS109, ACS110, ACS111, CS503, etc.)
+          // Direct Subject Columns Detection (Headers containing Subject Codes like ACS108, CS3591, etc.)
           const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
           
           for (let c = 0; c < headerNames.length; c++) {
@@ -376,11 +389,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             // Extract subject code from header string
             const codeMatch = txt.match(/\b([A-Za-z]{2,5}\s*\d{3,5}[A-Za-z]?)\b/);
             const codeStr = codeMatch ? codeMatch[1].replace(/\s+/g, '').toUpperCase() : txt.toUpperCase();
+            const cleanCodeStr = codeStr.replace(/\s+/g, '');
+
+            // Resolve Subject Name strictly from Subject Master dictionary
+            const titleStr = knownTitles[codeStr] || knownTitles[cleanCodeStr] || txt;
 
             directSubjectCols.push({
               colIndex: c,
               code: codeStr,
-              title: knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || txt,
+              title: titleStr,
             });
           }
 
@@ -390,19 +407,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const arrearsColIdx = findColIndex(headerNames, ['arrears', 'no of arrears', 'no. of arrears', 'arr', 'total arrears', 'arrear']);
 
           // Console Logs for Dynamic Header Row & Student Table Detection Debugging
-          console.log('=================== DYNAMIC STUDENT TABLE DETECTION DEBUG ===================');
+          console.log('=================== DYNAMIC SUBJECT MAPPING DEBUG ===================');
           console.log(`[Parser Debug] Sheet Analyzed: "${sheetName}"`);
-          console.log(`[Parser Debug] Header Row Detected: Row Index ${headerRowIndex + 1} (0-indexed ${headerRowIndex})`);
-          console.log(`[Parser Debug] Reg No Column Index: ${regNoColIndex} ("${headerNames[regNoColIndex] || ''}")`);
-          console.log(`[Parser Debug] Student Name Column Index: ${nameColIndex} ("${headerNames[nameColIndex] || ''}")`);
-          console.log(`[Parser Debug] Department Extracted: "${extractedDepartment}"`);
-          console.log(`[Parser Debug] Regulation Extracted: "${extractedRegulation}"`);
-          console.log(`[Parser Debug] Semester Extracted: "${extractedSemester}"`);
-          console.log(`[Parser Debug] GPA Column Index: ${gpaColIdx !== -1 ? `${gpaColIdx} ("${headerNames[gpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] CGPA Column Index: ${cgpaColIdx !== -1 ? `${cgpaColIdx} ("${headerNames[cgpaColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] Arrears Column Index: ${arrearsColIdx !== -1 ? `${arrearsColIdx} ("${headerNames[arrearsColIdx]}")` : 'Not Found / Dynamic Search'}`);
-          console.log(`[Parser Debug] Subject Columns Detected (${directSubjectCols.length}):`, directSubjectCols.map(s => `${s.code} (Col ${s.colIndex})`));
-          console.log('=============================================================================');
+          console.log(`[Parser Debug] Header Row Detected: Row Index ${headerRowIndex + 1}`);
+          console.log(`[Parser Debug] Subject Columns Mapped (${directSubjectCols.length}):`, directSubjectCols.map(s => `${s.code} -> "${s.title}" (Col ${s.colIndex})`));
+          console.log('=====================================================================');
 
           // Read Student Rows starting after headerRowIndex until table ends
           const studentDataStartRowIndex = headerRowIndex + 1;
@@ -489,7 +498,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
 
-            // Build University Subjects strictly without hardcoded default values
+            // Build University Subjects strictly matching uploaded Excel (NO GRADE SHIFTING, NO HARDCODED NAMES)
             const universityResults: SubjectResult[] = [];
             const internalEvalResults: InternalEvalResult[] = [];
 
@@ -502,12 +511,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
               const codeStr = String(codeRaw || '').trim().toUpperCase();
+              const cleanCodeStr = codeStr.replace(/\s+/g, '');
               let titleStr = String(titleRaw || '').trim();
               const gradeStr = String(gradeRaw || '').trim().toUpperCase();
               const passStr = String(passRaw || '').trim().toUpperCase();
 
               if (!codeStr && !titleStr && !gradeStr && !passStr) return;
-              if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
+              if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[cleanCodeStr] || codeStr;
 
               const passFail = evaluatePassFail(passStr, gradeStr);
               const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || '');
@@ -532,13 +542,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
                 const codeStr = String(codeRaw || '').trim().toUpperCase();
+                const cleanCodeStr = codeStr.replace(/\s+/g, '');
                 let titleStr = String(titleRaw || '').trim();
                 const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
                 const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
                 const passStr = String(passRaw || '').trim().toUpperCase();
 
                 if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
-                if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[codeStr.replace(/\s+/g, '')] || codeStr;
+                if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || knownTitles[cleanCodeStr] || codeStr;
 
                 const passFail = evaluatePassFail(passStr, cie1MarksStr);
                 const sem = semRaw ? String(semRaw).trim().toUpperCase() : (extractedSemester || '');
@@ -554,12 +565,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               });
             }
 
-            // 3. Direct Subject Columns (ACS108 -> B+, ACS109 -> A, etc.)
+            // 3. Direct Subject Columns (Reads Grade for each column index without grade shifting)
             if (sortedUnivSpecs.length === 0 || isCieFile) {
               directSubjectCols.forEach((sub) => {
                 const cellVal = rowCells[sub.colIndex];
                 if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
                   const valStr = String(cellVal).trim();
+                  const gradeUpper = valStr.toUpperCase();
                   if (isCieFile) {
                     internalEvalResults.push({
                       sem: extractedSemester || '',
@@ -574,8 +586,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                       sem: extractedSemester || '',
                       code: sub.code,
                       title: sub.title,
-                      grade: valStr.toUpperCase(),
-                      passFail: evaluatePassFail('', valStr),
+                      grade: gradeUpper,
+                      passFail: evaluatePassFail('', gradeUpper),
                     });
                   }
                 }
@@ -614,7 +626,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             if (cgpaVal !== undefined) existing.cgpa = cgpaVal;
             if (classObtained) existing.classObtained = classObtained;
 
-            console.log(`[Parser Debug] Student ${regNoStr} (${nameStr}) mapped ${universityResults.length} University Subjects, GPA=${gpaVal !== undefined ? gpaVal : ''}, CGPA=${cgpaVal !== undefined ? cgpaVal : ''}`);
+            console.log(`[Parser Debug] Student ${regNoStr} (${nameStr}) mapped ${universityResults.length} University Subjects strictly matching Excel.`);
           }
 
           console.log(`[Parser Debug] Sheet "${sheetName}" Parsed ${parsedRowCount} Student Rows Successfully.`);
