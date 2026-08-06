@@ -434,29 +434,38 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             for (let s = 1; s <= 7; s++) {
               const semKey = `0${s}`;
               const sNum = String(s);
+              const romanSem = s === 1 ? 'i' : s === 2 ? 'ii' : s === 3 ? 'iii' : s === 4 ? 'iv' : s === 5 ? 'v' : s === 6 ? 'vi' : 'vii';
 
               const valG = findCellValue(rowCells, headerNames, [
                 `gpa0${s}`, `gpa 0${s}`, `gpa ${s}`, `gpa_0${s}`, `gpa_${s}`, `gpa${s}`,
-                `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`
+                `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`, `gpa_sem_${s}`,
+                `sem_${romanSem}_gpa`, `gpa_${romanSem}`, `gpa (${romanSem})`, `gpa (sem ${romanSem})`, `sem ${romanSem}`
               ]);
 
               const valC = findCellValue(rowCells, headerNames, [
                 `cgpa0${s}`, `cgpa 0${s}`, `cgpa ${s}`, `cgpa_0${s}`, `cgpa_${s}`, `cgpa${s}`,
-                `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`
+                `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`,
+                `sem_${romanSem}_cgpa`, `cgpa_${romanSem}`, `cgpa (${romanSem})`, `cgpa (sem ${romanSem})`
               ]);
 
               const valA = findCellValue(rowCells, headerNames, [
                 `arrears0${s}`, `arrears 0${s}`, `arrears ${s}`, `arrears_0${s}`, `arrears_${s}`, `arrears${s}`,
-                `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`, /arrear/i
+                `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`, `arrear0${s}`, `arrear ${s}`,
+                `arrears_${romanSem}`, `arr_${romanSem}`, `arr (${romanSem})`, `arrears (${romanSem})`
               ]);
 
-              gpaBySem[semKey] = valG !== undefined && valG !== null && String(valG).trim() !== '' ? String(valG) : '';
-              cgpaBySem[semKey] = valC !== undefined && valC !== null && String(valC).trim() !== '' ? String(valC) : '';
-              arrearsMap[semKey] = valA !== undefined && valA !== null && String(valA).trim() !== '' ? (isNaN(Number(valA)) ? String(valA) : Number(valA)) : '';
-
-              gpaBySem[sNum] = gpaBySem[semKey];
-              cgpaBySem[sNum] = cgpaBySem[semKey];
-              arrearsMap[sNum] = arrearsMap[semKey];
+              if (valG !== undefined && valG !== null && String(valG).trim() !== '') {
+                gpaBySem[semKey] = String(valG).trim();
+                gpaBySem[sNum] = String(valG).trim();
+              }
+              if (valC !== undefined && valC !== null && String(valC).trim() !== '') {
+                cgpaBySem[semKey] = String(valC).trim();
+                cgpaBySem[sNum] = String(valC).trim();
+              }
+              if (valA !== undefined && valA !== null && String(valA).trim() !== '') {
+                arrearsMap[semKey] = isNaN(Number(valA)) ? String(valA).trim() : Number(valA);
+                arrearsMap[sNum] = arrearsMap[semKey];
+              }
             }
 
             // University & CIE Results

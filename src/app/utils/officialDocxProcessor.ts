@@ -66,10 +66,29 @@ export async function populateOfficialDocxTemplateWithLogs(
     throw new Error('No student data provided for DOCX template rendering.');
   }
 
+  const parsedSubjects = student.universityResults || [];
   const gpa = student.gpaBySem || {};
   const arr = student.arrears || {};
 
-  // STEP 2: Create exact Placeholder Object for every student before rendering DOCX
+  // Extract semester GPAs across 01..07 without leaving preceding slots empty if values exist
+  const gpa01 = gpa['01'] || gpa['1'] || '';
+  const gpa02 = gpa['02'] || gpa['2'] || '';
+  const gpa03 = gpa['03'] || gpa['3'] || '';
+  const gpa04 = gpa['04'] || gpa['4'] || '';
+  const gpa05 = gpa['05'] || gpa['5'] || (student.gpa !== undefined && student.gpa !== null ? String(student.gpa) : '');
+  const gpa06 = gpa['06'] || gpa['6'] || '';
+  const gpa07 = gpa['07'] || gpa['7'] || '';
+
+  // Extract semester Arrears across 01..07
+  const arr01 = arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined ? String(arr['1']) : '');
+  const arr02 = arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined ? String(arr['2']) : '');
+  const arr03 = arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined ? String(arr['3']) : '');
+  const arr04 = arr['04'] !== undefined && arr['04'] !== null ? String(arr['04']) : (arr['4'] !== undefined ? String(arr['4']) : '');
+  const arr05 = arr['05'] !== undefined && arr['05'] !== null ? String(arr['05']) : (arr['5'] !== undefined ? String(arr['5']) : '');
+  const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : '');
+  const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : '');
+
+  // STEP 2: Create exact Placeholder Object containing ALL parsed subjects
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
     STUDENT_NAME: student.name || '',
@@ -79,7 +98,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     EXAM_SESSION: 'Nov/Dec 2025',
     ACADEMIC_YEAR: '2025 - 2026',
 
-    UNIVERSITY_SUBJECTS: (student.universityResults || []).map((ur) => ({
+    UNIVERSITY_SUBJECTS: parsedSubjects.map((ur) => ({
       SEM: ur.sem || 'VI',
       CODE: ur.code || '',
       TITLE: ur.title || '',
@@ -87,33 +106,39 @@ export async function populateOfficialDocxTemplateWithLogs(
       PASS_FAIL: ur.passFail || '',
     })),
 
-    GPA01: gpa['01'] !== undefined && gpa['01'] !== null ? String(gpa['01']) : (gpa['1'] !== undefined ? String(gpa['1']) : ''),
-    GPA02: gpa['02'] !== undefined && gpa['02'] !== null ? String(gpa['02']) : (gpa['2'] !== undefined ? String(gpa['2']) : ''),
-    GPA03: gpa['03'] !== undefined && gpa['03'] !== null ? String(gpa['03']) : (gpa['3'] !== undefined ? String(gpa['3']) : ''),
-    GPA04: gpa['04'] !== undefined && gpa['04'] !== null ? String(gpa['04']) : (gpa['4'] !== undefined ? String(gpa['4']) : ''),
-    GPA05: gpa['05'] !== undefined && gpa['05'] !== null ? String(gpa['05']) : (gpa['5'] !== undefined ? String(gpa['5']) : (student.gpa !== undefined ? String(student.gpa) : '')),
-    GPA06: gpa['06'] !== undefined && gpa['06'] !== null ? String(gpa['06']) : (gpa['6'] !== undefined ? String(gpa['6']) : ''),
-    GPA07: gpa['07'] !== undefined && gpa['07'] !== null ? String(gpa['07']) : (gpa['7'] !== undefined ? String(gpa['7']) : ''),
+    GPA01: gpa01,
+    GPA02: gpa02,
+    GPA03: gpa03,
+    GPA04: gpa04,
+    GPA05: gpa05,
+    GPA06: gpa06,
+    GPA07: gpa07,
 
     CGPA: student.cgpa !== undefined && student.cgpa !== null && String(student.cgpa).trim() !== '' ? String(student.cgpa) : '',
 
-    ARREARS01: arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined ? String(arr['1']) : ''),
-    ARREARS02: arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined ? String(arr['2']) : ''),
-    ARREARS03: arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined ? String(arr['3']) : ''),
-    ARREARS04: arr['04'] !== undefined && arr['04'] !== null ? String(arr['04']) : (arr['4'] !== undefined ? String(arr['4']) : ''),
-    ARREARS05: arr['05'] !== undefined && arr['05'] !== null ? String(arr['05']) : (arr['5'] !== undefined ? String(arr['5']) : ''),
-    ARREARS06: arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : ''),
-    ARREARS07: arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : ''),
+    ARREARS01: arr01,
+    ARREARS02: arr02,
+    ARREARS03: arr03,
+    ARREARS04: arr04,
+    ARREARS05: arr05,
+    ARREARS06: arr06,
+    ARREARS07: arr07,
 
     CLASS_OBTAINED: student.classObtained || '',
   };
 
-  // STEP 4: Debug Before Rendering
+  // STEP 4: Debug & Verification Before Rendering
   console.log('=================== STEP 4 DEBUG BEFORE RENDERING ===================');
   console.log(`Student: ${placeholderObject.STUDENT_NAME}`);
   console.log(`Register Number: ${placeholderObject.REGISTER_NO}`);
   console.log(`Student Name: ${placeholderObject.STUDENT_NAME}`);
-  console.log(`University Subjects Count: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  console.log(`University Subjects Count : ${parsedSubjects.length}`);
+  console.log(`UNIVERSITY_SUBJECTS.length : ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+
+  if (parsedSubjects.length !== placeholderObject.UNIVERSITY_SUBJECTS.length) {
+    console.error(`ERROR: University Subjects Count Mismatch! parsedSubjects=${parsedSubjects.length}, UNIVERSITY_SUBJECTS=${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+    throw new Error(`University subject count mismatch. Expected ${parsedSubjects.length}, got ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  }
 
   placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, i) => {
     console.log(`  [Sub ${i + 1}] Code: ${sub.CODE}, Title: "${sub.TITLE}", Grade: ${sub.GRADE}, Pass/Fail: ${sub.PASS_FAIL}`);
@@ -226,20 +251,31 @@ export async function populateOfficialDocxTemplateWithLogs(
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
 
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table
+    // TABLE 2: University Results Table (Clone template row for all N subjects)
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = placeholderObject.UNIVERSITY_SUBJECTS;
 
-    rows2.slice(1).forEach((rXml, idx) => {
-      const item = univList[idx];
-      const vals = item
-        ? [item.SEM || 'VI', item.CODE || '', item.TITLE || '', item.GRADE || '', item.PASS_FAIL || '']
-        : ['', '', '', '', ''];
-      const updatedRow = updateRowCells(rXml, vals);
-      tbl2 = tbl2.replace(rXml, updatedRow);
-    });
-    xml = xml.replace(tableMatches[1], tbl2);
+    if (rows2.length >= 2) {
+      const headerRowXml = rows2[0];
+      const templateRowXml = rows2[1]; // Template data row
+
+      const newRowsXml = univList.map((item) => {
+        const vals = [
+          item.SEM || 'VI',
+          item.CODE || '',
+          item.TITLE || '',
+          item.GRADE || '',
+          item.PASS_FAIL || '',
+        ];
+        return updateRowCells(templateRowXml, vals);
+      });
+
+      // Construct new table XML containing header row + all N cloned data rows
+      const tableInnerContent = [headerRowXml, ...newRowsXml].join('');
+      const newTbl2Xml = tbl2.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${tableInnerContent}$2`);
+      xml = xml.replace(tableMatches[1], newTbl2Xml);
+    }
 
     // TABLE 3: GPA & CGPA Summary Table
     let tbl3 = tableMatches[2];
@@ -331,59 +367,58 @@ export async function populateOfficialDocxTemplateWithLogs(
     });
     xml = xml.replace(tableMatches[2], tbl3);
 
-    // TABLE 4: Internal Evaluation Marks Table
+    // TABLE 4: Internal Evaluation Marks Table (Clone template row for all N CIE subjects)
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const internalList = student.internalEvalResults || [];
     const isModel = cleanName.includes('model');
     const isCie2 = cleanName.includes('cie1_cie2');
 
-    rows4.slice(2).forEach((rXml, idx) => {
-      const item = internalList[idx];
-      let vals: string[] = [];
+    if (rows4.length >= 3 && internalList.length > 0) {
+      const headerRow1 = rows4[0];
+      const headerRow2 = rows4[1];
+      const templateRowXml = rows4[2];
 
-      if (isModel) {
-        vals = item
-          ? [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
-              item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '',
-              item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? (Number(item.modelMarks) >= 50 ? 'PASS' : (isNaN(Number(item.modelMarks)) ? '' : 'FAIL')) : '',
-            ]
-          : ['', '', '', '', '', '', '', '', ''];
-      } else if (isCie2) {
-        vals = item
-          ? [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
-            ]
-          : ['', '', '', '', '', '', ''];
-      } else {
-        vals = item
-          ? [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-            ]
-          : ['', '', '', '', ''];
-      }
+      const newRowsXml = internalList.map((item) => {
+        let vals: string[] = [];
+        if (isModel) {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
+            item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '',
+            item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? (Number(item.modelMarks) >= 50 ? 'PASS' : (isNaN(Number(item.modelMarks)) ? '' : 'FAIL')) : '',
+          ];
+        } else if (isCie2) {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
+          ];
+        } else {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+          ];
+        }
+        return updateRowCells(templateRowXml, vals);
+      });
 
-      const updatedRow = updateRowCells(rXml, vals);
-      tbl4 = tbl4.replace(rXml, updatedRow);
-    });
-    xml = xml.replace(tableMatches[3], tbl4);
+      const table4InnerContent = [headerRow1, headerRow2, ...newRowsXml].join('');
+      const newTbl4Xml = tbl4.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
+      xml = xml.replace(tableMatches[3], newTbl4Xml);
+    }
   }
 
   zip.file('word/document.xml', xml);
