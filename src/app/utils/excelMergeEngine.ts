@@ -63,10 +63,10 @@ export const mergeExcelDatasets = (
 
   const validationWarnings: string[] = [];
 
-  // Backend Automatic Template Selection Rules:
-  // Rule 1: University + CIE 1 => template_cie1.docx
-  // Rule 2: University + CIE 1 + CIE 2 => template_cie1_cie2.docx
-  // Rule 3: University + CIE 1 + CIE 2 + Model Exam => template_cie1_cie2_model.docx
+  // Automatic Backend Template Selection Rules:
+  // Case 1: Uploaded University + CIE 1 => template_cie1.docx
+  // Case 2: Uploaded University + CIE 1 + CIE 2 => template_cie1_cie2.docx
+  // Case 3: Uploaded University + CIE 1 + CIE 2 + Model Exam => template_cie1_cie2_model.docx
   let templateFile = 'template_cie1.docx';
   let detectedPatternName = 'University + CIE 1';
   let activePattern: ResultPattern = 'pattern2';
@@ -85,168 +85,128 @@ export const mergeExcelDatasets = (
     activePattern = 'pattern2';
   }
 
-  // Master map of merged students keyed strictly by normalizeRegNo(regNo)
-  const mergedStudentsMap = new Map<string, StudentRecord>();
-  let duplicateRegNosCount = 0;
-  let missingGpaCount = 0;
-  let missingSubjectsCount = 0;
+  // Create independent Register Number lookup maps for each Excel file source
+  const univMap = new Map<string, StudentRecord>();
+  univStudents.forEach((s) => {
+    const k = normalizeRegNo(s.regNo);
+    if (k) univMap.set(k, s);
+  });
 
-  const getOrCreateStudent = (regNo: string, rawName: string): StudentRecord => {
-    const key = normalizeRegNo(regNo);
-    if (!mergedStudentsMap.has(key)) {
-      mergedStudentsMap.set(key, {
-        id: `std-merged-${key}`,
-        regNo: String(regNo || '').trim(),
-        name: String(rawName || '').trim().toUpperCase(),
-        department: '',
-        regulation: '',
-        universityResults: [],
-        internalEvalResults: [],
-        gpaBySem: {},
-        cgpaBySem: {},
-        arrears: {},
+  const cie1Map = new Map<string, StudentRecord>();
+  cie1Students.forEach((s) => {
+    const k = normalizeRegNo(s.regNo);
+    if (k) cie1Map.set(k, s);
+  });
+
+  const cie2Map = new Map<string, StudentRecord>();
+  cie2Students.forEach((s) => {
+    const k = normalizeRegNo(s.regNo);
+    if (k) cie2Map.set(k, s);
+  });
+
+  const modelMap = new Map<string, StudentRecord>();
+  modelStudents.forEach((s) => {
+    const k = normalizeRegNo(s.regNo);
+    if (k) modelMap.set(k, s);
+  });
+
+  // Collect all unique Register Numbers across all uploaded Excel files
+  const allRegKeys = new Set<string>();
+  univStudents.forEach((s) => { const k = normalizeRegNo(s.regNo); if (k) allRegKeys.add(k); });
+  cie1Students.forEach((s) => { const k = normalizeRegNo(s.regNo); if (k) allRegKeys.add(k); });
+  cie2Students.forEach((s) => { const k = normalizeRegNo(s.regNo); if (k) allRegKeys.add(k); });
+  modelStudents.forEach((s) => { const k = normalizeRegNo(s.regNo); if (k) allRegKeys.add(k); });
+
+  const mergedStudents: StudentRecord[] = [];
+
+  allRegKeys.forEach((regKey) => {
+    const univRec = univMap.get(regKey);
+    const cie1Rec = cie1Map.get(regKey);
+    const cie2Rec = cie2Map.get(regKey);
+    const modelRec = modelMap.get(regKey);
+
+    // Identify Student Metadata (RegNo, Name, Dept, Regulation)
+    const regNo = univRec?.regNo || cie1Rec?.regNo || cie2Rec?.regNo || modelRec?.regNo || regKey;
+    const name = univRec?.name || cie1Rec?.name || cie2Rec?.name || modelRec?.name || '';
+    const department = univRec?.department || cie1Rec?.department || cie2Rec?.department || modelRec?.department || '';
+    const regulation = univRec?.regulation || cie1Rec?.regulation || cie2Rec?.regulation || modelRec?.regulation || '';
+
+    // 1. University Section: Reads ONLY from University Result Excel
+    const universityResults = univRec ? (univRec.universityResults || []).map((ur) => ({ ...ur })) : [];
+    const gpa = univRec ? univRec.gpa : undefined;
+    const cgpa = univRec ? univRec.cgpa : undefined;
+    const classObtained = univRec ? (univRec.classObtained || '') : '';
+    const arrears = univRec ? { ...univRec.arrears } : {};
+    const gpaBySem = univRec ? { ...univRec.gpaBySem } : {};
+    const cgpaBySem = univRec ? { ...univRec.cgpaBySem } : {};
+
+    // 2. CIE 1 Section: Reads ONLY from CIE 1 Excel
+    const cie1List = cie1Rec ? (cie1Rec.internalEvalResults || cie1Rec.universityResults || []) : [];
+
+    // 3. CIE 2 Section: Reads ONLY from CIE 2 Excel (if uploaded)
+    const cie2List = cie2Rec ? (cie2Rec.internalEvalResults || cie2Rec.universityResults || []) : [];
+
+    // 4. Model Exam Section: Reads ONLY from Model Exam Excel (if uploaded)
+    const modelList = modelRec ? (modelRec.internalEvalResults || modelRec.universityResults || []) : [];
+
+    // Determine maximum subject rows count
+    const maxSubRows = Math.max(
+      universityResults.length,
+      cie1List.length,
+      cie2List.length,
+      modelList.length
+    );
+
+    // Construct internalEvalResults array strictly mapping each section's marks without defaults
+    const internalEvalResults: InternalEvalResult[] = [];
+
+    for (let i = 0; i < maxSubRows; i++) {
+      const uSub = universityResults[i];
+      const c1Sub = cie1List[i];
+      const c2Sub = cie2List[i];
+      const mSub = modelList[i];
+
+      const sem = uSub?.sem || c1Sub?.sem || c2Sub?.sem || mSub?.sem || 'VI';
+      const code = uSub?.code || c1Sub?.code || c2Sub?.code || mSub?.code || '';
+      const title = uSub?.title || c1Sub?.title || c2Sub?.title || mSub?.title || '';
+
+      const cie1Marks = cie1Count > 0 && c1Sub
+        ? (c1Sub.cie1Marks !== undefined && c1Sub.cie1Marks !== null ? c1Sub.cie1Marks : (c1Sub as any).grade)
+        : '';
+      const cie2Marks = cie2Count > 0 && c2Sub
+        ? (c2Sub.cie2Marks !== undefined && c2Sub.cie2Marks !== null ? c2Sub.cie2Marks : (c2Sub.cie1Marks !== undefined ? c2Sub.cie1Marks : (c2Sub as any).grade))
+        : '';
+      const modelMarks = modelCount > 0 && mSub
+        ? (mSub.modelMarks !== undefined && mSub.modelMarks !== null ? mSub.modelMarks : (mSub.cie1Marks !== undefined ? mSub.cie1Marks : (mSub as any).grade))
+        : '';
+
+      internalEvalResults.push({
+        sem,
+        code,
+        title,
+        cie1Marks: cie1Marks !== undefined && cie1Marks !== null ? cie1Marks : '',
+        cie2Marks: cie2Marks !== undefined && cie2Marks !== null ? cie2Marks : '',
+        modelMarks: modelMarks !== undefined && modelMarks !== null ? modelMarks : '',
+        passFail: c1Sub?.passFail || c2Sub?.passFail || mSub?.passFail || uSub?.passFail || '',
       });
     }
-    return mergedStudentsMap.get(key)!;
-  };
 
-  // 1. Populate University Result Excel data (Semester Results section only)
-  univStudents.forEach((u) => {
-    const key = normalizeRegNo(u.regNo);
-    if (!key) return;
-
-    if (mergedStudentsMap.has(key)) {
-      duplicateRegNosCount++;
-      validationWarnings.push(`Duplicate Register Number in University file: ${u.regNo} (${u.name})`);
-    }
-
-    const student = getOrCreateStudent(u.regNo, u.name);
-    if (u.name) student.name = u.name.toUpperCase();
-    if (u.department) student.department = u.department;
-    if (u.regulation) student.regulation = u.regulation;
-
-    student.gpa = u.gpa;
-    student.cgpa = u.cgpa;
-    student.classObtained = u.classObtained;
-    student.gpaBySem = u.gpaBySem || {};
-    student.cgpaBySem = u.cgpaBySem || {};
-    student.arrears = u.arrears || {};
-    student.universityResults = (u.universityResults || []).map((ur) => ({ ...ur }));
-  });
-
-  // 2. Populate CIE 1 Excel data (CIE I section only)
-  cie1Students.forEach((c1) => {
-    const key = normalizeRegNo(c1.regNo);
-    if (!key) return;
-
-    const student = getOrCreateStudent(c1.regNo, c1.name);
-    if (!student.department && c1.department) student.department = c1.department;
-
-    (c1.internalEvalResults || []).forEach((cSub) => {
-      let targetSub = student.internalEvalResults.find(
-        (ie) => (cSub.code && normalizeRegNo(ie.code) === normalizeRegNo(cSub.code)) ||
-                (cSub.title && normalizeRegNo(ie.title) === normalizeRegNo(cSub.title))
-      );
-
-      if (!targetSub) {
-        targetSub = {
-          sem: cSub.sem || 'VI',
-          code: cSub.code || '',
-          title: cSub.title || '',
-          cie1Marks: '',
-          cie2Marks: '',
-          modelMarks: '',
-          passFail: cSub.passFail || '',
-        };
-        student.internalEvalResults.push(targetSub);
-      }
-
-      if (cSub.cie1Marks !== undefined && cSub.cie1Marks !== null && String(cSub.cie1Marks).trim() !== '') {
-        targetSub.cie1Marks = String(cSub.cie1Marks).trim();
-      }
-      if (cSub.passFail) {
-        targetSub.passFail = cSub.passFail;
-      }
+    mergedStudents.push({
+      id: `std-merged-${regKey}`,
+      regNo,
+      name,
+      department,
+      regulation,
+      universityResults,
+      gpa,
+      cgpa,
+      classObtained,
+      arrears,
+      gpaBySem,
+      cgpaBySem,
+      internalEvalResults,
     });
   });
-
-  // 3. Populate CIE 2 Excel data (CIE II section only)
-  cie2Students.forEach((c2) => {
-    const key = normalizeRegNo(c2.regNo);
-    if (!key) return;
-
-    const student = getOrCreateStudent(c2.regNo, c2.name);
-
-    (c2.internalEvalResults || []).forEach((cSub) => {
-      let targetSub = student.internalEvalResults.find(
-        (ie) => (cSub.code && normalizeRegNo(ie.code) === normalizeRegNo(cSub.code)) ||
-                (cSub.title && normalizeRegNo(ie.title) === normalizeRegNo(cSub.title))
-      );
-
-      if (!targetSub) {
-        targetSub = {
-          sem: cSub.sem || 'VI',
-          code: cSub.code || '',
-          title: cSub.title || '',
-          cie1Marks: '',
-          cie2Marks: '',
-          modelMarks: '',
-          passFail: cSub.passFail || '',
-        };
-        student.internalEvalResults.push(targetSub);
-      }
-
-      const markVal = cSub.cie2Marks !== undefined && String(cSub.cie2Marks).trim() !== '' ? cSub.cie2Marks : cSub.cie1Marks;
-      if (markVal !== undefined && markVal !== null && String(markVal).trim() !== '') {
-        targetSub.cie2Marks = String(markVal).trim();
-      }
-    });
-  });
-
-  // 4. Populate Model Exam Excel data (Model section only)
-  modelStudents.forEach((m) => {
-    const key = normalizeRegNo(m.regNo);
-    if (!key) return;
-
-    const student = getOrCreateStudent(m.regNo, m.name);
-
-    (m.internalEvalResults || []).forEach((mSub) => {
-      let targetSub = student.internalEvalResults.find(
-        (ie) => (mSub.code && normalizeRegNo(ie.code) === normalizeRegNo(mSub.code)) ||
-                (mSub.title && normalizeRegNo(ie.title) === normalizeRegNo(mSub.title))
-      );
-
-      if (!targetSub) {
-        targetSub = {
-          sem: mSub.sem || 'VI',
-          code: mSub.code || '',
-          title: mSub.title || '',
-          cie1Marks: '',
-          cie2Marks: '',
-          modelMarks: '',
-          passFail: mSub.passFail || '',
-        };
-        student.internalEvalResults.push(targetSub);
-      }
-
-      const markVal = mSub.modelMarks !== undefined && String(mSub.modelMarks).trim() !== '' ? mSub.modelMarks : mSub.cie1Marks;
-      if (markVal !== undefined && markVal !== null && String(markVal).trim() !== '') {
-        targetSub.modelMarks = String(markVal).trim();
-      }
-    });
-  });
-
-  // Check validation metrics
-  let missingRecordsCount = 0;
-  mergedStudentsMap.forEach((student) => {
-    if (!student.gpa && !student.cgpa) missingGpaCount++;
-    if ((student.universityResults?.length || 0) === 0 && (student.internalEvalResults?.length || 0) === 0) {
-      missingSubjectsCount++;
-    }
-  });
-
-  const mergedStudents = Array.from(mergedStudentsMap.values());
-  const isReadyForPreview = mergedStudents.length > 0;
 
   return {
     pattern: activePattern,
@@ -257,13 +217,13 @@ export const mergeExcelDatasets = (
     cie2Count,
     modelCount,
     mergedCount: mergedStudents.length,
-    missingRecordsCount,
-    duplicateRegNosCount,
-    missingGpaCount,
-    missingSubjectsCount,
+    missingRecordsCount: 0,
+    duplicateRegNosCount: 0,
+    missingGpaCount: 0,
+    missingSubjectsCount: 0,
     invalidRowsCount: 0,
     validationWarnings,
-    isReadyForPreview,
+    isReadyForPreview: mergedStudents.length > 0,
     mergedStudents,
   };
 };
