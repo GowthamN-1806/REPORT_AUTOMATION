@@ -13,11 +13,15 @@ import {
   RefreshCw,
   Download,
   FileText,
+  ListChecks,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { StudentRecord } from '../types';
 import { StudentEditorModal } from './StudentEditorModal';
-import { populateOfficialDocxTemplate } from '../utils/officialDocxProcessor';
+import { populateOfficialDocxTemplateWithLogs, PlaceholderMappingLog } from '../utils/officialDocxProcessor';
 import { generateSingleWordDocument } from '../utils/docGenerator';
 import { generateCombinedPDF } from '../utils/pdfGenerator';
 
@@ -44,6 +48,8 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   const [editingStudent, setEditingStudent] = useState<StudentRecord | null>(null);
   const [isLoadingDocx, setIsLoadingDocx] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [mappingLogs, setMappingLogs] = useState<PlaceholderMappingLog[]>([]);
+  const [showLogsDrawer, setShowLogsDrawer] = useState<boolean>(false);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
 
@@ -65,14 +71,16 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
         setIsLoadingDocx(true);
         setPreviewError(null);
 
-        // Populate official master template from public/templates/
-        const filledBytes = await populateOfficialDocxTemplate(cleanTemplateName, currentStudent, regulation);
+        // Populate official master template from public/templates/ with mapping logs
+        const result = await populateOfficialDocxTemplateWithLogs(cleanTemplateName, currentStudent, regulation);
         
         if (!isMounted) return;
 
+        setMappingLogs(result.mappingLogs);
+
         if (docxContainerRef.current) {
           docxContainerRef.current.innerHTML = '';
-          await renderAsync(filledBytes.buffer, docxContainerRef.current, undefined, {
+          await renderAsync(result.docBytes.buffer, docxContainerRef.current, undefined, {
             className: 'official-docx-preview-canvas',
             inWrapper: true,
             ignoreWidth: false,
@@ -213,8 +221,17 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           </div>
         )}
 
-        {/* Right: Actions (Edit Record, Download DOCX/PDF, Zoom, Fullscreen, Print) */}
+        {/* Right: Actions (Mapping Logs, Edit Record, Download DOCX/PDF, Zoom, Fullscreen, Print) */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLogsDrawer(!showLogsDrawer)}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700 shadow-sm"
+            title="Toggle Placeholder Mapping Logs"
+          >
+            <ListChecks className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Logs ({mappingLogs.length})</span>
+          </button>
+
           {currentStudent && (
             <>
               <button
@@ -284,6 +301,58 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Mapping Logs Drawer */}
+      {showLogsDrawer && (
+        <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 text-xs font-mono text-slate-300 max-h-48 overflow-auto">
+          <div className="flex items-center justify-between mb-2">
+            <h5 className="font-bold text-white uppercase text-[11px] tracking-wider flex items-center gap-1.5">
+              <ListChecks className="w-4 h-4 text-emerald-400" />
+              Dynamic Placeholder Mapping & Audit Logs ({currentStudent?.name})
+            </h5>
+            <button
+              onClick={() => setShowLogsDrawer(false)}
+              className="text-[11px] text-slate-400 hover:text-white underline"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {mappingLogs.map((log, idx) => (
+              <div
+                key={idx}
+                className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 flex items-start justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-blue-300 truncate">{log.placeholder}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Col: <span className="text-white">{log.actualCol}</span>
+                  </p>
+                  <p className="text-[10px] text-emerald-400 mt-0.5 truncate">
+                    Val: {log.value}
+                  </p>
+                  {log.reason && (
+                    <p className="text-[9px] text-amber-400 mt-0.5">{log.reason}</p>
+                  )}
+                </div>
+
+                <span
+                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                    log.status === 'SUCCESS'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                      : log.status === 'PENDING'
+                      ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                      : 'bg-red-950 text-red-300 border border-red-800'
+                  }`}
+                >
+                  {log.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Document Display Container */}
       <div className="flex-1 bg-[#F2F6FC] border-t border-slate-200/80 overflow-auto p-6 flex justify-center relative shadow-inner">

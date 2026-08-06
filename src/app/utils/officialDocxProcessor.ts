@@ -1,6 +1,20 @@
 import PizZip from 'pizzip';
 import { StudentRecord } from '../types';
 
+export interface PlaceholderMappingLog {
+  placeholder: string;
+  expectedCol: string;
+  actualCol: string;
+  value: string;
+  status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE';
+  reason: string;
+}
+
+export interface DocxPopulationResult {
+  docBytes: Uint8Array;
+  mappingLogs: PlaceholderMappingLog[];
+}
+
 /**
  * Helper to update text inside a Word XML cell <w:tc>
  * Preserves all original cell properties (<w:tcPr>), paragraph properties (<w:pPr>), and text styling (<w:rPr>).
@@ -43,13 +57,13 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 
 /**
  * Loads an official master DOCX template from public/templates/
- * and populates all placeholders & tables for a single student.
+ * and populates all placeholders & tables dynamically for a single student.
  */
-export async function populateOfficialDocxTemplate(
+export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
   student: StudentRecord,
   regulation: string = '2021'
-): Promise<Uint8Array> {
+): Promise<DocxPopulationResult> {
   const cleanName = templateFileName.replace(/^\/?(backend\/templates\/|templates\/)?/, '');
   const url = `/templates/${cleanName}`;
 
@@ -62,26 +76,83 @@ export async function populateOfficialDocxTemplate(
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
 
-  // 1. Replace Top Header Placeholders
-  const regNo = student.regNo || '';
-  const studentName = student.name || '';
-  const dept = student.department || 'Computer Science and Engineering';
-  const regCode = regulation || student.regulation || '2021';
-  const session = 'Nov/Dec 2025';
-  const acadYear = '2025 - 2026';
+  const mappingLogs: PlaceholderMappingLog[] = [];
 
-  xml = xml.replace(/\{\{REGISTER_NUMBER\}\}/g, regNo);
-  xml = xml.replace(/\{\{STUDENT_NAME\}\}/g, studentName);
-  xml = xml.replace(/\{\{DEPARTMENT\}\}/g, dept);
-  xml = xml.replace(/\{\{EXAM_SESSION\}\}/g, session);
-  xml = xml.replace(/\{\{REGULATION\}\}/g, regCode);
-  xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/g, acadYear);
+  // 1. Dynamic Placeholder Scan & Map
+  const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s-]+)(?:<[^>]+>)*?\}\}/g;
+  let match;
+  const scannedPlaceholders = new Set<string>();
+
+  while ((match = placeholderRegex.exec(xml)) !== null) {
+    const phName = match[1].replace(/<[^>]+>/g, '').trim();
+    if (phName) scannedPlaceholders.add(phName);
+  }
+
+  scannedPlaceholders.forEach((ph) => {
+    const cleanPh = ph.toLowerCase().replace(/[\s_.-]+/g, '');
+    let val = '';
+    let foundCol = '';
+    let reason = '';
+
+    if (cleanPh.includes('regulation')) {
+      val = regulation || student.regulation || '2021';
+      foundCol = 'Regulation';
+    } else if (cleanPh.includes('registernumber') || cleanPh.includes('regno') || cleanPh === 'reg' || cleanPh.includes('register')) {
+      val = student.regNo || 'Not Available';
+      foundCol = 'Register Number';
+    } else if (cleanPh.includes('studentname') || cleanPh.includes('name')) {
+      val = student.name || 'Not Available';
+      foundCol = 'Student Name';
+    } else if (cleanPh.includes('department') || cleanPh.includes('dept')) {
+      val = student.department || 'Computer Science and Engineering';
+      foundCol = 'Department';
+    } else if (cleanPh.includes('examsession') || cleanPh.includes('session')) {
+      val = 'Nov/Dec 2025';
+      foundCol = 'Exam Session';
+    } else if (cleanPh.includes('academicyear') || cleanPh.includes('year')) {
+      val = '2025 - 2026';
+      foundCol = 'Academic Year';
+    } else {
+      // Dynamic Subject placeholder matching
+      const sub = (student.internalEvalResults || []).find(
+        (s) => s.code.toLowerCase().replace(/[\s_.-]+/g, '') === cleanPh
+      );
+      if (sub) {
+        val = String(sub.cie1Marks !== undefined ? sub.cie1Marks : 'Pending');
+        foundCol = sub.code;
+      } else {
+        val = 'Pending';
+        reason = 'No matching Excel column or subject dataset found';
+      }
+    }
+
+    const status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE' =
+      val && val !== 'Pending' && val !== 'Not Available'
+        ? 'SUCCESS'
+        : val === 'Pending'
+        ? 'PENDING'
+        : 'NOT_AVAILABLE';
+
+    mappingLogs.push({
+      placeholder: `{{${ph}}}`,
+      expectedCol: ph,
+      actualCol: foundCol || 'None',
+      value: val,
+      status,
+      reason,
+    });
+
+    // Replace in XML with fallback value if missing
+    const fillValue = val || 'Pending';
+    const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
+    xml = xml.replace(replaceRegex, fillValue);
+  });
 
   // 2. Populate Tables
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
 
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results
+    // TABLE 2: University Results Table
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = student.universityResults || [];
@@ -89,7 +160,7 @@ export async function populateOfficialDocxTemplate(
     rows2.slice(1).forEach((rXml, idx) => {
       const item = univList[idx];
       const vals = item
-        ? [item.sem || 'VI', item.code || '', item.title || '', item.grade || '', item.passFail || '']
+        ? [item.sem || 'VI', item.code || 'Not Available', item.title || 'Not Available', item.grade || 'Pending', item.passFail || 'Pending']
         : ['', '', '', '', ''];
       const updatedRow = updateRowCells(rXml, vals);
       tbl2 = tbl2.replace(rXml, updatedRow);
@@ -137,36 +208,36 @@ export async function populateOfficialDocxTemplate(
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.cie2Marks !== undefined ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.modelMarks !== undefined ? String(item.modelMarks) : '',
-              item.modelMarks !== undefined ? (item.modelMarks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.code || 'Not Available',
+              item.title || 'Not Available',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.cie2Marks !== undefined ? String(item.cie2Marks) : 'Pending',
+              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.modelMarks !== undefined ? String(item.modelMarks) : 'Pending',
+              item.modelMarks !== undefined ? (item.modelMarks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
             ]
           : ['', '', '', '', '', '', '', '', ''];
       } else if (isCie2) {
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
-              item.cie2Marks !== undefined ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.code || 'Not Available',
+              item.title || 'Not Available',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
+              item.cie2Marks !== undefined ? String(item.cie2Marks) : 'Pending',
+              item.cie2Marks !== undefined ? (item.cie2Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
             ]
           : ['', '', '', '', '', '', ''];
       } else {
         vals = item
           ? [
               item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : '',
+              item.code || 'Not Available',
+              item.title || 'Not Available',
+              item.cie1Marks !== undefined ? String(item.cie1Marks) : 'Pending',
+              item.cie1Marks !== undefined ? (item.cie1Marks >= 50 ? 'PASS' : 'FAIL') : 'Pending',
             ]
           : ['', '', '', '', ''];
       }
@@ -178,5 +249,22 @@ export async function populateOfficialDocxTemplate(
   }
 
   zip.file('word/document.xml', xml);
-  return zip.generate({ type: 'uint8array' });
+  const docBytes = zip.generate({ type: 'uint8array' });
+
+  return {
+    docBytes,
+    mappingLogs,
+  };
+}
+
+/**
+ * Backward compatible helper that returns Uint8Array docBytes directly.
+ */
+export async function populateOfficialDocxTemplate(
+  templateFileName: string,
+  student: StudentRecord,
+  regulation: string = '2021'
+): Promise<Uint8Array> {
+  const result = await populateOfficialDocxTemplateWithLogs(templateFileName, student, regulation);
+  return result.docBytes;
 }
