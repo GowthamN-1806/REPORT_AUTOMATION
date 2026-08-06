@@ -159,595 +159,425 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
 
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+        const fileName = (file.name || '').toLowerCase();
+        const isCieFile = fileName.includes('cie') || fileName.includes('internal') || fileName.includes('eval');
 
-        // Read raw 2D matrix (header: 1)
-        const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        const allStudentsMap = new Map<string, StudentRecord>();
 
-        if (!rawMatrix || rawMatrix.length === 0) {
-          throw new Error('Excel sheet is empty or invalid.');
-        }
-
-        // STEP 1: Locate Student Table Anchor Row (Header Row containing Reg.No / Name)
-        let anchorRowIndex = -1;
-        let regNoColIndex = -1;
-        let nameColIndex = -1;
-        let deptColIndex = -1;
-        let reguColIndex = -1;
-
-        for (let r = 0; r < Math.min(25, rawMatrix.length); r++) {
-          const rowCells = rawMatrix[r] || [];
-          let foundReg = -1;
-          let foundName = -1;
-          let foundDept = -1;
-          let foundRegu = -1;
-
-          for (let c = 0; c < rowCells.length; c++) {
-            const cellText = String(rowCells[c] || '').trim().toLowerCase();
-            if (cellText === '') continue;
-
-            if (foundReg === -1 && /^(reg|reg\.no|reg_no|regno|roll|roll\.no|rollno|register|registration)/i.test(cellText)) {
-              foundReg = c;
-            } else if (foundName === -1 && /^(name|student|student_name|candidate|name of the student)/i.test(cellText)) {
-              foundName = c;
-            } else if (foundDept === -1 && /^(dept|department|branch)/i.test(cellText)) {
-              foundDept = c;
-            } else if (foundRegu === -1 && /^(regulation)/i.test(cellText)) {
-              foundRegu = c;
-            }
+        // Filter and iterate over valid worksheets (e.g., Table 1, Table 2; ignore Table 3 / Summary)
+        const validSheetNames = workbook.SheetNames.filter((sName) => {
+          const cleanS = sName.trim().toLowerCase();
+          // Explicitly ignore summary/statistics sheets like "Table 3", "Summary", "Statistics", "Abstract"
+          if (
+            /^(table\s*3|summary|statistic|stats|abstract|analytics|overview|consolidated)/i.test(cleanS) ||
+            cleanS.includes('summary') || cleanS.includes('statistic') || cleanS.includes('abstract')
+          ) {
+            return false;
           }
-
-          if (foundReg !== -1 || foundName !== -1) {
-            anchorRowIndex = r;
-            regNoColIndex = foundReg;
-            nameColIndex = foundName;
-            deptColIndex = foundDept;
-            reguColIndex = foundRegu;
-            break;
-          }
-        }
-
-        if (anchorRowIndex === -1) {
-          anchorRowIndex = 0;
-          const r0 = rawMatrix[0] || [];
-          if (r0.length > 0) regNoColIndex = 0;
-          if (r0.length > 1) nameColIndex = 1;
-        }
-
-        // STEP 2: Locate the true Header Row by counting column header keywords across top rows (0..10)
-        let bestHeaderRowIndex = -1;
-        let maxHeaderMatches = -1;
-
-        for (let r = 0; r <= Math.min(10, rawMatrix.length - 1); r++) {
-          const rowCells = rawMatrix[r] || [];
-          let matches = 0;
-          for (let c = 0; c < rowCells.length; c++) {
-            const txt = String(rowCells[c] || '').trim();
-            if (!txt || isPlaceholderToken(txt) || isDateCell(txt) || isFacultyNameCell(txt)) continue;
-
-            // Check if cell looks like a column header (e.g. Code_1, Grade_1, Reg.No, Subject_1, Pass_1)
-            if (/^(reg|name|code|subject|grade|pass|cie|sem|gpa|cgpa|arr)/i.test(txt) || /(code|grade|pass|subject|mark)[\s_.-]*\d+/i.test(txt)) {
-              matches++;
-            }
-          }
-          if (matches > maxHeaderMatches) {
-            maxHeaderMatches = matches;
-            bestHeaderRowIndex = r;
-          }
-        }
-
-        if (bestHeaderRowIndex === -1) bestHeaderRowIndex = anchorRowIndex;
-
-        const headerRow = rawMatrix[bestHeaderRowIndex] || [];
-        const headerNames: string[] = headerRow.map((cell) => String(cell || '').trim());
-
-        // Fill empty header cells from adjacent row if headers are split across 2 rows
-        for (let c = 0; c < headerNames.length; c++) {
-          if (!headerNames[c]) {
-            const nextRowVal = String((rawMatrix[bestHeaderRowIndex + 1] || [])[c] || '').trim();
-            if (nextRowVal && !isDateCell(nextRowVal) && !isFacultyNameCell(nextRowVal)) {
-              headerNames[c] = nextRowVal;
-            }
-          }
-        }
-
-        let subjectHeaderRowIndex = bestHeaderRowIndex;
-
-        // Extract metadata strings ONLY if present in top rows of Excel
-        let extractedDepartment = '';
-        let extractedRegulation = '';
-
-        for (let r = 0; r < Math.max(anchorRowIndex, 5); r++) {
-          const rCells = rawMatrix[r] || [];
-          for (let c = 0; c < rCells.length; c++) {
-            const txt = String(rCells[c] || '').trim();
-            if (/dept/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
-              const val = String(rCells[c + 1]).trim();
-              if (val) extractedDepartment = val;
-            } else if (/dept\s*:\s*(.*)/i.test(txt)) {
-              const match = txt.match(/dept\s*:\s*(.*)/i);
-              if (match && match[1]) extractedDepartment = match[1].trim();
-            } else if (/regulation/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
-              const val = String(rCells[c + 1]).trim();
-              if (val) extractedRegulation = val;
-            } else if (/regulation\s*:\s*(.*)/i.test(txt)) {
-              const match = txt.match(/regulation\s*:\s*(.*)/i);
-              if (match && match[1]) extractedRegulation = match[1].trim();
-            }
-          }
-        }
-
-        // STEP 3: Detect Grouped Subject Suffix Columns (_1, _2, _3 ... _n) for University & CIE
-        interface SubjectGroupSpec {
-          groupNum: number;
-          codeCol: number;
-          titleCol: number;
-          gradeCol: number;
-          passCol: number;
-          cie1MarksCol: number;
-          cie2MarksCol: number;
-          semCol: number;
-        }
-
-        const univGroupsMap = new Map<number, SubjectGroupSpec>();
-        const cieGroupsMap = new Map<number, SubjectGroupSpec>();
-
-        for (let c = 0; c < headerNames.length; c++) {
-          if (c === regNoColIndex || c === nameColIndex) continue;
-
-          const rawHeader = String(headerNames[c] || '').trim();
-          if (!rawHeader || isPlaceholderToken(rawHeader)) continue;
-
-          // Match trailing digit group index N (e.g. Code_1 -> N=1, CIE_Code_7 -> N=7, CIE1_Marks_2 -> N=2)
-          const match = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
-          if (!match) continue;
-
-          const rawPrefix = match[1].trim();
-          const num = Number(match[2]);
-          const cleanPrefix = rawPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader);
-
-          const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
-
-          if (!targetMap.has(num)) {
-            targetMap.set(num, {
-              groupNum: num,
-              codeCol: -1,
-              titleCol: -1,
-              gradeCol: -1,
-              passCol: -1,
-              cie1MarksCol: -1,
-              cie2MarksCol: -1,
-              semCol: -1,
-            });
-          }
-
-          const spec = targetMap.get(num)!;
-
-          if (isCieHeader) {
-            // Strict CIE Header Classifier (CIE_Code_N, CIE_Subject_N, CIE1_Marks_N, CIE2_Marks_N, CIE_Pass_N)
-            if (cleanPrefix.includes('code')) {
-              spec.codeCol = c;
-            } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
-              spec.titleCol = c;
-            } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2') || cleanPrefix.includes('marks2')) {
-              spec.cie2MarksCol = c;
-            } else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('marks1')) {
-              spec.cie1MarksCol = c;
-            } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
-              if (spec.cie1MarksCol === -1) spec.cie1MarksCol = c;
-              else if (spec.cie2MarksCol === -1 && c !== spec.cie1MarksCol) spec.cie2MarksCol = c;
-            } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
-              spec.passCol = c;
-            } else if (cleanPrefix.includes('sem')) {
-              spec.semCol = c;
-            }
-          } else {
-            // Strict University Header Classifier (Code_N, Subject_N, Grade_N, Pass_N)
-            if (cleanPrefix.includes('code')) {
-              spec.codeCol = c;
-            } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
-              spec.titleCol = c;
-            } else if (cleanPrefix.includes('grade')) {
-              spec.gradeCol = c;
-            } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
-              spec.passCol = c;
-            } else if (cleanPrefix.includes('sem')) {
-              spec.semCol = c;
-            }
-          }
-        }
-
-        // Secondary Pass to ensure Grade_N and CIE marks columns are explicitly resolved if missed
-        univGroupsMap.forEach((spec, gNum) => {
-          if (spec.gradeCol === -1) {
-            for (let c = 0; c < headerNames.length; c++) {
-              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (h === `grade${gNum}` || h === `grade0${gNum}` || h.startsWith(`grade${gNum}`)) {
-                spec.gradeCol = c;
-                break;
-              }
-            }
-          }
+          return true;
         });
 
-        cieGroupsMap.forEach((spec, gNum) => {
-          if (spec.cie1MarksCol === -1) {
-            for (let c = 0; c < headerNames.length; c++) {
-              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (h === `cie1marks${gNum}` || h === `cie1mark${gNum}` || h.includes(`cie1marks${gNum}`) || h.includes(`cie1_marks_${gNum}`)) {
-                spec.cie1MarksCol = c;
-                break;
+        const targetSheetNames = validSheetNames.length > 0 ? validSheetNames : [workbook.SheetNames[0]];
+
+        targetSheetNames.forEach((sheetName) => {
+          const worksheet = workbook.Sheets[sheetName];
+          if (!worksheet) return;
+
+          // Read raw 2D matrix (header: 1)
+          const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          if (!rawMatrix || rawMatrix.length === 0) return;
+
+          // STEP 1: Dynamically locate the exact Header Row containing "Register No", "Reg No", "REG.NO", "Roll No"
+          let headerRowIndex = -1;
+          let regNoColIndex = -1;
+          let nameColIndex = -1;
+          let deptColIndex = -1;
+          let reguColIndex = -1;
+
+          for (let r = 0; r < Math.min(30, rawMatrix.length); r++) {
+            const rowCells = rawMatrix[r] || [];
+            let foundReg = -1;
+            let foundName = -1;
+            let foundDept = -1;
+            let foundRegu = -1;
+
+            for (let c = 0; c < rowCells.length; c++) {
+              const cellText = String(rowCells[c] || '').trim().toLowerCase();
+              if (cellText === '') continue;
+
+              if (foundReg === -1 && /^(reg|reg\.?\s*no|reg_no|regno|roll|roll\.?\s*no|rollno|register|registration|register\s*no)/i.test(cellText)) {
+                foundReg = c;
+              } else if (foundName === -1 && /^(name|student|student_name|candidate|name of the student|student name)/i.test(cellText)) {
+                foundName = c;
+              } else if (foundDept === -1 && /^(dept|department|branch)/i.test(cellText)) {
+                foundDept = c;
+              } else if (foundRegu === -1 && /^(regulation)/i.test(cellText)) {
+                foundRegu = c;
+              }
+            }
+
+            if (foundReg !== -1 || foundName !== -1) {
+              headerRowIndex = r;
+              regNoColIndex = foundReg;
+              nameColIndex = foundName;
+              deptColIndex = foundDept;
+              reguColIndex = foundRegu;
+              break;
+            }
+          }
+
+          if (headerRowIndex === -1) {
+            headerRowIndex = 0;
+            const r0 = rawMatrix[0] || [];
+            if (r0.length > 0) regNoColIndex = 0;
+            if (r0.length > 1) nameColIndex = 1;
+          }
+
+          const headerRow = rawMatrix[headerRowIndex] || [];
+          const headerNames: string[] = headerRow.map((cell) => String(cell || '').trim());
+
+          // Fill empty header cells from adjacent row if headers are split across 2 rows
+          for (let c = 0; c < headerNames.length; c++) {
+            if (!headerNames[c]) {
+              const nextRowVal = String((rawMatrix[headerRowIndex + 1] || [])[c] || '').trim();
+              if (nextRowVal && !isDateCell(nextRowVal) && !isFacultyNameCell(nextRowVal)) {
+                headerNames[c] = nextRowVal;
               }
             }
           }
-          if (spec.cie2MarksCol === -1) {
-            for (let c = 0; c < headerNames.length; c++) {
-              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (h === `cie2marks${gNum}` || h === `cie2mark${gNum}` || h.includes(`cie2marks${gNum}`) || h.includes(`cie2_marks_${gNum}`)) {
-                spec.cie2MarksCol = c;
-                break;
+
+          // Metadata extraction from top title rows (rows above headerRowIndex)
+          let extractedDepartment = '';
+          let extractedRegulation = '';
+
+          for (let r = 0; r < headerRowIndex; r++) {
+            const rCells = rawMatrix[r] || [];
+            for (let c = 0; c < rCells.length; c++) {
+              const txt = String(rCells[c] || '').trim();
+              if (/dept/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
+                const val = String(rCells[c + 1]).trim();
+                if (val) extractedDepartment = val;
+              } else if (/dept\s*:\s*(.*)/i.test(txt)) {
+                const match = txt.match(/dept\s*:\s*(.*)/i);
+                if (match && match[1]) extractedDepartment = match[1].trim();
+              } else if (/regulation/i.test(txt) && c + 1 < rCells.length && rCells[c + 1]) {
+                const val = String(rCells[c + 1]).trim();
+                if (val) extractedRegulation = val;
+              } else if (/regulation\s*:\s*(.*)/i.test(txt)) {
+                const match = txt.match(/regulation\s*:\s*(.*)/i);
+                if (match && match[1]) extractedRegulation = match[1].trim();
               }
             }
           }
-        });
 
-        const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
-        const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
+          // Process Grouped Subject Suffix Columns (_1, _2, _3 ... _n)
+          interface SubjectGroupSpec {
+            groupNum: number;
+            codeCol: number;
+            titleCol: number;
+            gradeCol: number;
+            passCol: number;
+            cie1MarksCol: number;
+            cie2MarksCol: number;
+            semCol: number;
+          }
 
-        // Fallback: Direct Subject Column parsing if no suffixes detected
-        const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
+          const univGroupsMap = new Map<number, SubjectGroupSpec>();
+          const cieGroupsMap = new Map<number, SubjectGroupSpec>();
 
-        if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
           for (let c = 0; c < headerNames.length; c++) {
             if (c === regNoColIndex || c === nameColIndex) continue;
 
-            let rawHeader = String(headerNames[c] || '').trim();
-            let cleanHeader = rawHeader.toLowerCase();
+            const rawHeader = String(headerNames[c] || '').trim();
+            if (!rawHeader || isPlaceholderToken(rawHeader)) continue;
 
+            const match = rawHeader.match(/^(.*?)(?:[\s_.-]+)?(\d+)$/i);
+            if (!match) continue;
+
+            const rawPrefix = match[1].trim();
+            const num = Number(match[2]);
+            const cleanPrefix = rawPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader) || isCieFile;
+
+            const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
+
+            if (!targetMap.has(num)) {
+              targetMap.set(num, {
+                groupNum: num,
+                codeCol: -1,
+                titleCol: -1,
+                gradeCol: -1,
+                passCol: -1,
+                cie1MarksCol: -1,
+                cie2MarksCol: -1,
+                semCol: -1,
+              });
+            }
+
+            const spec = targetMap.get(num)!;
+
+            if (isCieHeader) {
+              if (cleanPrefix.includes('code')) {
+                spec.codeCol = c;
+              } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
+                spec.titleCol = c;
+              } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2')) {
+                spec.cie2MarksCol = c;
+              } else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('mark')) {
+                spec.cie1MarksCol = c;
+              } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
+                spec.passCol = c;
+              } else if (cleanPrefix.includes('sem')) {
+                spec.semCol = c;
+              }
+            } else {
+              if (cleanPrefix.includes('code')) {
+                spec.codeCol = c;
+              } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
+                spec.titleCol = c;
+              } else if (cleanPrefix.includes('grade')) {
+                spec.gradeCol = c;
+              } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
+                spec.passCol = c;
+              } else if (cleanPrefix.includes('sem')) {
+                spec.semCol = c;
+              }
+            }
+          }
+
+          const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
+          const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
+
+          // Direct Subject Columns (fallback when no suffix columns exist)
+          const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
+          if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
+            for (let c = 0; c < headerNames.length; c++) {
+              if (c === regNoColIndex || c === nameColIndex || c === deptColIndex || c === reguColIndex) continue;
+              const txt = headerNames[c];
+              if (!txt || isPlaceholderToken(txt) || isDateCell(txt) || isFacultyNameCell(txt)) continue;
+
+              const cleanH = txt.toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (/^(reg|name|sno|slno|gpa|cgpa|arr|class|total|dept|regulation)/i.test(cleanH)) continue;
+
+              directSubjectCols.push({
+                colIndex: c,
+                code: txt.toUpperCase(),
+                title: knownTitles[txt.toUpperCase()] || txt,
+              });
+            }
+          }
+
+          // Process Student Data Rows starting after headerRowIndex
+          const studentDataStartRowIndex = headerRowIndex + 1;
+
+          for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
+            const rowCells = rawMatrix[r] || [];
+            const hasAnyData = rowCells.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== '');
+            if (!hasAnyData) continue;
+
+            const rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
+            const rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
+
+            let regNoStr = normalizeRegNo(rawRegVal);
+            let nameStr = String(rawNameVal || '').trim();
+
+            if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
+            if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
+
+            // Filter out header label rows (e.g. S.No, Sl.No, Register Number, Name of the Student)
             if (
-              !rawHeader ||
-              isDateCell(rawHeader) ||
-              isFacultyNameCell(rawHeader) ||
-              isPlaceholderToken(rawHeader) ||
-              cleanHeader.startsWith('__empty')
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(regNoStr) ||
+              /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(nameStr)
             ) {
               continue;
             }
 
-            const isReg = c === regNoColIndex || /^(reg|reg\.no|reg_no|regno|roll|roll\.no|rollno|register|registration)/i.test(cleanHeader);
-            const isName = c === nameColIndex || /^(name|student|student_name|candidate|name of the student)/i.test(cleanHeader);
-            const isDept = c === deptColIndex || /^(dept|department|branch)/i.test(cleanHeader);
-            const isRegu = c === reguColIndex || /^(regulation)/i.test(cleanHeader);
-            const isNonSubHeader = nonSubjectHeaders.some((ik) => {
-              const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
-              const cleanK = cleanHeader.replace(/[\s_.-]+/g, '');
-              return cleanK === cleanIk;
-            });
+            if (!regNoStr && !nameStr) continue;
 
-            if (isReg || isName || isDept || isRegu || isNonSubHeader) {
-              continue;
+            const studentKey = regNoStr || normalizeRegNo(nameStr);
+            if (!studentKey) continue;
+
+            // Read GPA / CGPA / Class Obtained strictly from Excel
+            const rawGPA = findCellValue(rowCells, headerNames, ['gpa', 'gpa_05', 'gpa 5', 'gpa_5', 'sem 5 gpa', 'gpa5']);
+            const rawCGPA = findCellValue(rowCells, headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'cgpa_5', 'sem 5 cgpa', 'cgpa5']);
+            const rawClass = findCellValue(rowCells, headerNames, ['class_obtained', 'class obtained', 'class']);
+
+            const gpaVal = rawGPA !== undefined && rawGPA !== null && String(rawGPA).trim() !== '' ? (isNaN(Number(rawGPA)) ? String(rawGPA) : Number(rawGPA)) : undefined;
+            const cgpaVal = rawCGPA !== undefined && rawCGPA !== null && String(rawCGPA).trim() !== '' ? (isNaN(Number(rawCGPA)) ? String(rawCGPA) : Number(rawCGPA)) : undefined;
+            const classObtained = rawClass !== undefined && rawClass !== null ? String(rawClass).trim().toUpperCase() : '';
+
+            // Read Semester GPAs, CGPAs, Arrears strictly from Excel
+            const gpaBySem: Record<string, number | string> = {};
+            const cgpaBySem: Record<string, number | string> = {};
+            const arrearsMap: Record<string, number | string> = {};
+
+            for (let s = 1; s <= 7; s++) {
+              const semKey = `0${s}`;
+              const sNum = String(s);
+
+              const valG = findCellValue(rowCells, headerNames, [
+                `gpa0${s}`, `gpa 0${s}`, `gpa ${s}`, `gpa_0${s}`, `gpa_${s}`, `gpa${s}`,
+                `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`
+              ]);
+
+              const valC = findCellValue(rowCells, headerNames, [
+                `cgpa0${s}`, `cgpa 0${s}`, `cgpa ${s}`, `cgpa_0${s}`, `cgpa_${s}`, `cgpa${s}`,
+                `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`
+              ]);
+
+              const valA = findCellValue(rowCells, headerNames, [
+                `arrears0${s}`, `arrears 0${s}`, `arrears ${s}`, `arrears_0${s}`, `arrears_${s}`, `arrears${s}`,
+                `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`
+              ]);
+
+              gpaBySem[semKey] = valG !== undefined && valG !== null && String(valG).trim() !== '' ? String(valG) : '';
+              cgpaBySem[semKey] = valC !== undefined && valC !== null && String(valC).trim() !== '' ? String(valC) : '';
+              arrearsMap[semKey] = valA !== undefined && valA !== null && String(valA).trim() !== '' ? (isNaN(Number(valA)) ? String(valA) : Number(valA)) : '';
+
+              gpaBySem[sNum] = gpaBySem[semKey];
+              cgpaBySem[sNum] = cgpaBySem[semKey];
+              arrearsMap[sNum] = arrearsMap[semKey];
             }
 
-            const code = rawHeader.toUpperCase();
-            const title = knownTitles[code] || rawHeader;
-            directSubjectCols.push({ colIndex: c, code, title });
-          }
-        }
+            // University & CIE Results
+            const universityResults: SubjectResult[] = [];
+            const internalEvalResults: InternalEvalResult[] = [];
 
-        // STEP 4: Determine Student Data Start Row
-        let studentDataStartRowIndex = anchorRowIndex + 1;
-
-        while (studentDataStartRowIndex < rawMatrix.length) {
-          const rCells = rawMatrix[studentDataStartRowIndex] || [];
-          const txtReg = regNoColIndex !== -1 ? String(rCells[regNoColIndex] || '').trim() : '';
-          const txtName = nameColIndex !== -1 ? String(rCells[nameColIndex] || '').trim() : '';
-
-          if (
-            isFacultyNameCell(txtReg) ||
-            isFacultyNameCell(txtName) ||
-            isDateCell(txtReg) ||
-            isDateCell(txtName) ||
-            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtReg) ||
-            /^(marks|cie|grade|max marks|register|name|code)/i.test(txtName)
-          ) {
-            studentDataStartRowIndex++;
-            continue;
-          }
-
-          if (txtReg || txtName) {
-            break;
-          }
-
-          studentDataStartRowIndex++;
-        }
-
-        // STEP 5: Process Every Student Data Row dynamically
-        const parsedStudents: StudentRecord[] = [];
-
-        for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
-          const rowCells = rawMatrix[r] || [];
-
-          const hasAnyData = rowCells.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== '');
-          if (!hasAnyData) continue;
-
-          // Read Register Number & Name strictly from Excel row
-          const rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
-          const rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
-
-          let regNoStr = String(rawRegVal || '').trim();
-          let nameStr = String(rawNameVal || '').trim();
-
-          if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
-          if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
-
-          // Filter out header label rows (e.g. S.No, Sl.No, Register Number, Name of the Student)
-          if (
-            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(regNoStr) ||
-            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(nameStr)
-          ) {
-            continue;
-          }
-
-          // Skip non-student rows
-          if (!regNoStr && !nameStr) continue;
-
-          // Read GPA / CGPA / Class Obtained strictly from Excel
-          const rawGPA = findCellValue(rowCells, headerNames, ['gpa', 'gpa_05', 'gpa 5', 'gpa_5', 'sem 5 gpa', 'gpa5']);
-          const rawCGPA = findCellValue(rowCells, headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'cgpa_5', 'sem 5 cgpa', 'cgpa5']);
-          const rawClass = findCellValue(rowCells, headerNames, ['class_obtained', 'class obtained', 'class']);
-
-          const gpaVal = rawGPA !== undefined && rawGPA !== null && String(rawGPA).trim() !== '' ? (isNaN(Number(rawGPA)) ? String(rawGPA) : Number(rawGPA)) : undefined;
-          const cgpaVal = rawCGPA !== undefined && rawCGPA !== null && String(rawCGPA).trim() !== '' ? (isNaN(Number(rawCGPA)) ? String(rawCGPA) : Number(rawCGPA)) : undefined;
-          const classObtained = rawClass !== undefined && rawClass !== null ? String(rawClass).trim().toUpperCase() : '';
-
-          // Read Semester GPAs, CGPAs, Arrears strictly from Excel
-          const gpaBySem: Record<string, number | string> = {};
-          const cgpaBySem: Record<string, number | string> = {};
-          const arrearsMap: Record<string, number | string> = {};
-
-          for (let s = 1; s <= 7; s++) {
-            const semKey = `0${s}`;
-            const sNum = String(s);
-
-            const valG = findCellValue(rowCells, headerNames, [
-              `gpa0${s}`, `gpa 0${s}`, `gpa ${s}`, `gpa_0${s}`, `gpa_${s}`, `gpa${s}`,
-              `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`
-            ]);
-
-            const valC = findCellValue(rowCells, headerNames, [
-              `cgpa0${s}`, `cgpa 0${s}`, `cgpa ${s}`, `cgpa_0${s}`, `cgpa_${s}`, `cgpa${s}`,
-              `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`
-            ]);
-
-            const valA = findCellValue(rowCells, headerNames, [
-              `arrears0${s}`, `arrears 0${s}`, `arrears ${s}`, `arrears_0${s}`, `arrears_${s}`, `arrears${s}`,
-              `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`
-            ]);
-
-            gpaBySem[semKey] = valG !== undefined && valG !== null && String(valG).trim() !== '' ? String(valG) : '';
-            cgpaBySem[semKey] = valC !== undefined && valC !== null && String(valC).trim() !== '' ? String(valC) : '';
-            arrearsMap[semKey] = valA !== undefined && valA !== null && String(valA).trim() !== '' ? (isNaN(Number(valA)) ? String(valA) : Number(valA)) : '';
-
-            gpaBySem[sNum] = gpaBySem[semKey];
-            cgpaBySem[sNum] = cgpaBySem[semKey];
-            arrearsMap[sNum] = arrearsMap[semKey];
-          }
-
-          // Process Subject Rows (University Top Table & CIE Bottom Table - SEPARATE MAPPINGS)
-          const universityResults: SubjectResult[] = [];
-          const internalEvalResults: InternalEvalResult[] = [];
-
-          // 1. University Results Table: Read ONLY Code_1..N, Subject_1..N, Grade_1..N, Pass_1..N
-          sortedUnivSpecs.forEach((spec) => {
-            const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
-            const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
-            const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
-            const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
-            const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
-
-            const codeStr = String(codeRaw || '').trim().toUpperCase();
-            let titleStr = String(titleRaw || '').trim();
-            const gradeStr = String(gradeRaw || '').trim().toUpperCase();
-            const passStr = String(passRaw || '').trim().toUpperCase();
-
-            if (!codeStr && !titleStr && !gradeStr && !passStr) return;
-
-            if (!titleStr && codeStr) {
-              titleStr = knownTitles[codeStr] || codeStr;
-            }
-
-            const passFail = evaluatePassFail(passStr, gradeStr);
-            const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'V';
-
-            universityResults.push({
-              sem,
-              code: codeStr,
-              title: titleStr,
-              grade: gradeStr,
-              passFail,
-            });
-          });
-
-          // 2. CIE Results Table: Read ONLY CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, CIE_Pass_1..N
-          if (sortedCieSpecs.length > 0) {
-            sortedCieSpecs.forEach((spec) => {
+            // 1. University Specs
+            sortedUnivSpecs.forEach((spec) => {
               const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
               const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
-              const cie1MarksRaw = spec.cie1MarksCol !== -1 ? rowCells[spec.cie1MarksCol] : '';
-              const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
+              const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
               const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
               const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
               const codeStr = String(codeRaw || '').trim().toUpperCase();
               let titleStr = String(titleRaw || '').trim();
-              const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
-              const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
+              const gradeStr = String(gradeRaw || '').trim().toUpperCase();
               const passStr = String(passRaw || '').trim().toUpperCase();
 
-              if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
+              if (!codeStr && !titleStr && !gradeStr && !passStr) return;
+              if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || codeStr;
 
-              if (!titleStr && codeStr) {
-                titleStr = knownTitles[codeStr] || codeStr;
-              }
-
-              const passFail = evaluatePassFail(passStr, cie1MarksStr);
+              const passFail = evaluatePassFail(passStr, gradeStr);
               const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
 
-              internalEvalResults.push({
+              universityResults.push({
                 sem,
                 code: codeStr,
                 title: titleStr,
-                cie1Marks: cie1MarksStr,
-                cie2Marks: cie2MarksStr,
+                grade: gradeStr,
                 passFail,
               });
             });
-          }
 
-          // Fallback if no separate CIE specs found but University specs exist
-          if (sortedCieSpecs.length === 0 && sortedUnivSpecs.length > 0) {
-            universityResults.forEach((sub) => {
-              internalEvalResults.push({
-                sem: 'VI',
-                code: sub.code,
-                title: sub.title,
-                cie1Marks: '',
-                cie2Marks: '',
-                passFail: '',
+            // 2. CIE Specs
+            if (sortedCieSpecs.length > 0) {
+              sortedCieSpecs.forEach((spec) => {
+                const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
+                const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
+                const cie1MarksRaw = spec.cie1MarksCol !== -1 ? rowCells[spec.cie1MarksCol] : '';
+                const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
+                const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
+                const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
+
+                const codeStr = String(codeRaw || '').trim().toUpperCase();
+                let titleStr = String(titleRaw || '').trim();
+                const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
+                const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
+                const passStr = String(passRaw || '').trim().toUpperCase();
+
+                if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
+                if (!titleStr && codeStr) titleStr = knownTitles[codeStr] || codeStr;
+
+                const passFail = evaluatePassFail(passStr, cie1MarksStr);
+                const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
+
+                internalEvalResults.push({
+                  sem,
+                  code: codeStr,
+                  title: titleStr,
+                  cie1Marks: cie1MarksStr,
+                  cie2Marks: cie2MarksStr,
+                  passFail,
+                });
               });
-            });
-          }
+            }
 
-          // Fallback for Direct Column Mark Sheet format
-          if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
-            directSubjectCols.forEach((sub) => {
-              const cellVal = rowCells[sub.colIndex];
-              let markNum: number | string = '';
-              let grade = '';
-              let passFail: 'PASS' | 'FAIL' | '' = '';
-
-              if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
-                const valStr = String(cellVal).trim();
-                const parsedNum = Number(valStr);
-
-                if (!isNaN(parsedNum)) {
-                  markNum = parsedNum;
-                  passFail = parsedNum >= 50 ? 'PASS' : 'FAIL';
-
-                  if (parsedNum >= 90) grade = 'O';
-                  else if (parsedNum >= 81) grade = 'A+';
-                  else if (parsedNum >= 73) grade = 'A';
-                  else if (parsedNum >= 65) grade = 'B+';
-                  else if (parsedNum >= 50) grade = 'B';
-                  else {
-                    grade = 'RA';
-                    passFail = 'FAIL';
+            // Direct Subject Columns
+            if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
+              directSubjectCols.forEach((sub) => {
+                const cellVal = rowCells[sub.colIndex];
+                if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
+                  const valStr = String(cellVal).trim();
+                  if (isCieFile) {
+                    internalEvalResults.push({
+                      sem: 'VI',
+                      code: sub.code,
+                      title: sub.title,
+                      cie1Marks: valStr,
+                      cie2Marks: '',
+                      passFail: evaluatePassFail('', valStr),
+                    });
+                  } else {
+                    universityResults.push({
+                      sem: 'VI',
+                      code: sub.code,
+                      title: sub.title,
+                      grade: valStr,
+                      passFail: evaluatePassFail('', valStr),
+                    });
                   }
-                } else {
-                  grade = valStr.toUpperCase();
-                  passFail = evaluatePassFail(valStr, grade);
-                  markNum = valStr;
                 }
-              }
-
-              universityResults.push({
-                sem: 'V',
-                code: sub.code,
-                title: sub.title,
-                grade,
-                passFail,
               });
+            }
 
-              internalEvalResults.push({
-                sem: 'VI',
-                code: sub.code,
-                title: sub.title,
-                cie1Marks: markNum,
-                passFail,
-              });
-            });
+            // Student Record Storage & Consolidation
+            let existing = allStudentsMap.get(studentKey);
+            if (!existing) {
+              existing = {
+                id: `std-${studentKey}`,
+                regNo: regNoStr,
+                name: nameStr,
+                department: extractedDepartment || '',
+                regulation: extractedRegulation || '2021',
+                universityResults: [],
+                gpa: gpaVal,
+                cgpa: cgpaVal,
+                classObtained,
+                arrears: arrearsMap,
+                gpaBySem,
+                cgpaBySem,
+                internalEvalResults: [],
+              };
+              allStudentsMap.set(studentKey, existing);
+            }
+
+            if (universityResults.length > 0) {
+              existing.universityResults.push(...universityResults);
+            }
+            if (internalEvalResults.length > 0) {
+              existing.internalEvalResults.push(...internalEvalResults);
+            }
+            if (gpaVal !== undefined) existing.gpa = gpaVal;
+            if (cgpaVal !== undefined) existing.cgpa = cgpaVal;
+            if (classObtained) existing.classObtained = classObtained;
           }
+        });
 
-          const rawDeptVal = findCellValue(rowCells, headerNames, [
-            'department', 'dept', 'branch', 'dept_name', 'department_name', 'dept name', 'department name'
-          ]);
-
-          let studentDept = rawDeptVal !== undefined && rawDeptVal !== null && String(rawDeptVal).trim() !== ''
-            ? String(rawDeptVal).trim()
-            : (deptColIndex !== -1 && rowCells[deptColIndex] ? String(rowCells[deptColIndex]).trim() : extractedDepartment);
-
-          parsedStudents.push({
-            id: `std-dyn-${r}`,
-            regNo: regNoStr,
-            name: nameStr.toUpperCase(),
-            department: studentDept.toUpperCase(),
-            regulation: extractedRegulation,
-            universityResults,
-            gpa: gpaVal,
-            cgpa: cgpaVal,
-            classObtained,
-            arrears: arrearsMap,
-            gpaBySem,
-            cgpaBySem,
-            internalEvalResults,
-          });
-        }
-
-        if (parsedStudents.length === 0) {
-          throw new Error('No valid student records found in uploaded Excel file.');
-        }
-
-        // BROWSER CONSOLE LOGGING AS SPECIFIED BY USER
+        const students = Array.from(allStudentsMap.values());
         console.log('==============================================');
-        console.log('Detected Columns:', headerNames.filter((h) => Boolean(h)));
-        console.log('==============================================');
-        console.log('Generated Object for Student 1:', parsedStudents[0]);
+        console.log(`Excel Parser Extracted ${students.length} Total Students Across Valid Sheets.`);
         console.log('==============================================');
 
-        if (regNoColIndex === -1) {
-          console.warn('Placeholder Warning:', {
-            Placeholder: '{{REGISTER_NO}}',
-            ExpectedColumn: 'Register No / Reg.No / RegNo',
-            MatchedColumn: 'None',
-            Reason: 'No column matching Register Number found in Excel header',
-          });
-        }
-        if (nameColIndex === -1) {
-          console.warn('Placeholder Warning:', {
-            Placeholder: '{{STUDENT_NAME}}',
-            ExpectedColumn: 'Name / Student Name / Candidate Name',
-            MatchedColumn: 'None',
-            Reason: 'No column matching Student Name found in Excel header',
-          });
-        }
-
-        if (sortedUnivSpecs.length === 0 && directSubjectCols.length === 0) {
-          console.warn('Placeholder Warning:', {
-            Placeholder: '{{SEM}}, {{CODE}}, {{TITLE}}, {{GRADE}}, {{PASS_FAIL}}',
-            ExpectedColumn: 'Code_1, Subject_1, Grade_1, Pass_1',
-            MatchedColumn: 'None',
-            Reason: 'No University subject groups detected in uploaded Excel',
-          });
-        }
-
-        if (sortedCieSpecs.length === 0) {
-          console.warn('Placeholder Warning:', {
-            Placeholder: '{{CODE}}, {{TITLE}}, {{CIE_MARKS}}, {{PASS_FAIL}}',
-            ExpectedColumn: 'CIE_Code_1, CIE_Subject_1, CIE_Marks_1, CIE_Pass_1',
-            MatchedColumn: sortedUnivSpecs.length > 0 ? 'Fallback to University Subject Groups' : 'None',
-            Reason: sortedUnivSpecs.length > 0 ? 'Separate CIE columns missing in Excel; using University subject groups fallback' : 'No CIE subject columns detected',
-          });
-        }
-
-        resolve(parsedStudents);
+        resolve(students);
       } catch (err: any) {
-        reject(err.message || 'Failed to parse Excel file. Ensure valid .xlsx format.');
+        console.error('Error parsing Excel file:', err);
+        reject(err?.message || 'Failed to parse Excel file.');
       }
     };
 
-    reader.onerror = () => reject('Error reading file from disk');
+    reader.onerror = () => reject('Error reading Excel file');
     reader.readAsArrayBuffer(file);
   });
 };
