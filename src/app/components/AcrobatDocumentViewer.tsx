@@ -54,24 +54,28 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   const cleanTemplateName = (activeTemplate || 'template_cie1.docx')
     .replace(/^\/?(backend\/templates\/|templates\/)?/, '');
 
-  // Render live PDF preview whenever current student or regulation changes
+  const [basePdfBlobUrl, setBasePdfBlobUrl] = useState<string | null>(null);
+
+  // Render combined live PDF preview for ALL students whenever activeStudents or regulation changes
   useEffect(() => {
     let isMounted = true;
 
     async function loadPdfPreview() {
-      if (!currentStudent) return;
+      if (!activeStudents || activeStudents.length === 0) return;
 
       try {
         setIsLoadingDocx(true);
         setPreviewError(null);
 
-        // Generate Blob URL for live preview
-        const pdfUrl = await generateCombinedPDF([currentStudent], null, undefined, regulation, true);
+        // Generate combined PDF Blob URL for ALL active students so user can scroll continuously through all reports
+        const pdfUrl = await generateCombinedPDF(activeStudents, null, undefined, regulation, true);
 
         if (!isMounted) return;
 
         if (typeof pdfUrl === 'string') {
-          setPdfPreviewUrl(pdfUrl);
+          setBasePdfBlobUrl(pdfUrl);
+          const targetPage = currentPageIndex * 2 + 1;
+          setPdfPreviewUrl(`${pdfUrl}#page=${targetPage}`);
         }
 
         // Run debug mapping in background for panel metrics
@@ -96,7 +100,15 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [currentStudent, cleanTemplateName, regulation]);
+  }, [activeStudents.length, activeTemplate, regulation]);
+
+  // Jump preview iframe page when user changes page dropdown/navigation
+  useEffect(() => {
+    if (basePdfBlobUrl) {
+      const targetPage = currentPageIndex * 2 + 1;
+      setPdfPreviewUrl(`${basePdfBlobUrl}#page=${targetPage}`);
+    }
+  }, [currentPageIndex, basePdfBlobUrl]);
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 140));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 70));
