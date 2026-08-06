@@ -56,8 +56,6 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically using Header-Based Dynamic Table Detection.
- * Populates University Results and GPA/CGPA tables when University Excel is uploaded.
- * Leaves CIE table blank when no CIE Excel is uploaded (generates 0 default CIE values).
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -158,29 +156,6 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
 
-  // PRINT ALL REQUIRED DIAGNOSTICS BEFORE RENDER
-  console.log('=================== UNIVERSITY RESULT RENDER DIAGNOSTICS ===================');
-  console.log(`1. Selected Student Register Number : "${placeholderObject.REGISTER_NO}"`);
-  console.log(`2. Selected Student Name            : "${placeholderObject.STUDENT_NAME}"`);
-  console.log(`3. universityResults Length          : ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  
-  console.log(`4. Every Subject (Code, Title, Grade, Pass/Fail):`);
-  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
-    console.log(`   [Subject ${idx + 1}] Code="${sub.CODE}", Title="${sub.TITLE}", Grade="${sub.GRADE}", Pass/Fail="${sub.PASS_FAIL}"`);
-  });
-
-  console.log(`5. GPA Values:`);
-  console.log(`   GPA01: "${placeholderObject.GPA01}", GPA02: "${placeholderObject.GPA02}", GPA03: "${placeholderObject.GPA03}", GPA04: "${placeholderObject.GPA04}", GPA05: "${placeholderObject.GPA05}", GPA06: "${placeholderObject.GPA06}", GPA07: "${placeholderObject.GPA07}"`);
-
-  console.log(`6. CGPA: "${placeholderObject.CGPA}"`);
-
-  console.log(`7. Arrears:`);
-  console.log(`   ARREARS01: "${placeholderObject.ARREARS01}", ARREARS02: "${placeholderObject.ARREARS02}", ARREARS03: "${placeholderObject.ARREARS03}", ARREARS04: "${placeholderObject.ARREARS04}", ARREARS05: "${placeholderObject.ARREARS05}", ARREARS06: "${placeholderObject.ARREARS06}", ARREARS07: "${placeholderObject.ARREARS07}"`);
-
-  console.log(`8. Class Obtained: "${placeholderObject.CLASS_OBTAINED}"`);
-  console.log(`Loaded Template Path: ${loadedTemplatePath}`);
-  console.log('=============================================================================');
-
   const candidateUrls = [
     `/templates/${cleanName}`,
     `./templates/${cleanName}`,
@@ -208,8 +183,10 @@ export async function populateOfficialDocxTemplateWithLogs(
     throw new Error(`Failed to fetch template "${cleanName}". Ensure file exists in public/templates/.`);
   }
 
+  // 1. Verify DOCX Template Loaded Successfully
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
+  console.log(`✔ DOCX Template Loaded Successfully: "${loadedTemplatePath}"`);
 
   // Scan all placeholder keys inside the DOCX template
   const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s#\/]+)(?:<[^>]+>)*?\}\}/g;
@@ -221,64 +198,11 @@ export async function populateOfficialDocxTemplateWithLogs(
     if (phName) foundPlaceholders.add(phName);
   }
 
-  // 1. Print total number of tables found in word/document.xml
-  const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
-  console.log('=================== DYNAMIC HEADER-BASED TABLE DETECTION ===================');
-  console.log(`Total Tables Found in word/document.xml: ${tableMatches.length}`);
-
-  let univTableIdx = -1;
-  let gpaTableIdx = -1;
-  let cieTableIdx = -1;
-
-  // 2. Print Table Index, First Row Text, Header Row Text, Number of Rows for EVERY table
-  tableMatches.forEach((tblXml, idx) => {
-    const rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const firstRowText = (rows[0] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const headerRowText = (rows[0] || rows[1] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const fullTblText = tblXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const fullTblLower = fullTblText.toLowerCase();
-
-    console.log(`Table Index [${idx}]:`);
-    console.log(`   - Number of Rows : ${rows.length}`);
-    console.log(`   - First Row Text : "${firstRowText}"`);
-    console.log(`   - Header Row Text: "${headerRowText}"`);
-
-    // 3. Verify which table is actually the University Results Table
-    if (univTableIdx === -1 && (/grade/i.test(fullTblLower) || /university/i.test(fullTblLower) || (/subject/i.test(fullTblLower) && /grade/i.test(fullTblLower)))) {
-      if (!/cie/i.test(firstRowText.toLowerCase()) && !/internal/i.test(firstRowText.toLowerCase())) {
-        univTableIdx = idx;
-      }
-    }
-
-    // 4. Verify which table is actually the GPA Table
-    if (gpaTableIdx === -1 && (/gpa/i.test(fullTblLower) || /cgpa/i.test(fullTblLower) || /arrear/i.test(fullTblLower))) {
-      gpaTableIdx = idx;
-    }
-
-    // 5. Verify which table is actually the CIE Table
-    if (cieTableIdx === -1 && (/cie/i.test(fullTblLower) || /internal/i.test(fullTblLower) || /model/i.test(fullTblLower) || /cie1/i.test(fullTblLower))) {
-      if (idx !== univTableIdx) {
-        cieTableIdx = idx;
-      }
-    }
-  });
-
-  // Fallback defaults if table structures differ
-  if (univTableIdx === -1 && tableMatches.length >= 2) univTableIdx = 1;
-  if (gpaTableIdx === -1 && tableMatches.length >= 3) gpaTableIdx = 2;
-  if (cieTableIdx === -1 && tableMatches.length >= 4) cieTableIdx = 3;
-
-  console.log('----------------------------------------------------------------------------');
-  console.log(`Selected University Results Table Index : ${univTableIdx}`);
-  console.log(`Selected GPA/CGPA Summary Table Index   : ${gpaTableIdx}`);
-  console.log(`Selected Internal/CIE Table Index        : ${cieTableIdx}`);
-  console.log('============================================================================');
-
   const mappingLogs: PlaceholderMappingLog[] = [];
   const mappedPlaceholders: string[] = [];
   const unmappedPlaceholders: string[] = [];
 
-  // Replace Top Level DOCX Placeholders
+  // Top-Level Placeholder Replacement
   xml = xml.replace(/\{\{REGISTER_NO\}\}/gi, placeholderObject.REGISTER_NO);
   xml = xml.replace(/\{\{STUDENT_NAME\}\}/gi, placeholderObject.STUDENT_NAME);
   xml = xml.replace(/\{\{register_number\}\}/gi, placeholderObject.REGISTER_NO);
@@ -289,20 +213,15 @@ export async function populateOfficialDocxTemplateWithLogs(
   xml = xml.replace(/\{\{EXAM_SESSION\}\}/gi, placeholderObject.EXAM_SESSION);
   xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/gi, placeholderObject.ACADEMIC_YEAR);
 
-  // Dynamic Placeholder Replacement Fallback
   foundPlaceholders.forEach((ph) => {
     const upperPh = ph.toUpperCase().replace(/[\s_.-]+/g, '');
     let val = '';
 
-    if (upperPh === 'REGISTERNO' || upperPh === 'REGISTERNUMBER' || upperPh === 'REG') {
-      val = placeholderObject.REGISTER_NO;
-    } else if (upperPh === 'STUDENTNAME' || upperPh === 'NAME') {
-      val = placeholderObject.STUDENT_NAME;
-    } else if (upperPh === 'REGULATION') {
-      val = placeholderObject.REGULATION;
-    } else if (upperPh === 'DEPARTMENT' || upperPh === 'DEPT') {
-      val = placeholderObject.DEPARTMENT;
-    } else if (upperPh === 'GPA01') val = placeholderObject.GPA01;
+    if (upperPh === 'REGISTERNO' || upperPh === 'REGISTERNUMBER' || upperPh === 'REG') val = placeholderObject.REGISTER_NO;
+    else if (upperPh === 'STUDENTNAME' || upperPh === 'NAME') val = placeholderObject.STUDENT_NAME;
+    else if (upperPh === 'REGULATION') val = placeholderObject.REGULATION;
+    else if (upperPh === 'DEPARTMENT' || upperPh === 'DEPT') val = placeholderObject.DEPARTMENT;
+    else if (upperPh === 'GPA01') val = placeholderObject.GPA01;
     else if (upperPh === 'GPA02') val = placeholderObject.GPA02;
     else if (upperPh === 'GPA03') val = placeholderObject.GPA03;
     else if (upperPh === 'GPA04') val = placeholderObject.GPA04;
@@ -322,191 +241,220 @@ export async function populateOfficialDocxTemplateWithLogs(
     if (val) {
       mappedPlaceholders.push(`{{${ph}}}`);
       const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
-      xml = xml.replace(replaceRegex, val);
+      xml = xml.replace(replaceRegex, () => val);
     }
   });
 
-  // Populate DYNAMICALLY Detected Tables in Word XML
-  if (tableMatches.length > 0) {
-    // 1. Populate University Results Table at univTableIdx using ONLY universityResults
-    if (univTableIdx !== -1 && tableMatches[univTableIdx]) {
-      let tblUniv = tableMatches[univTableIdx];
-      let rowsUniv = tblUniv.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-      const univList = placeholderObject.UNIVERSITY_SUBJECTS;
+  // 2. Extract LIVE tables directly from current xml after placeholder replacement!
+  const liveTableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
+  console.log(`Table Count = ${liveTableMatches.length}`);
 
-      if (rowsUniv.length >= 2 && univList.length > 0) {
-        const headerRowXml = rowsUniv[0];
-        const templateRowXml = rowsUniv[1];
+  // 3 & 4. Print Table[0], Table[1]... and First Row Text for EVERY table
+  liveTableMatches.forEach((tblXml, idx) => {
+    const rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const firstRowText = (rows[0] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    console.log(`Table[${idx}]`);
+    console.log(`${firstRowText}`);
+  });
 
-        const newRowsXml = univList.map((item) => {
-          const vals = [
-            item.SEM || '',
-            item.CODE || '',
-            item.TITLE || '',
-            item.GRADE || '',
-            item.PASS_FAIL || '',
-          ];
-          return updateRowCells(templateRowXml, vals);
-        });
+  // 5. Locate tables dynamically by checking header text instead of hardcoded indexes
+  let univTableIdx = -1;
+  let gpaTableIdx = -1;
+  let cieTableIdx = -1;
 
-        const tableInnerContent = [headerRowXml, ...newRowsXml].join('');
-        const newTblUnivXml = tblUniv.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${tableInnerContent}$2`);
-        xml = xml.replace(tableMatches[univTableIdx], newTblUnivXml);
+  liveTableMatches.forEach((tblXml, idx) => {
+    const rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const firstRowText = (rows[0] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const fullTblLower = tblXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+
+    // University Table Header Matching: Grade or University Results
+    if (univTableIdx === -1 && (/grade/i.test(fullTblLower) || /university/i.test(fullTblLower) || (/subject/i.test(fullTblLower) && /grade/i.test(fullTblLower)))) {
+      if (!/cie/i.test(firstRowText.toLowerCase()) && !/internal/i.test(firstRowText.toLowerCase())) {
+        univTableIdx = idx;
       }
     }
 
-    // 2. Populate GPA & CGPA Summary Table at gpaTableIdx
-    if (gpaTableIdx !== -1 && tableMatches[gpaTableIdx]) {
-      let tblGpa = tableMatches[gpaTableIdx];
-      let rowsGpa = tblGpa.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    // GPA Table Header Matching: GPA or CGPA or Arrears
+    if (gpaTableIdx === -1 && (/gpa/i.test(fullTblLower) || /cgpa/i.test(fullTblLower) || /arrear/i.test(fullTblLower))) {
+      gpaTableIdx = idx;
+    }
 
-      rowsGpa.forEach((rXml) => {
-        let updatedR = rXml;
+    // CIE Table Header Matching: CIE or Internal or Model
+    if (cieTableIdx === -1 && (/cie/i.test(fullTblLower) || /internal/i.test(fullTblLower) || /model/i.test(fullTblLower))) {
+      if (idx !== univTableIdx) {
+        cieTableIdx = idx;
+      }
+    }
+  });
 
-        updatedR = updatedR.replace(/\{\{GPA01\}\}/gi, placeholderObject.GPA01);
-        updatedR = updatedR.replace(/\{\{GPA02\}\}/gi, placeholderObject.GPA02);
-        updatedR = updatedR.replace(/\{\{GPA03\}\}/gi, placeholderObject.GPA03);
-        updatedR = updatedR.replace(/\{\{GPA04\}\}/gi, placeholderObject.GPA04);
-        updatedR = updatedR.replace(/\{\{GPA05\}\}/gi, placeholderObject.GPA05);
-        updatedR = updatedR.replace(/\{\{GPA06\}\}/gi, placeholderObject.GPA06);
-        updatedR = updatedR.replace(/\{\{GPA07\}\}/gi, placeholderObject.GPA07);
-        updatedR = updatedR.replace(/\{\{CGPA\}\}/gi, placeholderObject.CGPA);
-        updatedR = updatedR.replace(/\{\{ARREARS01\}\}/gi, placeholderObject.ARREARS01);
-        updatedR = updatedR.replace(/\{\{ARREARS02\}\}/gi, placeholderObject.ARREARS02);
-        updatedR = updatedR.replace(/\{\{ARREARS03\}\}/gi, placeholderObject.ARREARS03);
-        updatedR = updatedR.replace(/\{\{ARREARS04\}\}/gi, placeholderObject.ARREARS04);
-        updatedR = updatedR.replace(/\{\{ARREARS05\}\}/gi, placeholderObject.ARREARS05);
-        updatedR = updatedR.replace(/\{\{ARREARS06\}\}/gi, placeholderObject.ARREARS06);
-        updatedR = updatedR.replace(/\{\{ARREARS07\}\}/gi, placeholderObject.ARREARS07);
-        updatedR = updatedR.replace(/\{\{CLASS_OBTAINED\}\}/gi, placeholderObject.CLASS_OBTAINED);
+  // Fallbacks if header matching is partial
+  if (univTableIdx === -1 && liveTableMatches.length >= 2) univTableIdx = 1;
+  if (gpaTableIdx === -1 && liveTableMatches.length >= 3) gpaTableIdx = 2;
+  if (cieTableIdx === -1 && liveTableMatches.length >= 4) cieTableIdx = 3;
 
-        const rowTextUpper = rXml.replace(/<[^>]+>/g, '').toUpperCase().trim();
+  // 6. Print table index selected for University, GPA, CIE
+  console.log(`University Table Index Selected: Table[${univTableIdx}]`);
+  console.log(`GPA Table Index Selected: Table[${gpaTableIdx}]`);
+  console.log(`CIE Table Index Selected: Table[${cieTableIdx}]`);
 
-        if (/GPA/i.test(rowTextUpper) && !/CGPA/i.test(rowTextUpper)) {
-          const gpaVals = [
-            placeholderObject.GPA01,
-            placeholderObject.GPA02,
-            placeholderObject.GPA03,
-            placeholderObject.GPA04,
-            placeholderObject.GPA05,
-            placeholderObject.GPA06,
-            placeholderObject.GPA07,
-          ];
-          let cIdx = 0;
-          updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
-            if (cIdx >= 1 && cIdx <= 7) {
-              const v = gpaVals[cIdx - 1] || '';
-              cIdx++;
-              return setCellContent(cellXml, v);
-            }
-            cIdx++;
-            return cellXml;
-          });
-        } else if (/ARREAR/i.test(rowTextUpper)) {
-          const arrVals = [
-            placeholderObject.ARREARS01,
-            placeholderObject.ARREARS02,
-            placeholderObject.ARREARS03,
-            placeholderObject.ARREARS04,
-            placeholderObject.ARREARS05,
-            placeholderObject.ARREARS06,
-            placeholderObject.ARREARS07,
-          ];
-          let cIdx = 0;
-          updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
-            if (cIdx >= 1 && cIdx <= 7) {
-              const v = arrVals[cIdx - 1] || '';
-              cIdx++;
-              return setCellContent(cellXml, v);
-            }
-            cIdx++;
-            return cellXml;
-          });
-        } else if (/CGPA/i.test(rowTextUpper)) {
-          let cIdx = 0;
-          updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
-            if (cIdx === 1) {
-              cIdx++;
-              return setCellContent(cellXml, placeholderObject.CGPA);
-            }
-            cIdx++;
-            return cellXml;
-          });
-        } else if (/CLASS/i.test(rowTextUpper)) {
-          let cIdx = 0;
-          updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
-            if (cIdx === 1) {
-              cIdx++;
-              return setCellContent(cellXml, placeholderObject.CLASS_OBTAINED);
-            }
-            cIdx++;
-            return cellXml;
-          });
-        }
+  // 7. Print University Subjects Count and Details Before Writing
+  console.log(`University Subjects Count = ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
+    console.log(`Subject [${idx + 1}] SEM="${sub.SEM}" CODE="${sub.CODE}" TITLE="${sub.TITLE}" GRADE="${sub.GRADE}" PASS_FAIL="${sub.PASS_FAIL}"`);
+  });
 
-        tblGpa = tblGpa.replace(rXml, updatedR);
+  // 8 & 9. Populate University Table dynamically into LIVE XML and print generated XML
+  if (univTableIdx !== -1 && liveTableMatches[univTableIdx]) {
+    const targetTableXml = liveTableMatches[univTableIdx];
+    let rowsUniv = targetTableXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const univList = placeholderObject.UNIVERSITY_SUBJECTS;
+
+    if (rowsUniv.length >= 2 && univList.length > 0) {
+      const headerRowXml = rowsUniv[0];
+      const templateRowXml = rowsUniv[1];
+
+      const newRowsXml = univList.map((item) => {
+        const vals = [
+          item.SEM || '',
+          item.CODE || '',
+          item.TITLE || '',
+          item.GRADE || '',
+          item.PASS_FAIL || '',
+        ];
+        return updateRowCells(templateRowXml, vals);
       });
-      xml = xml.replace(tableMatches[gpaTableIdx], tblGpa);
+
+      const tableInnerContent = [headerRowXml, ...newRowsXml].join('');
+      const newTblUnivXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${tableInnerContent}$2`);
+      
+      // Function-based replacement prevents JavaScript $1..$9 pattern corruption
+      xml = xml.replace(targetTableXml, () => newTblUnivXml);
+      console.log('✔ University table populated');
+      console.log('Generated University Table XML:');
+      console.log(newTblUnivXml);
     }
+  }
 
-    // 3. Populate CIE / Internal Evaluation Table at cieTableIdx (LEAVE BLANK if no CIE Excel uploaded)
-    if (cieTableIdx !== -1 && tableMatches[cieTableIdx]) {
-      let tblCie = tableMatches[cieTableIdx];
-      let rowsCie = tblCie.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-      const internalList = student.internalEvalResults || [];
-      const isModel = cleanName.includes('model');
-      const isCie2 = cleanName.includes('cie1_cie2');
+  // Populate GPA Table dynamically into LIVE XML
+  if (gpaTableIdx !== -1 && liveTableMatches[gpaTableIdx]) {
+    const targetTableXml = liveTableMatches[gpaTableIdx];
+    let rowsGpa = targetTableXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
 
-      if (rowsCie.length >= 3 && internalList.length > 0) {
-        const headerRow1 = rowsCie[0];
-        const headerRow2 = rowsCie[1];
-        const templateRowXml = rowsCie[2];
+    let newRowsGpa = rowsGpa.map((rXml) => {
+      let updatedR = rXml;
+      const rowTextUpper = rXml.replace(/<[^>]+>/g, '').toUpperCase().trim();
 
-        const newRowsXml = internalList.map((item) => {
-          let vals: string[] = [];
-          if (isModel) {
-            vals = [
-              item.sem || '',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
-              item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '',
-              item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? (Number(item.modelMarks) >= 50 ? 'PASS' : (isNaN(Number(item.modelMarks)) ? '' : 'FAIL')) : '',
-            ];
-          } else if (isCie2) {
-            vals = [
-              item.sem || '',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
-              item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
-            ];
-          } else {
-            vals = [
-              item.sem || '',
-              item.code || '',
-              item.title || '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
-              item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
-            ];
+      if (/GPA/i.test(rowTextUpper) && !/CGPA/i.test(rowTextUpper)) {
+        const gpaVals = [
+          placeholderObject.GPA01, placeholderObject.GPA02, placeholderObject.GPA03,
+          placeholderObject.GPA04, placeholderObject.GPA05, placeholderObject.GPA06, placeholderObject.GPA07,
+        ];
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx >= 1 && cIdx <= 7) {
+            const v = gpaVals[cIdx - 1] || '';
+            cIdx++;
+            return setCellContent(cellXml, v);
           }
-          return updateRowCells(templateRowXml, vals);
+          cIdx++;
+          return cellXml;
         });
-
-        const table4InnerContent = [headerRow1, headerRow2, ...newRowsXml].join('');
-        const newTblCieXml = tblCie.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
-        xml = xml.replace(tableMatches[cieTableIdx], newTblCieXml);
-      } else if (internalList.length === 0) {
-        // Since NO CIE Excel was uploaded: Leave the CIE table blank, do not generate default CIE values
-        const headerRowsXml = rowsCie.slice(0, Math.min(2, rowsCie.length)).join('');
-        const newTblCieXml = tblCie.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${headerRowsXml}$2`);
-        xml = xml.replace(tableMatches[cieTableIdx], newTblCieXml);
+      } else if (/ARREAR/i.test(rowTextUpper)) {
+        const arrVals = [
+          placeholderObject.ARREARS01, placeholderObject.ARREARS02, placeholderObject.ARREARS03,
+          placeholderObject.ARREARS04, placeholderObject.ARREARS05, placeholderObject.ARREARS06, placeholderObject.ARREARS07,
+        ];
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx >= 1 && cIdx <= 7) {
+            const v = arrVals[cIdx - 1] || '';
+            cIdx++;
+            return setCellContent(cellXml, v);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      } else if (/CGPA/i.test(rowTextUpper)) {
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx === 1) {
+            cIdx++;
+            return setCellContent(cellXml, placeholderObject.CGPA);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      } else if (/CLASS/i.test(rowTextUpper)) {
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx === 1) {
+            cIdx++;
+            return setCellContent(cellXml, placeholderObject.CLASS_OBTAINED);
+          }
+          cIdx++;
+          return cellXml;
+        });
       }
+      return updatedR;
+    });
+
+    const newTblGpaXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${newRowsGpa.join('')}$2`);
+    xml = xml.replace(targetTableXml, () => newTblGpaXml);
+    console.log('✔ GPA table populated');
+  }
+
+  // Populate CIE Table (only if CIE exists)
+  if (cieTableIdx !== -1 && liveTableMatches[cieTableIdx]) {
+    const targetTableXml = liveTableMatches[cieTableIdx];
+    let rowsCie = targetTableXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    const internalList = student.internalEvalResults || [];
+    const isModel = cleanName.includes('model');
+    const isCie2 = cleanName.includes('cie1_cie2');
+
+    if (rowsCie.length >= 3 && internalList.length > 0) {
+      const headerRow1 = rowsCie[0];
+      const headerRow2 = rowsCie[1];
+      const templateRowXml = rowsCie[2];
+
+      const newRowsXml = internalList.map((item) => {
+        let vals: string[] = [];
+        if (isModel) {
+          vals = [
+            item.sem || '', item.code || '', item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
+            item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '',
+            item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? (Number(item.modelMarks) >= 50 ? 'PASS' : (isNaN(Number(item.modelMarks)) ? '' : 'FAIL')) : '',
+          ];
+        } else if (isCie2) {
+          vals = [
+            item.sem || '', item.code || '', item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '',
+            item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? (Number(item.cie2Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie2Marks)) ? '' : 'FAIL')) : '',
+          ];
+        } else {
+          vals = [
+            item.sem || '', item.code || '', item.title || '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '',
+            item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? (Number(item.cie1Marks) >= 50 ? 'PASS' : (isNaN(Number(item.cie1Marks)) ? '' : 'FAIL')) : '',
+          ];
+        }
+        return updateRowCells(templateRowXml, vals);
+      });
+
+      const table4InnerContent = [headerRow1, headerRow2, ...newRowsXml].join('');
+      const newTblCieXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
+      xml = xml.replace(targetTableXml, () => newTblCieXml);
+      console.log('✔ CIE table populated');
+    } else if (internalList.length === 0) {
+      // Leave CIE table blank when no CIE Excel uploaded
+      const headerRowsXml = rowsCie.slice(0, Math.min(2, rowsCie.length)).join('');
+      const newTblCieXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${headerRowsXml}$2`);
+      xml = xml.replace(targetTableXml, () => newTblCieXml);
     }
   }
 
