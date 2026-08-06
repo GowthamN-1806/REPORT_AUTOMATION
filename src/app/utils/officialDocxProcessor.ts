@@ -1,27 +1,12 @@
 import PizZip from 'pizzip';
-import { StudentRecord } from '../types';
+import { StudentRecord, PlaceholderMappingLog, DocxPopulationResult } from '../types';
 
-export interface PlaceholderMappingLog {
-  placeholder: string;
-  expectedCol: string;
-  actualCol: string;
-  value: string;
-  status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE';
-  reason: string;
-}
-
-export interface DocxPopulationResult {
-  docBytes: Uint8Array;
-  mappingLogs: PlaceholderMappingLog[];
-  studentData: any;
-  mappedCount: number;
-  unmappedCount: number;
-  mappedPlaceholders: string[];
-  unmappedPlaceholders: string[];
-}
-
+/**
+ * Escapes XML special characters inside text cell values to prevent Word document XML corruption.
+ */
 function escapeXml(str: string): string {
-  return str
+  if (!str) return '';
+  return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -29,17 +14,20 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function setCellContent(cellXml: string, textValue: any): string {
-  const str = escapeXml(textValue !== undefined && textValue !== null ? String(textValue).trim() : '');
+/**
+ * Safely updates or creates text content inside a Word XML table cell (<w:tc>).
+ */
+function setCellContent(cellXml: string, val: any): string {
+  const str = escapeXml(String(val !== undefined && val !== null ? val : ''));
 
-  if (cellXml.includes('<w:t')) {
-    let hasWritten = false;
-    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, (match, innerText) => {
-      if (!hasWritten) {
-        hasWritten = true;
-        return match.replace(innerText, str);
+  if (/<w:t[\s\S]*?<\/w:t>/i.test(cellXml)) {
+    let replaced = false;
+    return cellXml.replace(/<w:t([\s\S]*?)>([\s\S]*?)<\/w:t>/gi, (match, attrs, innerText) => {
+      if (!replaced) {
+        replaced = true;
+        return `<w:t${attrs}>${str}</w:t>`;
       } else {
-        return match.replace(innerText, '');
+        return `<w:t${attrs}></w:t>`;
       }
     });
   } else {
@@ -74,29 +62,71 @@ export async function populateOfficialDocxTemplateWithLogs(
   student: StudentRecord,
   regulation: string = '2021'
 ): Promise<DocxPopulationResult> {
-  // Validate student data object
-  if (!student || (!student.regNo && !student.name && (!student.universityResults || student.universityResults.length === 0))) {
-    console.error('=== ERROR: Student Data Object is empty! ===', student);
-    throw new Error('No data was bound to the template. Check placeholder mapping.');
+  if (!student) {
+    throw new Error('No student data provided for DOCX template rendering.');
   }
 
-  // Construct structured Student Data Object for logging & binding
-  const studentData = {
-    register_number: student.regNo || '',
-    student_name: student.name || '',
-    department: student.department || 'Computer Science and Engineering',
-    semester: student.semester || 'VI',
-    exam_session: 'Nov/Dec 2025',
-    academic_year: '2025 - 2026',
-    regulation: regulation || student.regulation || '2021',
-    cgpa: student.cgpa || 8.42,
-    gpa: student.gpaBySem || {},
-    class_obtained: student.classObtained || 'FIRST CLASS',
-    university_results: student.universityResults || [],
-    internal_results: student.internalEvalResults || [],
+  const gpa = student.gpaBySem || {};
+  const arr = student.arrears || {};
+
+  // STEP 2: Create exact Placeholder Object for every student before rendering DOCX
+  const placeholderObject = {
+    REGISTER_NO: student.regNo || '',
+    STUDENT_NAME: student.name || '',
+    REGULATION: regulation || student.regulation || '2021',
+    DEPARTMENT: student.department || 'Computer Science and Engineering',
+    SEMESTER: student.semester || 'VI',
+    EXAM_SESSION: 'Nov/Dec 2025',
+    ACADEMIC_YEAR: '2025 - 2026',
+
+    UNIVERSITY_SUBJECTS: (student.universityResults || []).map((ur) => ({
+      SEM: ur.sem || 'VI',
+      CODE: ur.code || '',
+      TITLE: ur.title || '',
+      GRADE: ur.grade || '',
+      PASS_FAIL: ur.passFail || '',
+    })),
+
+    GPA01: gpa['01'] !== undefined && gpa['01'] !== null ? String(gpa['01']) : (gpa['1'] !== undefined ? String(gpa['1']) : ''),
+    GPA02: gpa['02'] !== undefined && gpa['02'] !== null ? String(gpa['02']) : (gpa['2'] !== undefined ? String(gpa['2']) : ''),
+    GPA03: gpa['03'] !== undefined && gpa['03'] !== null ? String(gpa['03']) : (gpa['3'] !== undefined ? String(gpa['3']) : ''),
+    GPA04: gpa['04'] !== undefined && gpa['04'] !== null ? String(gpa['04']) : (gpa['4'] !== undefined ? String(gpa['4']) : ''),
+    GPA05: gpa['05'] !== undefined && gpa['05'] !== null ? String(gpa['05']) : (gpa['5'] !== undefined ? String(gpa['5']) : (student.gpa !== undefined ? String(student.gpa) : '')),
+    GPA06: gpa['06'] !== undefined && gpa['06'] !== null ? String(gpa['06']) : (gpa['6'] !== undefined ? String(gpa['6']) : ''),
+    GPA07: gpa['07'] !== undefined && gpa['07'] !== null ? String(gpa['07']) : (gpa['7'] !== undefined ? String(gpa['7']) : ''),
+
+    CGPA: student.cgpa !== undefined && student.cgpa !== null && String(student.cgpa).trim() !== '' ? String(student.cgpa) : '',
+
+    ARREARS01: arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined ? String(arr['1']) : ''),
+    ARREARS02: arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined ? String(arr['2']) : ''),
+    ARREARS03: arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined ? String(arr['3']) : ''),
+    ARREARS04: arr['04'] !== undefined && arr['04'] !== null ? String(arr['04']) : (arr['4'] !== undefined ? String(arr['4']) : ''),
+    ARREARS05: arr['05'] !== undefined && arr['05'] !== null ? String(arr['05']) : (arr['5'] !== undefined ? String(arr['5']) : ''),
+    ARREARS06: arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined ? String(arr['6']) : ''),
+    ARREARS07: arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined ? String(arr['7']) : ''),
+
+    CLASS_OBTAINED: student.classObtained || '',
   };
 
-  console.log('=== POPULATING DOCX WITH STUDENT DATA ===', studentData);
+  // STEP 4: Debug Before Rendering
+  console.log('=================== STEP 4 DEBUG BEFORE RENDERING ===================');
+  console.log(`Student: ${placeholderObject.STUDENT_NAME}`);
+  console.log(`Register Number: ${placeholderObject.REGISTER_NO}`);
+  console.log(`Student Name: ${placeholderObject.STUDENT_NAME}`);
+  console.log(`University Subjects Count: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+
+  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, i) => {
+    console.log(`  [Sub ${i + 1}] Code: ${sub.CODE}, Title: "${sub.TITLE}", Grade: ${sub.GRADE}, Pass/Fail: ${sub.PASS_FAIL}`);
+  });
+
+  console.log(`GPA01: ${placeholderObject.GPA01}`);
+  console.log(`GPA02: ${placeholderObject.GPA02}`);
+  console.log(`GPA03: ${placeholderObject.GPA03}`);
+  console.log(`GPA04: ${placeholderObject.GPA04}`);
+  console.log(`GPA05: ${placeholderObject.GPA05}`);
+  console.log(`CGPA: ${placeholderObject.CGPA}`);
+  console.log(`Class Obtained: ${placeholderObject.CLASS_OBTAINED}`);
+  console.log('=====================================================================');
 
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
@@ -135,7 +165,18 @@ export async function populateOfficialDocxTemplateWithLogs(
   const mappedPlaceholders: string[] = [];
   const unmappedPlaceholders: string[] = [];
 
-  // 1. Dynamic Placeholder Scan & Map
+  // STEP 3: Replace Top DOCX Placeholders
+  xml = xml.replace(/\{\{REGISTER_NO\}\}/gi, placeholderObject.REGISTER_NO);
+  xml = xml.replace(/\{\{STUDENT_NAME\}\}/gi, placeholderObject.STUDENT_NAME);
+  xml = xml.replace(/\{\{register_number\}\}/gi, placeholderObject.REGISTER_NO);
+  xml = xml.replace(/\{\{student_name\}\}/gi, placeholderObject.STUDENT_NAME);
+  xml = xml.replace(/\{\{REGULATION\}\}/gi, placeholderObject.REGULATION);
+  xml = xml.replace(/\{\{DEPARTMENT\}\}/gi, placeholderObject.DEPARTMENT);
+  xml = xml.replace(/\{\{SEMESTER\}\}/gi, placeholderObject.SEMESTER);
+  xml = xml.replace(/\{\{EXAM_SESSION\}\}/gi, placeholderObject.EXAM_SESSION);
+  xml = xml.replace(/\{\{ACADEMIC_YEAR\}\}/gi, placeholderObject.ACADEMIC_YEAR);
+
+  // Dynamic Placeholder Replacement Fallback
   const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s-]+)(?:<[^>]+>)*?\}\}/g;
   let match;
   const scannedPlaceholders = new Set<string>();
@@ -146,88 +187,54 @@ export async function populateOfficialDocxTemplateWithLogs(
   }
 
   scannedPlaceholders.forEach((ph) => {
-    const cleanPh = ph.toLowerCase().replace(/[\s_.-]+/g, '');
+    const upperPh = ph.toUpperCase().replace(/[\s_.-]+/g, '');
     let val = '';
-    let foundCol = '';
-    let reason = '';
 
-    if (cleanPh.includes('regulation')) {
-      val = studentData.regulation;
-      foundCol = 'Regulation';
-    } else if (cleanPh.includes('registernumber') || cleanPh.includes('regno') || cleanPh === 'reg' || cleanPh.includes('register')) {
-      val = studentData.register_number || 'Not Available';
-      foundCol = 'Register Number';
-    } else if (cleanPh.includes('studentname') || cleanPh.includes('name')) {
-      val = studentData.student_name || 'Not Available';
-      foundCol = 'Student Name';
-    } else if (cleanPh.includes('department') || cleanPh.includes('dept')) {
-      val = studentData.department || 'Computer Science and Engineering';
-      foundCol = 'Department';
-    } else if (cleanPh.includes('examsession') || cleanPh.includes('session')) {
-      val = studentData.exam_session;
-      foundCol = 'Exam Session';
-    } else if (cleanPh.includes('academicyear') || cleanPh.includes('year')) {
-      val = studentData.academic_year;
-      foundCol = 'Academic Year';
-    } else if (cleanPh.includes('semester') || cleanPh.includes('sem')) {
-      val = studentData.semester;
-      foundCol = 'Semester';
-    } else {
-      // Dynamic Subject placeholder matching
-      const sub = studentData.internal_results.find(
-        (s: any) => s.code.toLowerCase().replace(/[\s_.-]+/g, '') === cleanPh
-      );
-      if (sub) {
-        val = String(sub.cie1Marks !== undefined ? sub.cie1Marks : 'Pending');
-        foundCol = sub.code;
-      } else {
-        val = 'Pending';
-        reason = 'No matching Excel column or subject dataset found';
-      }
-    }
+    if (upperPh === 'REGISTERNO' || upperPh === 'REGISTERNUMBER' || upperPh === 'REG') {
+      val = placeholderObject.REGISTER_NO;
+    } else if (upperPh === 'STUDENTNAME' || upperPh === 'NAME') {
+      val = placeholderObject.STUDENT_NAME;
+    } else if (upperPh === 'REGULATION') {
+      val = placeholderObject.REGULATION;
+    } else if (upperPh === 'DEPARTMENT' || upperPh === 'DEPT') {
+      val = placeholderObject.DEPARTMENT;
+    } else if (upperPh === 'GPA01') val = placeholderObject.GPA01;
+    else if (upperPh === 'GPA02') val = placeholderObject.GPA02;
+    else if (upperPh === 'GPA03') val = placeholderObject.GPA03;
+    else if (upperPh === 'GPA04') val = placeholderObject.GPA04;
+    else if (upperPh === 'GPA05') val = placeholderObject.GPA05;
+    else if (upperPh === 'GPA06') val = placeholderObject.GPA06;
+    else if (upperPh === 'GPA07') val = placeholderObject.GPA07;
+    else if (upperPh === 'CGPA') val = placeholderObject.CGPA;
+    else if (upperPh === 'ARREARS01') val = placeholderObject.ARREARS01;
+    else if (upperPh === 'ARREARS02') val = placeholderObject.ARREARS02;
+    else if (upperPh === 'ARREARS03') val = placeholderObject.ARREARS03;
+    else if (upperPh === 'ARREARS04') val = placeholderObject.ARREARS04;
+    else if (upperPh === 'ARREARS05') val = placeholderObject.ARREARS05;
+    else if (upperPh === 'ARREARS06') val = placeholderObject.ARREARS06;
+    else if (upperPh === 'ARREARS07') val = placeholderObject.ARREARS07;
+    else if (upperPh === 'CLASSOBTAINED' || upperPh === 'CLASS') val = placeholderObject.CLASS_OBTAINED;
 
-    const isSuccess = val && val !== 'Pending' && val !== 'Not Available';
-
-    if (isSuccess) {
+    if (val) {
       mappedPlaceholders.push(`{{${ph}}}`);
-    } else {
-      unmappedPlaceholders.push(`{{${ph}}}`);
+      const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
+      xml = xml.replace(replaceRegex, val);
     }
-
-    const status: 'SUCCESS' | 'PENDING' | 'NOT_AVAILABLE' = isSuccess
-      ? 'SUCCESS'
-      : val === 'Pending'
-      ? 'PENDING'
-      : 'NOT_AVAILABLE';
-
-    mappingLogs.push({
-      placeholder: `{{${ph}}}`,
-      expectedCol: ph,
-      actualCol: foundCol || 'None',
-      value: val,
-      status,
-      reason,
-    });
-
-    // Replace in XML with extracted student value or fallback
-    const fillValue = val || 'Pending';
-    const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
-    xml = xml.replace(replaceRegex, fillValue);
   });
 
-  // 2. Populate Tables with studentData
+  // Populate Tables in Word XML
   const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
 
   if (tableMatches.length >= 4) {
     // TABLE 2: University Results Table
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const univList = studentData.university_results;
+    const univList = placeholderObject.UNIVERSITY_SUBJECTS;
 
     rows2.slice(1).forEach((rXml, idx) => {
       const item = univList[idx];
       const vals = item
-        ? [item.sem || 'VI', item.code || 'Not Available', item.title || 'Not Available', item.grade || 'Pending', item.passFail || 'Pending']
+        ? [item.SEM || 'VI', item.CODE || '', item.TITLE || '', item.GRADE || '', item.PASS_FAIL || '']
         : ['', '', '', '', ''];
       const updatedRow = updateRowCells(rXml, vals);
       tbl2 = tbl2.replace(rXml, updatedRow);
@@ -237,35 +244,100 @@ export async function populateOfficialDocxTemplateWithLogs(
     // TABLE 3: GPA & CGPA Summary Table
     let tbl3 = tableMatches[2];
     let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    if (rows3.length >= 5) {
-      // CGPA row (Row 3)
-      let r3 = rows3[3];
-      const cgpaVal = studentData.cgpa ? Number(studentData.cgpa).toFixed(2) : '8.42';
-      r3 = r3.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
-        if (cIdx === 1) return setCellContent(cellXml, cgpaVal);
-        return cellXml;
-      });
-      tbl3 = tbl3.replace(rows3[3], r3);
 
-      // Class Obtained row (Row 4)
-      let r4 = rows3[4];
-      const classVal = studentData.class_obtained || 'FIRST CLASS';
-      r4 = r4.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
-        if (cIdx === 1) return setCellContent(cellXml, classVal);
-        return cellXml;
-      });
-      tbl3 = tbl3.replace(rows3[4], r4);
-    }
+    rows3.forEach((rXml, rIdx) => {
+      let updatedR = rXml;
+
+      updatedR = updatedR.replace(/\{\{GPA01\}\}/gi, placeholderObject.GPA01);
+      updatedR = updatedR.replace(/\{\{GPA02\}\}/gi, placeholderObject.GPA02);
+      updatedR = updatedR.replace(/\{\{GPA03\}\}/gi, placeholderObject.GPA03);
+      updatedR = updatedR.replace(/\{\{GPA04\}\}/gi, placeholderObject.GPA04);
+      updatedR = updatedR.replace(/\{\{GPA05\}\}/gi, placeholderObject.GPA05);
+      updatedR = updatedR.replace(/\{\{GPA06\}\}/gi, placeholderObject.GPA06);
+      updatedR = updatedR.replace(/\{\{GPA07\}\}/gi, placeholderObject.GPA07);
+      updatedR = updatedR.replace(/\{\{CGPA\}\}/gi, placeholderObject.CGPA);
+      updatedR = updatedR.replace(/\{\{ARREARS01\}\}/gi, placeholderObject.ARREARS01);
+      updatedR = updatedR.replace(/\{\{ARREARS02\}\}/gi, placeholderObject.ARREARS02);
+      updatedR = updatedR.replace(/\{\{ARREARS03\}\}/gi, placeholderObject.ARREARS03);
+      updatedR = updatedR.replace(/\{\{ARREARS04\}\}/gi, placeholderObject.ARREARS04);
+      updatedR = updatedR.replace(/\{\{ARREARS05\}\}/gi, placeholderObject.ARREARS05);
+      updatedR = updatedR.replace(/\{\{ARREARS06\}\}/gi, placeholderObject.ARREARS06);
+      updatedR = updatedR.replace(/\{\{ARREARS07\}\}/gi, placeholderObject.ARREARS07);
+      updatedR = updatedR.replace(/\{\{CLASS_OBTAINED\}\}/gi, placeholderObject.CLASS_OBTAINED);
+
+      if (rIdx === 1) { // GPA Row
+        const gpaVals = [
+          placeholderObject.GPA01,
+          placeholderObject.GPA02,
+          placeholderObject.GPA03,
+          placeholderObject.GPA04,
+          placeholderObject.GPA05,
+          placeholderObject.GPA06,
+          placeholderObject.GPA07,
+        ];
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx >= 1 && cIdx <= 7) {
+            const v = gpaVals[cIdx - 1] || '';
+            cIdx++;
+            return setCellContent(cellXml, v);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      } else if (rIdx === 2) { // Arrears Row
+        const arrVals = [
+          placeholderObject.ARREARS01,
+          placeholderObject.ARREARS02,
+          placeholderObject.ARREARS03,
+          placeholderObject.ARREARS04,
+          placeholderObject.ARREARS05,
+          placeholderObject.ARREARS06,
+          placeholderObject.ARREARS07,
+        ];
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx >= 1 && cIdx <= 7) {
+            const v = arrVals[cIdx - 1] || '';
+            cIdx++;
+            return setCellContent(cellXml, v);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      } else if (rIdx === 3) { // CGPA Row
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx === 1) {
+            cIdx++;
+            return setCellContent(cellXml, placeholderObject.CGPA);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      } else if (rIdx === 4) { // Class Obtained Row
+        let cIdx = 0;
+        updatedR = updatedR.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+          if (cIdx === 1) {
+            cIdx++;
+            return setCellContent(cellXml, placeholderObject.CLASS_OBTAINED);
+          }
+          cIdx++;
+          return cellXml;
+        });
+      }
+
+      tbl3 = tbl3.replace(rXml, updatedR);
+    });
     xml = xml.replace(tableMatches[2], tbl3);
 
     // TABLE 4: Internal Evaluation Marks Table
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const internalList = studentData.internal_results;
+    const internalList = student.internalEvalResults || [];
     const isModel = cleanName.includes('model');
     const isCie2 = cleanName.includes('cie1_cie2');
 
-    // Data rows start at index 2 (row 0 and row 1 are table headers)
     rows4.slice(2).forEach((rXml, idx) => {
       const item = internalList[idx];
       let vals: string[] = [];
@@ -324,7 +396,7 @@ export async function populateOfficialDocxTemplateWithLogs(
   return {
     docBytes,
     mappingLogs,
-    studentData,
+    studentData: placeholderObject as any,
     mappedCount: mappedPlaceholders.length,
     unmappedCount: unmappedPlaceholders.length,
     mappedPlaceholders,
