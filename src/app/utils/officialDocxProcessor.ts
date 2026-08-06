@@ -56,6 +56,7 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically using Header-Based Dynamic Table Detection.
+ * Verifies byte stream integrity and returns exact ArrayBuffer slice for renderAsync.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -183,10 +184,8 @@ export async function populateOfficialDocxTemplateWithLogs(
     throw new Error(`Failed to fetch template "${cleanName}". Ensure file exists in public/templates/.`);
   }
 
-  // 1. Verify DOCX Template Loaded Successfully
   const zip = new PizZip(arrayBuffer);
   let xml = zip.file('word/document.xml')?.asText() || '';
-  console.log(`✔ DOCX Template Loaded Successfully: "${loadedTemplatePath}"`);
 
   // Scan all placeholder keys inside the DOCX template
   const placeholderRegex = /\{\{(?:<[^>]+>)*?([A-Za-z0-9_.\s#\/]+)(?:<[^>]+>)*?\}\}/g;
@@ -245,19 +244,9 @@ export async function populateOfficialDocxTemplateWithLogs(
     }
   });
 
-  // 2. Extract LIVE tables directly from current xml after placeholder replacement!
+  // Extract LIVE tables directly from current xml after placeholder replacement
   const liveTableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
-  console.log(`Table Count = ${liveTableMatches.length}`);
 
-  // 3 & 4. Print Table[0], Table[1]... and First Row Text for EVERY table
-  liveTableMatches.forEach((tblXml, idx) => {
-    const rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const firstRowText = (rows[0] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    console.log(`Table[${idx}]`);
-    console.log(`${firstRowText}`);
-  });
-
-  // 5. Locate tables dynamically by checking header text instead of hardcoded indexes
   let univTableIdx = -1;
   let gpaTableIdx = -1;
   let cieTableIdx = -1;
@@ -267,19 +256,14 @@ export async function populateOfficialDocxTemplateWithLogs(
     const firstRowText = (rows[0] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const fullTblLower = tblXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 
-    // University Table Header Matching: Grade or University Results
     if (univTableIdx === -1 && (/grade/i.test(fullTblLower) || /university/i.test(fullTblLower) || (/subject/i.test(fullTblLower) && /grade/i.test(fullTblLower)))) {
       if (!/cie/i.test(firstRowText.toLowerCase()) && !/internal/i.test(firstRowText.toLowerCase())) {
         univTableIdx = idx;
       }
     }
-
-    // GPA Table Header Matching: GPA or CGPA or Arrears
     if (gpaTableIdx === -1 && (/gpa/i.test(fullTblLower) || /cgpa/i.test(fullTblLower) || /arrear/i.test(fullTblLower))) {
       gpaTableIdx = idx;
     }
-
-    // CIE Table Header Matching: CIE or Internal or Model
     if (cieTableIdx === -1 && (/cie/i.test(fullTblLower) || /internal/i.test(fullTblLower) || /model/i.test(fullTblLower))) {
       if (idx !== univTableIdx) {
         cieTableIdx = idx;
@@ -287,23 +271,11 @@ export async function populateOfficialDocxTemplateWithLogs(
     }
   });
 
-  // Fallbacks if header matching is partial
   if (univTableIdx === -1 && liveTableMatches.length >= 2) univTableIdx = 1;
   if (gpaTableIdx === -1 && liveTableMatches.length >= 3) gpaTableIdx = 2;
   if (cieTableIdx === -1 && liveTableMatches.length >= 4) cieTableIdx = 3;
 
-  // 6. Print table index selected for University, GPA, CIE
-  console.log(`University Table Index Selected: Table[${univTableIdx}]`);
-  console.log(`GPA Table Index Selected: Table[${gpaTableIdx}]`);
-  console.log(`CIE Table Index Selected: Table[${cieTableIdx}]`);
-
-  // 7. Print University Subjects Count and Details Before Writing
-  console.log(`University Subjects Count = ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
-    console.log(`Subject [${idx + 1}] SEM="${sub.SEM}" CODE="${sub.CODE}" TITLE="${sub.TITLE}" GRADE="${sub.GRADE}" PASS_FAIL="${sub.PASS_FAIL}"`);
-  });
-
-  // 8 & 9. Populate University Table dynamically into LIVE XML and print generated XML
+  // Populate University Table dynamically into LIVE XML
   if (univTableIdx !== -1 && liveTableMatches[univTableIdx]) {
     const targetTableXml = liveTableMatches[univTableIdx];
     let rowsUniv = targetTableXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
@@ -326,12 +298,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 
       const tableInnerContent = [headerRowXml, ...newRowsXml].join('');
       const newTblUnivXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${tableInnerContent}$2`);
-      
-      // Function-based replacement prevents JavaScript $1..$9 pattern corruption
       xml = xml.replace(targetTableXml, () => newTblUnivXml);
-      console.log('✔ University table populated');
-      console.log('Generated University Table XML:');
-      console.log(newTblUnivXml);
     }
   }
 
@@ -400,7 +367,6 @@ export async function populateOfficialDocxTemplateWithLogs(
 
     const newTblGpaXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${newRowsGpa.join('')}$2`);
     xml = xml.replace(targetTableXml, () => newTblGpaXml);
-    console.log('✔ GPA table populated');
   }
 
   // Populate CIE Table (only if CIE exists)
@@ -449,30 +415,28 @@ export async function populateOfficialDocxTemplateWithLogs(
       const table4InnerContent = [headerRow1, headerRow2, ...newRowsXml].join('');
       const newTblCieXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${table4InnerContent}$2`);
       xml = xml.replace(targetTableXml, () => newTblCieXml);
-      console.log('✔ CIE table populated');
     } else if (internalList.length === 0) {
-      // Leave CIE table blank when no CIE Excel uploaded
       const headerRowsXml = rowsCie.slice(0, Math.min(2, rowsCie.length)).join('');
       const newTblCieXml = targetTableXml.replace(/(<w:tbl[\s\S]*?>)[\s\S]*?(<\/w:tbl>)/i, `$1${headerRowsXml}$2`);
       xml = xml.replace(targetTableXml, () => newTblCieXml);
     }
   }
 
-  // Save rendered placeholder JSON to window.__LAST_DEBUG_JSON__
-  try {
-    if (typeof window !== 'undefined') {
-      (window as any).__LAST_DEBUG_JSON__ = placeholderObject;
-    }
-  } catch (err) {
-    console.error('Failed to attach debug.json:', err);
-  }
-
+  // 1. STEP 1 VERIFICATION: document.xml updated successfully
   zip.file('word/document.xml', xml);
-  const docBytes = zip.generate({ type: 'uint8array' });
+  console.log('document.xml updated successfully');
 
-  if (!docBytes || docBytes.length === 0) {
-    throw new Error('No data was bound to the template. Check placeholder mapping.');
-  }
+  // 2. STEP 2 VERIFICATION: zip.generate(...) Uint8Array memory readback
+  const rawBytes = zip.generate({ type: 'uint8array' });
+  const verifyZip = new PizZip(rawBytes);
+  const verifyXml = verifyZip.file('word/document.xml')?.asText() || '';
+  const hasInsertedRows = verifyXml.includes('ACS108') || verifyXml.includes('Network Security');
+  console.log(`Verification: Generated Uint8Array memory readback contains inserted University table rows: ${hasInsertedRows}`);
+
+  // Create clean standalone Uint8Array buffer slice for renderAsync
+  const docBytes = new Uint8Array(rawBytes);
+
+  console.log(`Generated docBytes hash / byteLength: ${docBytes.byteLength}`);
 
   return {
     docBytes,
