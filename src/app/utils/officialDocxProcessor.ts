@@ -56,8 +56,8 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * GPA Mapping: Semester 1->GPA01 .. Semester 7->GPA07 strictly. CGPA mapped separately.
- * Unavailable semester GPAs remain blank (""). Never shifts GPA values.
+ * Arrears Mapping: Semester 1->ARREARS01 .. Semester 7->ARREARS07 strictly from uploaded Excel.
+ * No default arrears generated. Missing values remain empty strings ("").
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -81,7 +81,7 @@ export async function populateOfficialDocxTemplateWithLogs(
   const gpa06 = gpa['06'] !== undefined && gpa['06'] !== null ? String(gpa['06']) : (gpa['6'] !== undefined && gpa['6'] !== null ? String(gpa['6']) : '');
   const gpa07 = gpa['07'] !== undefined && gpa['07'] !== null ? String(gpa['07']) : (gpa['7'] !== undefined && gpa['7'] !== null ? String(gpa['7']) : '');
 
-  // Strict Unshifted Semester Arrears Mapping (Semester 1->ARREARS01 .. Semester 7->ARREARS07)
+  // Strict Semester-Wise Arrears Mapping from uploaded Excel (Semester 1->ARREARS01 .. Semester 7->ARREARS07)
   const arr01 = arr['01'] !== undefined && arr['01'] !== null ? String(arr['01']) : (arr['1'] !== undefined && arr['1'] !== null ? String(arr['1']) : '');
   const arr02 = arr['02'] !== undefined && arr['02'] !== null ? String(arr['02']) : (arr['2'] !== undefined && arr['2'] !== null ? String(arr['2']) : '');
   const arr03 = arr['03'] !== undefined && arr['03'] !== null ? String(arr['03']) : (arr['3'] !== undefined && arr['3'] !== null ? String(arr['3']) : '');
@@ -152,17 +152,16 @@ export async function populateOfficialDocxTemplateWithLogs(
     CLASS: student.classObtained || '',
   };
 
-  console.log('=================== GPA TABLE MAPPING DEBUG ===================');
+  console.log('=================== ARREARS TABLE MAPPING DEBUG ===================');
   console.log(`Student: ${placeholderObject.STUDENT_NAME} (${placeholderObject.REGISTER_NO})`);
-  console.log(`GPA01: "${placeholderObject.GPA01}"`);
-  console.log(`GPA02: "${placeholderObject.GPA02}"`);
-  console.log(`GPA03: "${placeholderObject.GPA03}"`);
-  console.log(`GPA04: "${placeholderObject.GPA04}"`);
-  console.log(`GPA05: "${placeholderObject.GPA05}"`);
-  console.log(`GPA06: "${placeholderObject.GPA06}"`);
-  console.log(`GPA07: "${placeholderObject.GPA07}"`);
-  console.log(`CGPA : "${placeholderObject.CGPA}"`);
-  console.log('===============================================================');
+  console.log(`ARREARS01: "${placeholderObject.ARREARS01}"`);
+  console.log(`ARREARS02: "${placeholderObject.ARREARS02}"`);
+  console.log(`ARREARS03: "${placeholderObject.ARREARS03}"`);
+  console.log(`ARREARS04: "${placeholderObject.ARREARS04}"`);
+  console.log(`ARREARS05: "${placeholderObject.ARREARS05}"`);
+  console.log(`ARREARS06: "${placeholderObject.ARREARS06}"`);
+  console.log(`ARREARS07: "${placeholderObject.ARREARS07}"`);
+  console.log('====================================================================');
 
   const cleanName = (templateFileName || 'template_cie1.docx')
     .replace(/^https?:\/\/[^\/]+/, '')
@@ -319,7 +318,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       const rowTextUpper = rXml.replace(/<[^>]+>/g, '').toUpperCase().trim();
 
       if (/GPA/i.test(rowTextUpper) && !/CGPA/i.test(rowTextUpper)) {
-        // GPA Row: Columns 1..7 map strictly to GPA01..GPA07 without shifting
+        // GPA Row: Columns 1..7 map strictly to GPA01..GPA07
         const gpaVals = [
           placeholderObject.GPA01,
           placeholderObject.GPA02,
@@ -340,7 +339,7 @@ export async function populateOfficialDocxTemplateWithLogs(
           return cellXml;
         });
       } else if (/ARREAR/i.test(rowTextUpper)) {
-        // Arrears Row: Columns 1..7 map strictly to ARREARS01..ARREARS07
+        // Arrears Row: Columns 1..7 map strictly to ARREARS01..ARREARS07 (NO DEFAULT ARREARS)
         const arrVals = [
           placeholderObject.ARREARS01,
           placeholderObject.ARREARS02,
