@@ -56,7 +56,7 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
 /**
  * Loads an official master DOCX template from public/templates/
  * and populates all placeholders & tables dynamically for a single student.
- * Prints complete diagnostic info before rendering.
+ * Debugs the rendering pipeline before rendering.
  */
 export async function populateOfficialDocxTemplateWithLogs(
   templateFileName: string,
@@ -89,7 +89,7 @@ export async function populateOfficialDocxTemplateWithLogs(
   const arr06 = arr['06'] !== undefined && arr['06'] !== null ? String(arr['06']) : (arr['6'] !== undefined && arr['6'] !== null ? String(arr['6']) : '');
   const arr07 = arr['07'] !== undefined && arr['07'] !== null ? String(arr['07']) : (arr['7'] !== undefined && arr['7'] !== null ? String(arr['7']) : '');
 
-  // Exact Placeholder Object
+  // Exact Placeholder Object passed to render engine
   const placeholderObject = {
     REGISTER_NO: student.regNo || '',
     register_no: student.regNo || '',
@@ -157,33 +157,32 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   const loadedTemplatePath = `${typeof window !== 'undefined' ? window.location.origin : ''}/templates/${cleanName}`;
 
-  // PRINT ALL DIAGNOSTICS BEFORE RENDER
-  console.log('=================== RENDER PIPELINE DIAGNOSTICS ===================');
-  console.log(`1. Template Path Loaded      : ${loadedTemplatePath}`);
-  console.log(`2. Register Number           : "${placeholderObject.REGISTER_NO}"`);
-  console.log(`3. Student Name              : "${placeholderObject.STUDENT_NAME}"`);
-  console.log(`4. Department                : "${placeholderObject.DEPARTMENT}"`);
-  console.log(`5. Semester                  : "${placeholderObject.SEMESTER}"`);
-  console.log(`6. University Subjects Count : ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
-  
-  console.log(`7. Each Subject Details:`);
+  // RENDER PIPELINE DEBUG PRINTS BEFORE DOCX RENDER
+  console.log('=================== RENDER PIPELINE DEBUG LOGS ===================');
+  console.log('1. Complete Parsed Student Object:');
+  console.log(student);
+
+  console.log('2. Complete Placeholder JSON Passed into Render Engine:');
+  console.log(JSON.stringify(placeholderObject, null, 2));
+
+  console.log(`3. UNIVERSITY_SUBJECTS Array Length: ${placeholderObject.UNIVERSITY_SUBJECTS.length}`);
+
+  console.log('4. Every UNIVERSITY_SUBJECTS Item:');
   placeholderObject.UNIVERSITY_SUBJECTS.forEach((sub, idx) => {
-    console.log(`   Subject [${idx + 1}]: Code="${sub.CODE}", Name="${sub.TITLE}", Grade="${sub.GRADE}", Pass/Fail="${sub.PASS_FAIL}"`);
+    console.log(`   [Subject ${idx + 1}] SEM: "${sub.SEM}", CODE: "${sub.CODE}", TITLE: "${sub.TITLE}", GRADE: "${sub.GRADE}", PASS_FAIL: "${sub.PASS_FAIL}"`);
   });
 
-  console.log(`8. GPA01-GPA07:`);
+  console.log('5. GPA01-GPA07:');
   console.log(`   GPA01: "${placeholderObject.GPA01}", GPA02: "${placeholderObject.GPA02}", GPA03: "${placeholderObject.GPA03}", GPA04: "${placeholderObject.GPA04}", GPA05: "${placeholderObject.GPA05}", GPA06: "${placeholderObject.GPA06}", GPA07: "${placeholderObject.GPA07}"`);
 
-  console.log(`9. CGPA: "${placeholderObject.CGPA}"`);
+  console.log(`6. CGPA: "${placeholderObject.CGPA}"`);
 
-  console.log(`10. Arrears01-Arrears07:`);
+  console.log('7. ARREARS01-ARREARS07:');
   console.log(`   ARREARS01: "${placeholderObject.ARREARS01}", ARREARS02: "${placeholderObject.ARREARS02}", ARREARS03: "${placeholderObject.ARREARS03}", ARREARS04: "${placeholderObject.ARREARS04}", ARREARS05: "${placeholderObject.ARREARS05}", ARREARS06: "${placeholderObject.ARREARS06}", ARREARS07: "${placeholderObject.ARREARS07}"`);
 
-  console.log(`11. Class Obtained           : "${placeholderObject.CLASS_OBTAINED}"`);
-
-  console.log(`12. Complete Placeholder JSON passed into doc.render():`);
-  console.log(JSON.stringify(placeholderObject, null, 2));
-  console.log('===================================================================');
+  console.log(`8. CLASS_OBTAINED: "${placeholderObject.CLASS_OBTAINED}"`);
+  console.log(`Loaded Template Path: ${loadedTemplatePath}`);
+  console.log('==================================================================');
 
   const candidateUrls = [
     `/templates/${cleanName}`,
@@ -280,7 +279,7 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   // Populate Tables in Word XML
   if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table
+    // TABLE 2: University Results Table (Target Index 1)
     let tbl2 = tableMatches[1];
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = placeholderObject.UNIVERSITY_SUBJECTS;
@@ -305,7 +304,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       xml = xml.replace(tableMatches[1], newTbl2Xml);
     }
 
-    // TABLE 3: GPA, CGPA & Arrears Summary Table
+    // TABLE 3: GPA, CGPA & Arrears Summary Table (Target Index 2)
     let tbl3 = tableMatches[2];
     let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
 
@@ -397,7 +396,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     });
     xml = xml.replace(tableMatches[2], tbl3);
 
-    // TABLE 4: Internal Evaluation Marks Table
+    // TABLE 4: Internal Evaluation Marks Table (Target Index 3)
     let tbl4 = tableMatches[3];
     let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const internalList = student.internalEvalResults || [];
