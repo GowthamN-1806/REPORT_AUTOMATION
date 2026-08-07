@@ -148,44 +148,50 @@ export const Dashboard: React.FC = () => {
 
         setFileSlots(updatedSlots);
 
-        // Instantly run merge engine so live preview updates immediately upon uploading
-        const univList = updatedSlots.univ.students;
-        const cie1List = updatedSlots.cie1.students;
-        const cie2List = updatedSlots.cie2.students;
-        const modelList = updatedSlots.model.students;
+        // Only run merge engine if mandatory University Result Excel is uploaded
+        if (updatedSlots.univ.file) {
+          const univList = updatedSlots.univ.students;
+          const cie1List = updatedSlots.cie1.students;
+          const cie2List = updatedSlots.cie2.students;
+          const modelList = updatedSlots.model.students;
 
-        const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-        setMergeResult(res);
-        setMergedStudents(res.mergedStudents);
-        setCurrentPageIndex(0);
+          const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+          setMergeResult(res);
+          setMergedStudents(res.mergedStudents);
+          setCurrentPageIndex(0);
 
-        const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-        const acadYear = '2025 - 2026';
-        const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
+          const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
+          const acadYear = '2025 - 2026';
+          const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
 
-        setSummary({
-          fileName: file.name,
-          fileSize: sizeStr,
-          department: deptName,
-          academicYear: acadYear,
-          totalStudents: res.mergedStudents.length,
-          subjectsPerStudent: subCount,
-          reportsCount: res.mergedStudents.length,
-          templateUsed: res.templateFile,
-          uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-          status: 'Ready for Download',
-        });
+          setSummary({
+            fileName: file.name,
+            fileSize: sizeStr,
+            department: deptName,
+            academicYear: acadYear,
+            totalStudents: res.mergedStudents.length,
+            subjectsPerStudent: subCount,
+            reportsCount: res.mergedStudents.length,
+            templateUsed: res.templateFile,
+            uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+            status: 'Ready for Download',
+          });
 
-        setStats({
-          totalStudents: res.mergedStudents.length,
-          reportsGenerated: res.mergedStudents.length,
-          pdfPages: res.mergedStudents.length * 2,
-          department: deptName,
-          academicYear: acadYear,
-          uploadStatus: 'Success',
-        });
+          setStats({
+            totalStudents: res.mergedStudents.length,
+            reportsGenerated: res.mergedStudents.length,
+            pdfPages: res.mergedStudents.length * 2,
+            department: deptName,
+            academicYear: acadYear,
+            uploadStatus: 'Success',
+          });
 
-        addToast('success', 'File Uploaded & Preview Updated', `${file.name} parsed (${parsed.length} Students). Report preview loaded.`);
+          addToast('success', 'File Uploaded', `${file.name} parsed (${parsed.length} Students). Report preview loaded.`);
+        } else {
+          setMergeResult(null);
+          setMergedStudents([]);
+          addToast('info', 'File Saved', `${file.name} uploaded. Upload University Result Excel to generate reports.`);
+        }
       } else {
         addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
       }
@@ -216,9 +222,7 @@ export const Dashboard: React.FC = () => {
     const cie2List = updatedSlots.cie2.students;
     const modelList = updatedSlots.model.students;
 
-    const hasAnyFile = updatedSlots.univ.file || updatedSlots.cie1.file || updatedSlots.cie2.file || updatedSlots.model.file;
-
-    if (hasAnyFile) {
+    if (updatedSlots.univ.file) {
       const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
       setMergeResult(res);
       setMergedStudents(res.mergedStudents);
@@ -243,9 +247,9 @@ export const Dashboard: React.FC = () => {
         totalStudents: 0,
         reportsGenerated: 0,
         pdfPages: 0,
-        department: '-',
-        academicYear: '-',
-        uploadStatus: 'Pending Upload',
+        department: 'N/A',
+        academicYear: '2025 - 2026',
+        uploadStatus: 'Awaiting Upload',
       });
     }
 

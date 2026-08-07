@@ -85,8 +85,25 @@ export const mergeExcelDatasets = (
     activePattern = 'pattern2';
   }
 
-  // Base student dataset comes from University Results or any uploaded file slot
-  const baseStudents = univCount > 0 ? univStudents : (cie1Count > 0 ? cie1Students : (cie2Count > 0 ? cie2Students : modelStudents));
+  // Base student dataset comes STRICTLY from University Results Excel
+  if (univCount === 0) {
+    return {
+      pattern: activePattern,
+      detectedPatternName,
+      templateFile,
+      mergedStudents: [],
+      totalStudentsCount: 0,
+      matchedCount: 0,
+      missingRecordsCount: 0,
+      duplicateRegNosCount: 0,
+      missingGpaCount: 0,
+      missingSubjectsCount: 0,
+      validationWarnings: ['University Result Excel is mandatory to merge and generate reports.'],
+      isReadyForPreview: false,
+    };
+  }
+
+  const baseStudents = univStudents;
 
   const mergedStudentsMap = new Map<string, StudentRecord>();
   let duplicateRegNosCount = 0;
