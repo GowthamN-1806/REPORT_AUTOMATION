@@ -255,11 +255,13 @@ export const generateCombinedPDF = async (
     // Row: CLASS OBTAINED
     y += 18;
     pdf.setFont('times', 'bold');
-    pdf.rect(margin, y, 100, 18);
-    pdf.rect(margin + 100, y, contentWidth - 100, 18);
-    pdf.text('CLASS OBTAINED', margin + 8, y + 12);
+    pdf.setFontSize(8.5);
+    pdf.rect(margin, y, 105, 18);
+    pdf.rect(margin + 105, y, contentWidth - 105, 18);
+    pdf.text('CLASS OBTAINED', margin + 6, y + 12);
     pdf.setFont('times', 'normal');
-    pdf.text(student.classObtained || '', margin + 108, y + 12);
+    pdf.setFontSize(10);
+    pdf.text(student.classObtained || '', margin + 111, y + 12);
 
     // Continuous Internal Evaluation Header
     y += 30;
@@ -279,24 +281,28 @@ export const generateCombinedPDF = async (
 
     if (hasModel) {
       cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Model Marks', 'Pass/Fail'];
-      colW2 = [45, 65, 165, 60, 60, 60, 70];
+      colW2 = [42, 60, 168, 62, 62, 62, 69];
     } else if (hasCie2) {
       cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Pass/Fail'];
-      colW2 = [55, 75, 205, 60, 60, 70];
+      colW2 = [52, 72, 204, 62, 62, 73];
     } else {
       cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'Pass/Fail'];
       colW2 = [65, 85, 235, 65, 75];
     }
 
     currX = margin;
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(hasModel ? 7.5 : (hasCie2 ? 8.5 : 9.5));
+
     cieHeaders.forEach((h, hIdx) => {
       pdf.rect(currX, y, colW2[hIdx], 20);
-      pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
+      pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 13, { align: hIdx === 2 ? 'left' : 'center' });
       currX += colW2[hIdx];
     });
 
     y += 20;
     pdf.setFont('times', 'normal');
+    pdf.setFontSize(9);
     const maxCieRows = cieList.length;
 
     for (let r = 0; r < maxCieRows; r++) {
@@ -313,7 +319,7 @@ export const generateCombinedPDF = async (
         pdf.setFont('times', 'bold');
         pdf.text(item.code || '', cx + colW2[1] / 2, y + 12, { align: 'center' }); cx += colW2[1];
         pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 34), cx + 6, y + 12); cx += colW2[2];
+        pdf.text((item.title || '').substring(0, 32), cx + 6, y + 12); cx += colW2[2];
         pdf.setFont('times', 'bold');
         pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', cx + colW2[3] / 2, y + 12, { align: 'center' }); cx += colW2[3];
 

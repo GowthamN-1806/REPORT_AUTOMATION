@@ -59,29 +59,29 @@ export const generateCombinedWordDocument = async (
 
     const cieHeaderHtml = hasModel
       ? `
-        <th style="border: 1px solid #000; padding: 5px; width: 10%;">Semester</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 14%;">Subject Code</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 34%; text-align: left;">Subject Name</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 11%;">CIE I Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 11%;">CIE II Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 11%;">Model Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 9%;">Pass/Fail</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 9%; font-size: 10px;">Semester</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 13%; font-size: 10px;">Subject Code</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 33%; text-align: left; font-size: 10px;">Subject Name</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 12%; font-size: 9.5px; white-space: nowrap;">CIE I Marks</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 12%; font-size: 9.5px; white-space: nowrap;">CIE II Marks</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 12%; font-size: 9.5px; white-space: nowrap;">Model Marks</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 9%; font-size: 10px;">Pass/Fail</th>
       `
       : hasCie2
       ? `
-        <th style="border: 1px solid #000; padding: 5px; width: 12%;">Semester</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 16%;">Subject Code</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 40%; text-align: left;">Subject Name</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 11%;">CIE I Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 11%;">CIE II Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 10%;">Pass/Fail</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 11%; font-size: 10.5px;">Semester</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 15%; font-size: 10.5px;">Subject Code</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 39%; text-align: left; font-size: 10.5px;">Subject Name</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 12%; font-size: 10px; white-space: nowrap;">CIE I Marks</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 12%; font-size: 10px; white-space: nowrap;">CIE II Marks</th>
+        <th style="border: 1px solid #000; padding: 4px; width: 11%; font-size: 10.5px;">Pass/Fail</th>
       `
       : `
-        <th style="border: 1px solid #000; padding: 5px; width: 12%;">Semester</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 16%;">Subject Code</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 46%; text-align: left;">Subject Name</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 14%;">CIE I Marks</th>
-        <th style="border: 1px solid #000; padding: 5px; width: 12%;">Pass/Fail</th>
+        <th style="border: 1px solid #000; padding: 5px; width: 12%; font-size: 11px;">Semester</th>
+        <th style="border: 1px solid #000; padding: 5px; width: 16%; font-size: 11px;">Subject Code</th>
+        <th style="border: 1px solid #000; padding: 5px; width: 46%; text-align: left; font-size: 11px;">Subject Name</th>
+        <th style="border: 1px solid #000; padding: 5px; width: 14%; font-size: 11px; white-space: nowrap;">CIE I Marks</th>
+        <th style="border: 1px solid #000; padding: 5px; width: 12%; font-size: 11px;">Pass/Fail</th>
       `;
 
     const cieRows = (student.internalEvalResults || []).map((c) => {
