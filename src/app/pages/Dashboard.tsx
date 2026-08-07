@@ -8,9 +8,7 @@ import { Footer } from '../components/Footer';
 import { ProcessingModal } from '../components/ProcessingModal';
 import { ToastContainer, ToastMessage } from '../components/Toast';
 import { StudentRecord, UploadSummary, SystemStats, ResultPattern, UploadedFileSlotInfo } from '../types';
-import { defaultSampleStudents } from '../data/sampleStudents';
 import { parseExcelFile } from '../utils/excelParser';
-import { downloadSampleExcel } from '../utils/excelGenerator';
 import { generateCombinedWordDocument } from '../utils/docGenerator';
 import { generateCombinedPDF } from '../utils/pdfGenerator';
 import { mergeExcelDatasets, MergeEngineResult, getTemplateForPattern } from '../utils/excelMergeEngine';
@@ -326,37 +324,10 @@ export const Dashboard: React.FC = () => {
   };
 
   // Load Demo Data
-  const handleLoadSampleData = () => {
-    setFileSlots((prev) => ({
-      ...prev,
-      univ: {
-        ...prev.univ,
-        file: new File([], 'CSE_III_YEAR_UNIV_RESULTS.xlsx'),
-        name: 'CSE_III_YEAR_UNIV_RESULTS.xlsx',
-        size: '125 KB',
-        studentCount: defaultSampleStudents.length,
-        isValid: true,
-        students: defaultSampleStudents,
-      },
-      cie1: {
-        ...prev.cie1,
-        file: new File([], 'CSE_III_YEAR_CIE1_MARKS.xlsx'),
-        name: 'CSE_III_YEAR_CIE1_MARKS.xlsx',
-        size: '98 KB',
-        studentCount: defaultSampleStudents.length,
-        isValid: true,
-        students: defaultSampleStudents,
-      },
-    }));
-
-    addToast('success', 'Demo Data Loaded', 'Loaded University & CIE 1 sample datasets.');
-  };
+  const handleLoadSampleData = () => {};
 
   // Download Sample Template
-  const handleDownloadSampleTemplate = () => {
-    downloadSampleExcel(defaultSampleStudents);
-    addToast('success', 'Template Downloaded', 'Saved as JIT_PARENTS_Mark_Sheet_Template.xlsx');
-  };
+  const handleDownloadSampleTemplate = () => {};
 
   // In-Memory Edit Student Handler
   const handleUpdateStudent = (updatedStudent: StudentRecord) => {

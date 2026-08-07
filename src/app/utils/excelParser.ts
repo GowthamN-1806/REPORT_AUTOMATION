@@ -341,12 +341,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const cellText = String(rowCells[c] || '').trim().toLowerCase();
             if (cellText === '') continue;
 
-            const isRegHeader = /(reg|register|regno|reg_no|reg\.no|roll|rollno|roll_no|roll\.no|registration)/i.test(cellText) && !/^(s\.no|sl\.no|sno|slno)$/i.test(cellText);
-            const isNameHeader = /(name|candidate)/i.test(cellText) && !isRegHeader;
-
-            if (foundReg === -1 && isRegHeader) {
+            if (foundReg === -1 && /^(reg|reg\.no|reg_no|regno|roll|roll\.no|rollno|register|registration)/i.test(cellText)) {
               foundReg = c;
-            } else if (foundName === -1 && isNameHeader) {
+            } else if (foundName === -1 && /^(name|student|student_name|candidate|name of the student)/i.test(cellText)) {
               foundName = c;
             } else if (foundDept === -1 && /^(dept|department|branch)/i.test(cellText)) {
               foundDept = c;
@@ -676,14 +673,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Clean up empty specs with no mapped subject columns
+        // Clean up empty specs with no mapped columns
         for (const [gNum, spec] of Array.from(univGroupsMap.entries())) {
-          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.gradeCol === -1 && spec.markCol === -1) {
+          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.gradeCol === -1 && spec.passCol === -1 && spec.markCol === -1) {
             univGroupsMap.delete(gNum);
           }
         }
         for (const [gNum, spec] of Array.from(cieGroupsMap.entries())) {
-          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.cie1MarksCol === -1 && spec.cie2MarksCol === -1) {
+          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.cie1MarksCol === -1 && spec.cie2MarksCol === -1 && spec.passCol === -1) {
             cieGroupsMap.delete(gNum);
           }
         }
@@ -691,46 +688,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const sortedUnivSpecs = Array.from(univGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
         const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
 
-        // Helper to infer semester (I..VIII) from subject codes (e.g. HS8151 -> 1 -> I, CS8591 -> 5 -> V)
-        const inferSemesterFromSubjectCodes = (codes: string[]): string => {
-          for (const code of codes) {
-            const match = code.match(/^[A-Z]{2,4}\d?(\d)\d{2,3}$/i);
-            if (match && match[1]) {
-              const semNum = match[1];
-              const RomanMap: Record<string, string> = {
-                '1': 'I', '2': 'II', '3': 'III', '4': 'IV',
-                '5': 'V', '6': 'VI', '7': 'VII', '8': 'VIII'
-              };
-              if (RomanMap[semNum]) return RomanMap[semNum];
-            }
-          }
-          return '';
-        };
-
         // Fallback: Direct Subject Column parsing if no suffixes detected
         const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
 
         if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
-          // Detect true RegNo & Name columns across student rows to exclude them from subjects
-          const excludeCols = new Set<number>();
-          if (regNoColIndex !== -1) excludeCols.add(regNoColIndex);
-          if (nameColIndex !== -1) excludeCols.add(nameColIndex);
-
-          for (let r = studentDataStartRowIndex; r < Math.min(rawMatrix.length, studentDataStartRowIndex + 10); r++) {
-            const rCells = rawMatrix[r] || [];
-            for (let c = 0; c < Math.min(rCells.length, 6); c++) {
-              const cleanDigits = String(rCells[c] || '').trim().replace(/[^0-9]/g, '');
-              if (cleanDigits.length >= 8 && cleanDigits.length <= 16) {
-                excludeCols.add(c);
-                excludeCols.add(c + 1);
-                if (c > 0) excludeCols.add(c - 1);
-                break;
-              }
-            }
-          }
+          const candidateCols: number[] = [];
 
           for (let c = 0; c < headerNames.length; c++) {
-            if (excludeCols.has(c)) continue;
+            if (c === regNoColIndex || c === nameColIndex) continue;
 
             let rawHeader = String(headerNames[c] || '').trim();
             let cleanHeader = rawHeader.toLowerCase();
@@ -739,8 +704,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               !rawHeader ||
               isFacultyNameCell(rawHeader) ||
               isPlaceholderToken(rawHeader) ||
-              cleanHeader.startsWith('__empty') ||
-              /^(s\.?no|sl\.?no|sno|slno|#)$/i.test(cleanHeader)
+              cleanHeader.startsWith('__empty')
             ) {
               continue;
             }
@@ -759,15 +723,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               continue;
             }
 
+            candidateCols.push(c);
+          }
+
+          candidateCols.forEach((c, idx) => {
             let finalCode = '';
             let finalTitle = '';
 
             // Priority 1: Positional mapping from excelSubjectList if available
-            const subIdx = directSubjectCols.length;
-            if (excelSubjectList[subIdx]) {
-              finalCode = excelSubjectList[subIdx].code;
-              finalTitle = excelSubjectList[subIdx].title;
+            if (excelSubjectList[idx]) {
+              finalCode = excelSubjectList[idx].code;
+              finalTitle = excelSubjectList[idx].title;
             } else {
+              const rawHeader = String(headerNames[c] || '').trim();
               const baseCode = rawHeader.toUpperCase();
 
               if (excelSubjectMaster[baseCode]) {
@@ -780,7 +748,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
 
             directSubjectCols.push({ colIndex: c, code: finalCode, title: finalTitle });
-          }
+          });
         }
 
         // STEP 5: Process Every Student Data Row dynamically
@@ -792,57 +760,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const hasAnyData = rowCells.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== '');
           if (!hasAnyData) continue;
 
-          // Smart extraction of Register Number & Name strictly from Excel row
-          let rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
-          let rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
+          // Read Register Number & Name strictly from Excel row
+          const rawRegVal = regNoColIndex !== -1 ? rowCells[regNoColIndex] : rowCells[0];
+          const rawNameVal = nameColIndex !== -1 ? rowCells[nameColIndex] : rowCells[1];
 
           let regNoStr = String(rawRegVal || '').trim();
           let nameStr = String(rawNameVal || '').trim();
 
           if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
           if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
-
-          const isValidRegNoFormat = (str: string): boolean => {
-            const digits = str.replace(/[^0-9]/g, '');
-            return digits.length >= 8 && digits.length <= 16;
-          };
-
-          // If regNoStr is missing or invalid (e.g. S.No "100"), scan row cells for true 8-16 digit Register Number
-          if (!regNoStr || !isValidRegNoFormat(regNoStr) || regNoStr === nameStr) {
-            for (let c = 0; c < Math.min(rowCells.length, 10); c++) {
-              const cellVal = String(rowCells[c] || '').trim();
-              if (isValidRegNoFormat(cellVal)) {
-                regNoStr = cellVal;
-                const nextCell = String(rowCells[c + 1] || '').trim();
-                const prevCell = String(rowCells[c - 1] || '').trim();
-
-                if (nextCell && /[a-zA-Z]{2,}/.test(nextCell) && !isValidRegNoFormat(nextCell) && !isNonStudentRow('', nextCell)) {
-                  nameStr = nextCell;
-                } else if (prevCell && /[a-zA-Z]{2,}/.test(prevCell) && !isValidRegNoFormat(prevCell) && !isNonStudentRow('', prevCell)) {
-                  nameStr = prevCell;
-                }
-                break;
-              }
-            }
-          }
-
-          // If nameStr is missing or looks numeric, scan nearest alphabetic cell
-          if (!nameStr || isValidRegNoFormat(nameStr) || nameStr === regNoStr) {
-            for (let c = 0; c < Math.min(rowCells.length, 10); c++) {
-              const cellVal = String(rowCells[c] || '').trim();
-              if (
-                cellVal &&
-                /[a-zA-Z]{2,}/.test(cellVal) &&
-                !isValidRegNoFormat(cellVal) &&
-                cellVal !== regNoStr &&
-                !isNonStudentRow('', cellVal) &&
-                !/^(pass|fail|grade|univ|cie|code|subject|dept|sem|semester|s\.?no|sl\.?no)$/i.test(cellVal)
-              ) {
-                nameStr = cellVal;
-                break;
-              }
-            }
-          }
 
           // Skip non-student rows (header labels, bottom subject reference block, HOD footers)
           if (isNonStudentRow(regNoStr, nameStr)) {
@@ -918,10 +844,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
 
             const passFail = evaluatePassFail(passStr, gradeStr);
-            const inferredSem = inferSemesterFromSubjectCodes([codeStr]);
 
             universityResults.push({
-              sem: semStr || inferredSem || extractedSemester || 'I',
+              sem: semStr || extractedSemester || 'V',
               code: codeStr,
               title: titleStr,
               grade: gradeStr,
@@ -954,10 +879,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
 
               const passFail = evaluatePassFail(passStr, cie1MarksStr);
-              const inferredSem = inferSemesterFromSubjectCodes([codeStr]);
 
               internalEvalResults.push({
-                sem: semStr || inferredSem || extractedSemester || 'VI',
+                sem: semStr || extractedSemester || 'VI',
                 code: codeStr,
                 title: titleStr,
                 cie1Marks: cie1MarksStr,
@@ -1001,10 +925,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
               // Resolve title using sub.title or excelSubjectMaster
               const resolvedTitle = sub.title || excelSubjectMaster[sub.code] || sub.code;
-              const inferredSem = inferSemesterFromSubjectCodes([sub.code]);
 
               universityResults.push({
-                sem: inferredSem || extractedSemester || 'I',
+                sem: extractedSemester || 'V',
                 code: sub.code,
                 title: resolvedTitle,
                 grade,
