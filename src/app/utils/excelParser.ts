@@ -95,6 +95,34 @@ const isFacultyNameCell = (str: string): boolean => {
          /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name|credit|credits|cerdit|cerdits|cr\b|d\/h|t\/e|no\.?\s*of\s*ar?rears|rank)/i.test(clean);
 };
 
+// Helper to clean and format Semester values (e.g. 5 -> V, 06 -> VI, "Semester VI" -> VI)
+const cleanSemesterValue = (val: any): string => {
+  if (val === undefined || val === null) return '';
+  let str = String(val).trim().toUpperCase();
+  if (!str) return '';
+
+  // Strip prefix labels
+  str = str.replace(/^(?:semester|sem)\s*[:./-]?\s*/i, '').trim();
+
+  // If number 1..8, map to Roman numerals
+  const numMatch = str.match(/^0*([1-8])(?:st|nd|rd|th)?$/i) || str.match(/\b0*([1-8])\b/);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    const romanMap: Record<number, string> = {
+      1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII'
+    };
+    if (romanMap[num]) return romanMap[num];
+  }
+
+  // If Roman numerals
+  const romanMatch = str.match(/\b(VIII|VII|VI|IV|V|III|II|I)\b/i);
+  if (romanMatch) {
+    return romanMatch[1].toUpperCase();
+  }
+
+  return str;
+};
+
 // Helper to identify placeholder tokens or __EMPTY strings
 const isPlaceholderToken = (str: string): boolean => {
   if (!str) return true;
@@ -398,6 +426,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         // Line-by-line scanner across ALL rows of rawMatrix to find exact value next to 'Department' / 'Dept' / 'Branch'
         let extractedDepartment = '';
         let extractedRegulation = '';
+        let extractedSemester = '';
 
         for (let r = 0; r < rawMatrix.length; r++) {
           const rCells = rawMatrix[r] || [];
@@ -441,6 +470,34 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const nextVal = String(rCells[c + 1]).trim();
               if (nextVal && !extractedRegulation) {
                 extractedRegulation = nextVal;
+              }
+            }
+
+            // Pattern 5: Semester (Inspect inline text or right-side adjacent cells c+1, c+2, c+3)
+            if (/^(?:semester|sem)\b/i.test(cellText)) {
+              // Case A: Inline text in same cell, e.g. "Semester: 05" or "Sem: VI"
+              const inlineSemMatch = cellText.match(/(?:semester|sem)\s*[:.-]?\s*([a-z0-9]+)/i);
+              if (inlineSemMatch && inlineSemMatch[1] && !/^(no|name|code|register|roll)/i.test(inlineSemMatch[1])) {
+                const cleaned = cleanSemesterValue(inlineSemMatch[1]);
+                if (cleaned && !extractedSemester) {
+                  extractedSemester = cleaned;
+                }
+              }
+
+              // Case B: Cell has label ("Semester:", "Sem:", "Semester", "Sem", "Sem/Year"), value is in right-side cell c+1, c+2, or c+3
+              if (!extractedSemester) {
+                for (let offset = 1; offset <= 3; offset++) {
+                  if (c + offset < rCells.length && rCells[c + offset] !== undefined && rCells[c + offset] !== null) {
+                    const targetVal = String(rCells[c + offset]).trim();
+                    if (targetVal && !/^(of|code|name|no|register|roll)/i.test(targetVal)) {
+                      const cleaned = cleanSemesterValue(targetVal);
+                      if (cleaned) {
+                        extractedSemester = cleaned;
+                        break;
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -778,6 +835,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const gradeStr = String(gradeRaw || '').trim().toUpperCase();
             const passStr = String(passRaw || '').trim().toUpperCase();
             const markStr = String(markRaw !== undefined && markRaw !== null ? markRaw : '').trim();
+            const semStr = semRaw ? cleanSemesterValue(semRaw) : '';
 
             if (!codeStr && !titleStr && !gradeStr && !passStr && !markStr) return;
 
@@ -786,10 +844,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
 
             const passFail = evaluatePassFail(passStr, gradeStr);
-            const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'V';
 
             universityResults.push({
-              sem,
+              sem: semStr || extractedSemester || 'V',
               code: codeStr,
               title: titleStr,
               grade: gradeStr,
@@ -813,6 +870,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
               const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
               const passStr = String(passRaw || '').trim().toUpperCase();
+              const semStr = semRaw ? cleanSemesterValue(semRaw) : '';
 
               if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
 
@@ -821,10 +879,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
 
               const passFail = evaluatePassFail(passStr, cie1MarksStr);
-              const sem = semRaw ? String(semRaw).trim().toUpperCase() : 'VI';
 
               internalEvalResults.push({
-                sem,
+                sem: semStr || extractedSemester || 'VI',
                 code: codeStr,
                 title: titleStr,
                 cie1Marks: cie1MarksStr,
@@ -870,7 +927,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const resolvedTitle = sub.title || excelSubjectMaster[sub.code] || sub.code;
 
               universityResults.push({
-                sem: 'V',
+                sem: extractedSemester || 'V',
                 code: sub.code,
                 title: resolvedTitle,
                 grade,
@@ -884,9 +941,17 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             'department', 'dept', 'branch', 'dept_name', 'department_name', 'dept name', 'department name'
           ]);
 
+          const rawSemVal = findCellValue(rowCells, headerNames, [
+            'semester', 'sem', 'sem_name', 'sem name', 'current_sem', 'current sem'
+          ]);
+
           let studentDept = rawDeptVal !== undefined && rawDeptVal !== null && String(rawDeptVal).trim() !== ''
             ? String(rawDeptVal).trim()
             : (deptColIndex !== -1 && rowCells[deptColIndex] ? String(rowCells[deptColIndex]).trim() : extractedDepartment);
+
+          let studentSem = rawSemVal !== undefined && rawSemVal !== null && String(rawSemVal).trim() !== ''
+            ? cleanSemesterValue(rawSemVal)
+            : extractedSemester;
 
           parsedStudents.push({
             id: `std-dyn-${r}`,
@@ -894,6 +959,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             name: nameStr.toUpperCase(),
             department: studentDept.toUpperCase(),
             regulation: extractedRegulation,
+            currentSemester: studentSem,
             universityResults,
             gpa: gpaVal,
             cgpa: cgpaVal,

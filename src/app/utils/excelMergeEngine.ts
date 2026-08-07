@@ -111,6 +111,7 @@ export const mergeExcelDatasets = (
         name: s.name,
         department: s.department,
         regulation: s.regulation,
+        currentSemester: s.currentSemester,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
         internalEvalResults: [],
         gpa: univCount > 0 ? s.gpa : undefined,
@@ -158,7 +159,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
 
       if (cie1Match) {
         // Collect CIE 1 subjects from either internalEvalResults or universityResults
-        const cie1SubList: { code: string; title: string; mark: number | string }[] = [];
+        const cie1SubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
 
         if (cie1Match.internalEvalResults && cie1Match.internalEvalResults.length > 0) {
           cie1Match.internalEvalResults.forEach((ie) => {
@@ -166,6 +167,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               code: ie.code,
               title: ie.title,
               mark: ie.cie1Marks !== undefined && ie.cie1Marks !== null ? ie.cie1Marks : '',
+              sem: ie.sem,
             });
           });
         } else if (cie1Match.universityResults && cie1Match.universityResults.length > 0) {
@@ -174,14 +176,17 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               code: ur.code,
               title: ur.title,
               mark: ur.mark !== undefined && ur.mark !== null && ur.mark !== '' ? ur.mark : (ur.grade !== undefined && ur.grade !== null ? ur.grade : ''),
+              sem: ur.sem,
             });
           });
         }
 
+        const cie1Sem = cie1Match.currentSemester || (cie1SubList.find(c => c.sem)?.sem) || 'VI';
+
         if (student.internalEvalResults.length === 0) {
           // Build internalEvalResults directly from uploaded CIE 1 Excel!
           student.internalEvalResults = cie1SubList.map((cs) => ({
-            sem: 'VI',
+            sem: cs.sem || cie1Sem,
             code: cs.code,
             title: cs.title,
             cie1Marks: cs.mark,
@@ -196,8 +201,10 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
             );
             const mark = matchSub ? matchSub.mark : ie.cie1Marks;
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie1Sem || ie.sem || 'VI');
             return {
               ...ie,
+              sem: itemSem,
               cie1Marks: mark,
               passFail: evaluateCiePassFail(mark) || ie.passFail,
             };
@@ -226,13 +233,14 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (cie2Match) {
-        const cie2SubList: { code: string; title: string; mark: number | string }[] = [];
+        const cie2SubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
         if (cie2Match.internalEvalResults && cie2Match.internalEvalResults.length > 0) {
           cie2Match.internalEvalResults.forEach((ie) => {
             cie2SubList.push({
               code: ie.code,
               title: ie.title,
               mark: ie.cie2Marks !== undefined ? ie.cie2Marks : (ie.cie1Marks !== undefined ? ie.cie1Marks : ''),
+              sem: ie.sem,
             });
           });
         } else if (cie2Match.universityResults && cie2Match.universityResults.length > 0) {
@@ -241,13 +249,16 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               code: ur.code,
               title: ur.title,
               mark: ur.mark !== undefined && ur.mark !== null && ur.mark !== '' ? ur.mark : (ur.grade !== undefined ? ur.grade : ''),
+              sem: ur.sem,
             });
           });
         }
 
+        const cie2Sem = cie2Match.currentSemester || (cie2SubList.find(c => c.sem)?.sem) || 'VI';
+
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = cie2SubList.map((cs) => ({
-            sem: 'VI',
+            sem: cs.sem || cie2Sem,
             code: cs.code,
             title: cs.title,
             cie1Marks: '',
@@ -260,8 +271,10 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             const matchSub = cie2SubList.find(
               (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
             );
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie2Sem || ie.sem || 'VI');
             return {
               ...ie,
+              sem: itemSem,
               cie2Marks: matchSub ? matchSub.mark : ie.cie2Marks,
             };
           });
@@ -287,13 +300,14 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (modelMatch) {
-        const modelSubList: { code: string; title: string; mark: number | string }[] = [];
+        const modelSubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
         if (modelMatch.internalEvalResults && modelMatch.internalEvalResults.length > 0) {
           modelMatch.internalEvalResults.forEach((ie) => {
             modelSubList.push({
               code: ie.code,
               title: ie.title,
               mark: ie.modelMarks !== undefined ? ie.modelMarks : (ie.cie1Marks !== undefined ? ie.cie1Marks : ''),
+              sem: ie.sem,
             });
           });
         } else if (modelMatch.universityResults && modelMatch.universityResults.length > 0) {
@@ -302,13 +316,16 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               code: ur.code,
               title: ur.title,
               mark: ur.mark !== undefined && ur.mark !== null && ur.mark !== '' ? ur.mark : (ur.grade !== undefined ? ur.grade : ''),
+              sem: ur.sem,
             });
           });
         }
 
+        const modelSem = modelMatch.currentSemester || (modelSubList.find(m => m.sem)?.sem) || 'VI';
+
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = modelSubList.map((ms) => ({
-            sem: 'VI',
+            sem: ms.sem || modelSem,
             code: ms.code,
             title: ms.title,
             cie1Marks: '',
@@ -321,8 +338,10 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             const matchSub = modelSubList.find(
               (mSub) => normalizeRegNo(mSub.code) === normalizeRegNo(ie.code)
             );
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (modelSem || ie.sem || 'VI');
             return {
               ...ie,
+              sem: itemSem,
               modelMarks: matchSub ? matchSub.mark : ie.modelMarks,
             };
           });

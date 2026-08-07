@@ -309,7 +309,7 @@ export const generateCombinedPDF = async (
       
       if (item) {
         let cx = margin;
-        pdf.text(item.sem || 'VI', cx + colW2[0] / 2, y + 12, { align: 'center' }); cx += colW2[0];
+        pdf.text(item.sem || student.currentSemester || 'V', cx + colW2[0] / 2, y + 12, { align: 'center' }); cx += colW2[0];
         pdf.setFont('times', 'bold');
         pdf.text(item.code || '', cx + colW2[1] / 2, y + 12, { align: 'center' }); cx += colW2[1];
         pdf.setFont('times', 'normal');
