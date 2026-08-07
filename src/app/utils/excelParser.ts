@@ -91,7 +91,7 @@ const isFacultyNameCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/|dr\s+|prof\s+)/i.test(clean) ||
-         /\b(soloman|dhanalakshmi|raghavan|sree|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
+         /\b(faculty|staff|incharge|counsellor)\b/i.test(clean) ||
          /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name|credit|credits|cerdit|cerdits|cr\b|d\/h|t\/e|no\.?\s*of\s*ar?rears|rank)/i.test(clean);
 };
 
