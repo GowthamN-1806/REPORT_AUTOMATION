@@ -100,7 +100,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeStudents.length, activeTemplate, regulation]);
+  }, [students, activeTemplate, regulation]);
 
   // Jump preview iframe page when user changes page dropdown/navigation
   useEffect(() => {

@@ -247,106 +247,14 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-
       </div>
 
-      {/* STEP 2: Automatic Pattern Status Card & Merge Validation Display */}
-      {mergeResult && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
-          
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md ring-4 ring-emerald-50 shrink-0">
-                2
-              </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
-                  Automatic Backend Template Selection & Validation
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Status Card: Backend detected pattern and selected master template
-                </p>
-              </div>
-            </div>
-
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-900 font-mono text-xs font-extrabold border border-emerald-300 shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              Status: Automatically Selected
-            </span>
-          </div>
-
-          {/* Status Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 mb-5">
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Detected Pattern</p>
-              <p className="text-xs font-black text-blue-950 font-mono mt-1">{mergeResult.detectedPatternName || 'University + CIE 1'}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Selected Template</p>
-              <p className="text-xs font-black text-emerald-700 font-mono mt-1">{mergeResult.templateFile}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ready For Preview</p>
-              <p className="text-xs font-black text-emerald-600 font-mono mt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                Ready (100%)
-              </p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Merged Students</p>
-              <p className="text-base font-black text-blue-950 font-mono mt-0.5">{mergeResult.mergedCount}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Missing Students</p>
-              <p className="text-base font-black text-slate-700 font-mono mt-0.5">{mergeResult.missingRecordsCount}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/90 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Duplicate Reg Numbers</p>
-              <p className="text-base font-black text-slate-700 font-mono mt-0.5">{mergeResult.duplicateRegNosCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                ✓
-              </div>
-              <div>
-                <h4 className="text-xs font-extrabold text-emerald-950">
-                  Unified Dataset Created ({mergeResult.mergedCount} Merged Records)
-                </h4>
-                <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
-                  Primary Key: REGISTER NUMBER • In-Memory Dataset • Ready for Live Preview
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onGenerateDocuments}
-                disabled={isProcessing}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-              >
-                <FileCheck2 className="w-4 h-4" />
-                <span>Generate Result Letters</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: Download Generated Documents Section */}
+      {/* STEP 2: Download Generated Documents Section */}
       {mergeResult && mergeResult.isReadyForPreview && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300 mt-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md ring-4 ring-blue-50 shrink-0">
-              3
+              2
             </div>
             <h3 className="text-sm font-extrabold text-blue-950 tracking-tight font-poppins">
               Download Result Letters (All Merged Students)

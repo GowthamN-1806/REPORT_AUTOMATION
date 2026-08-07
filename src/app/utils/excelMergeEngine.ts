@@ -331,31 +331,6 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
     });
   }
 
-  // Subject Synchronization Pass:
-  // Ensure that if a student has subjects in CIE but not University (or vice versa),
-  // the subject list is mirrored so that BOTH tables render correctly in the PDF/Word output.
-  mergedStudentsMap.forEach((student) => {
-    if (student.universityResults.length === 0 && student.internalEvalResults.length > 0) {
-      student.universityResults = student.internalEvalResults.map((ie) => ({
-        sem: 'V', 
-        code: ie.code,
-        title: ie.title,
-        grade: '',
-        passFail: '',
-      }));
-    } else if (student.internalEvalResults.length === 0 && student.universityResults.length > 0) {
-      student.internalEvalResults = student.universityResults.map((ur) => ({
-        sem: 'VI',
-        code: ur.code,
-        title: ur.title,
-        cie1Marks: '',
-        cie2Marks: '',
-        modelMarks: '',
-        passFail: '',
-      }));
-    }
-  });
-
   const mergedStudents = Array.from(mergedStudentsMap.values());
   const isReadyForPreview = mergedStudents.length > 0;
 
