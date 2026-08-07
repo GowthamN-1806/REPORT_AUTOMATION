@@ -117,6 +117,49 @@ const isPlaceholderToken = (str: string): boolean => {
   return false;
 };
 
+// Helper to strictly validate if a row belongs to a real student (filters out bottom subject reference blocks & HOD footers)
+const isNonStudentRow = (regNo: string, name: string): boolean => {
+  const cleanReg = regNo.trim().toLowerCase();
+  const cleanName = name.trim().toLowerCase();
+  const combined = (cleanReg + ' ' + cleanName).replace(/[\s_.-]+/g, '');
+
+  if (!cleanReg && !cleanName) return true;
+
+  // Header & metadata label rows
+  if (/^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(cleanReg) ||
+      /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(cleanName)) {
+    return true;
+  }
+
+  // Non-student subject reference block & footer keywords
+  const invalidKeywords = [
+    'subjectname', 'subname', 'subjectcode', 'subcode', 'coursecode', 'coursename',
+    'database', 'operatingsystem', 'computernetwork', 'artificialintelligence',
+    'parallelcomputing', 'skillenhancement', 'miniproject', 'hod', 'headof',
+    'counsellor', 'staff', 'faculty', 'incharge', 'principal', 'signature',
+    'jeppiaar', 'department', 'classcounsellor', 'result', 'academic', 'evaluation',
+    'maximummarks', 'maxmarks', 'totalmarks', 'percentage', 'arrear', 'arrears', 'credit'
+  ];
+
+  if (invalidKeywords.some((kw) => combined.includes(kw))) {
+    return true;
+  }
+
+  // If regNo exists, it should contain digits (e.g. 210624104024)
+  if (cleanReg && !/\d{3,}/.test(cleanReg)) {
+    return true;
+  }
+
+  // If regNo is empty, name shouldn't be a subject title or course name
+  if (!cleanReg) {
+    if (/lab|project|system|computing|network|intelligence|engineering|science|ethics|enhancement|management/i.test(cleanName)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Evaluate Pass/Fail dynamically without forcing defaults
 const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' | '' => {
   const str = String(value || '').trim().toUpperCase();
@@ -647,16 +690,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           if (isDateCell(regNoStr) || isFacultyNameCell(regNoStr) || isPlaceholderToken(regNoStr)) regNoStr = '';
           if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
 
-          // Filter out header label rows (e.g. S.No, Sl.No, Register Number, Name of the Student)
-          if (
-            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(regNoStr) ||
-            /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(nameStr)
-          ) {
+          // Skip non-student rows (header labels, bottom subject reference block, HOD footers)
+          if (isNonStudentRow(regNoStr, nameStr)) {
             continue;
           }
-
-          // Skip non-student rows
-          if (!regNoStr && !nameStr) continue;
 
           // Read GPA / CGPA / Class Obtained strictly from Excel
           const rawGPA = findCellValue(rowCells, headerNames, ['gpa', 'gpa_05', 'gpa 5', 'gpa_5', 'sem 5 gpa', 'gpa5']);

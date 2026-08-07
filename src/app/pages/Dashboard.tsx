@@ -196,10 +196,10 @@ export const Dashboard: React.FC = () => {
 
   // Remove File from Slot
   const handleSlotFileRemove = (slotKey: 'univ' | 'cie1' | 'cie2' | 'model') => {
-    setFileSlots((prev) => ({
-      ...prev,
+    const updatedSlots = {
+      ...fileSlots,
       [slotKey]: {
-        ...prev[slotKey],
+        ...fileSlots[slotKey],
         file: null,
         name: '',
         size: '',
@@ -207,15 +207,58 @@ export const Dashboard: React.FC = () => {
         isValid: false,
         students: [],
       },
-    }));
-    setMergeResult(null);
-    setMergedStudents([]);
-    setSummary(null);
+    };
+
+    setFileSlots(updatedSlots);
+
+    const univList = updatedSlots.univ.students;
+    const cie1List = updatedSlots.cie1.students;
+    const cie2List = updatedSlots.cie2.students;
+    const modelList = updatedSlots.model.students;
+
+    const hasAnyFile = updatedSlots.univ.file || updatedSlots.cie1.file || updatedSlots.cie2.file || updatedSlots.model.file;
+
+    if (hasAnyFile) {
+      const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+      setMergeResult(res);
+      setMergedStudents(res.mergedStudents);
+      setCurrentPageIndex(0);
+
+      const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
+      const acadYear = '2025 - 2026';
+
+      setStats({
+        totalStudents: res.mergedStudents.length,
+        reportsGenerated: res.mergedStudents.length,
+        pdfPages: res.mergedStudents.length * 2,
+        department: deptName,
+        academicYear: acadYear,
+        uploadStatus: 'Success',
+      });
+    } else {
+      setMergeResult(null);
+      setMergedStudents([]);
+      setSummary(null);
+      setStats({
+        totalStudents: 0,
+        reportsGenerated: 0,
+        pdfPages: 0,
+        department: '-',
+        academicYear: '-',
+        uploadStatus: 'Pending Upload',
+      });
+    }
+
     addToast('info', 'File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
   };
 
   // Run Excel Merge Engine
   const handleRunMerge = async () => {
+    if (!fileSlots.univ.file) {
+      addToast('error', 'Mandatory File Missing', 'University Result Excel file is mandatory! Please upload University Result Excel.');
+      return;
+    }
+
     setIsProcessing(true);
     setStepMessage('Initializing Excel Merge Engine...');
     setProgressPercent(10);
@@ -358,7 +401,8 @@ export const Dashboard: React.FC = () => {
     }
     try {
       addToast('info', 'Word Download Started', `Generating Word (.docx) for ${mergedStudents.length} student reports...`);
-      await generateCombinedWordDocument(mergedStudents, regulation);
+      const targetTemplate = mergeResult?.templateFile || getTemplateForPattern(selectedPattern);
+      await generateCombinedWordDocument(mergedStudents, targetTemplate, regulation);
       addToast('success', 'Word Document Ready', `JEPPIAAR_IT_Mark_Reports_${selectedPattern.toUpperCase()}.docx downloaded.`);
     } catch (err: any) {
       addToast('error', 'Download Failed', 'Could not create Word document.');

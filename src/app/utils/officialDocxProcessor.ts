@@ -183,10 +183,17 @@ export async function populateOfficialDocxTemplateWithLogs(
       reason,
     });
 
-    // Replace in XML with extracted student value or fallback
-    const fillValue = val || 'Pending';
-    const replaceRegex = new RegExp(`\\{\\{${ph}\\}\\}`, 'gi');
-    xml = xml.replace(replaceRegex, fillValue);
+    // Replace in XML using regex that matches even if Word split the placeholder across XML tags
+    const escapedPh = ph.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const replaceRegex = new RegExp(`\\{\\{(?:<[^>]+>)*?${escapedPh}(?:<[^>]+>)*?\\}\\}`, 'gi');
+    const fillValue = val !== undefined && val !== null ? String(val) : '';
+    
+    xml = xml.replace(replaceRegex, (match) => {
+      if (match.includes('<w:t')) {
+        return setCellContent(match, fillValue);
+      }
+      return fillValue;
+    });
   });
 
   // 2. Populate Tables with studentData
@@ -198,23 +205,21 @@ export async function populateOfficialDocxTemplateWithLogs(
     let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
     const univList = studentData.university_results;
 
-    if (rows2.length > 0) {
+    if (rows2.length > 0 && univList && univList.length > 0) {
       const headerRow2 = rows2[0];
       const sampleDataRow2 = rows2[1] || headerRow2;
 
       let newRowsXml2 = '';
-      if (univList.length > 0) {
-        univList.forEach((item) => {
-          const vals = [
-            item.sem || 'V',
-            item.code || '',
-            item.title || '',
-            item.grade || '',
-            item.passFail || ''
-          ];
-          newRowsXml2 += updateRowCells(sampleDataRow2, vals);
-        });
-      }
+      univList.forEach((item) => {
+        const vals = [
+          item.sem || 'V',
+          item.code || '',
+          item.title || '',
+          item.grade || '',
+          item.passFail || ''
+        ];
+        newRowsXml2 += updateRowCells(sampleDataRow2, vals);
+      });
 
       // Preserve table tag attributes and inner content structure
       const tableInner = headerRow2 + newRowsXml2;
@@ -253,53 +258,49 @@ export async function populateOfficialDocxTemplateWithLogs(
     const isModel = cleanName.includes('model');
     const isCie2 = cleanName.includes('cie1_cie2');
 
-    if (rows4.length >= 2) {
-      const headerRowsXml4 = rows4.slice(0, 2).join('');
-      const sampleDataRow4 = rows4[2] || rows4[1] || rows4[0];
+    if (rows4.length >= 1 && internalList && internalList.length > 0) {
+      const headerRow4 = rows4[0];
+      const sampleDataRow4 = rows4[1] || headerRow4;
 
       let newRowsXml4 = '';
-      if (internalList.length > 0) {
-        internalList.forEach((item) => {
-          const cie1Str = item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? String(item.cie1Marks) : '';
-          const cie2Str = item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? String(item.cie2Marks) : '';
-          const modelStr = item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? String(item.modelMarks) : '';
+      internalList.forEach((item) => {
+        const cie1Str = item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? String(item.cie1Marks) : '';
+        const cie2Str = item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? String(item.cie2Marks) : '';
+        const modelStr = item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? String(item.modelMarks) : '';
 
-          let vals: string[] = [];
-          if (isModel) {
-            vals = [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              cie1Str,
-              cie1Str ? (Number(cie1Str) >= 50 ? 'PASS' : 'FAIL') : '',
-              cie2Str,
-              cie2Str ? (Number(cie2Str) >= 50 ? 'PASS' : 'FAIL') : '',
-              modelStr,
-              modelStr ? (Number(modelStr) >= 50 ? 'PASS' : 'FAIL') : '',
-            ];
-          } else if (isCie2) {
-            vals = [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              cie1Str,
-              cie2Str,
-              item.passFail || (cie1Str || cie2Str ? 'PASS' : ''),
-            ];
-          } else {
-            vals = [
-              item.sem || 'VI',
-              item.code || '',
-              item.title || '',
-              cie1Str,
-              item.passFail || (cie1Str ? (Number(cie1Str) >= 50 ? 'PASS' : 'FAIL') : ''),
-            ];
-          }
-          newRowsXml4 += updateRowCells(sampleDataRow4, vals);
-        });
-      }
+        let vals: string[] = [];
+        if (isModel) {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            cie1Str,
+            cie2Str,
+            modelStr,
+            item.passFail || (cie1Str || cie2Str || modelStr ? 'PASS' : ''),
+          ];
+        } else if (isCie2) {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            cie1Str,
+            cie2Str,
+            item.passFail || (cie1Str || cie2Str ? 'PASS' : ''),
+          ];
+        } else {
+          vals = [
+            item.sem || 'VI',
+            item.code || '',
+            item.title || '',
+            cie1Str,
+            item.passFail || (cie1Str ? 'PASS' : ''),
+          ];
+        }
+        newRowsXml4 += updateRowCells(sampleDataRow4, vals);
+      });
 
-      const tableInner4 = headerRowsXml4 + newRowsXml4;
+      const tableInner4 = headerRow4 + newRowsXml4;
       tbl4 = tbl4.replace(/<w:tr[\s\S]*<\/w:tr>/i, tableInner4);
       xml = xml.replace(tableMatches[3], tbl4);
     }

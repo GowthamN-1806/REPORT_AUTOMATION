@@ -267,12 +267,28 @@ export const generateCombinedPDF = async (
     pdf.setFontSize(11);
     pdf.text('Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:', margin, y);
 
-    // Continuous Internal Evaluation Table (7 Columns: Semester, Subject Code, Subject Name, CIE I Marks, CIE II Marks, Model Marks, Pass/Fail)
+    // Continuous Internal Evaluation Table (Dynamic columns: 5, 6, or 7 based on uploaded exams)
     y += 10;
-    const colW2 = [45, 65, 165, 60, 60, 60, 70];
+
+    const cieList = student.internalEvalResults || [];
+    const hasCie2 = cieList.some((item) => item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '');
+    const hasModel = cieList.some((item) => item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '');
+
+    let cieHeaders: string[] = [];
+    let colW2: number[] = [];
+
+    if (hasModel) {
+      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Model Marks', 'Pass/Fail'];
+      colW2 = [45, 65, 165, 60, 60, 60, 70];
+    } else if (hasCie2) {
+      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Pass/Fail'];
+      colW2 = [55, 75, 205, 60, 60, 70];
+    } else {
+      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'Pass/Fail'];
+      colW2 = [65, 85, 235, 65, 75];
+    }
+
     currX = margin;
-    
-    const cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Model Marks', 'Pass/Fail'];
     cieHeaders.forEach((h, hIdx) => {
       pdf.rect(currX, y, colW2[hIdx], 20);
       pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
@@ -281,7 +297,6 @@ export const generateCombinedPDF = async (
 
     y += 20;
     pdf.setFont('times', 'normal');
-    const cieList = student.internalEvalResults || [];
     const maxCieRows = cieList.length;
 
     for (let r = 0; r < maxCieRows; r++) {
@@ -301,9 +316,17 @@ export const generateCombinedPDF = async (
         pdf.text((item.title || '').substring(0, 34), cx + 6, y + 12); cx += colW2[2];
         pdf.setFont('times', 'bold');
         pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', cx + colW2[3] / 2, y + 12, { align: 'center' }); cx += colW2[3];
-        pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', cx + colW2[4] / 2, y + 12, { align: 'center' }); cx += colW2[4];
-        pdf.text(item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '', cx + colW2[5] / 2, y + 12, { align: 'center' }); cx += colW2[5];
-        pdf.text(item.passFail || '', cx + colW2[6] / 2, y + 12, { align: 'center' });
+
+        if (hasCie2 || hasModel) {
+          pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', cx + colW2[4] / 2, y + 12, { align: 'center' }); cx += colW2[4];
+        }
+
+        if (hasModel) {
+          pdf.text(item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '', cx + colW2[5] / 2, y + 12, { align: 'center' }); cx += colW2[5];
+        }
+
+        const pfColIdx = hasModel ? 6 : (hasCie2 ? 5 : 4);
+        pdf.text(item.passFail || '', cx + colW2[pfColIdx] / 2, y + 12, { align: 'center' });
       }
 
       y += 18;

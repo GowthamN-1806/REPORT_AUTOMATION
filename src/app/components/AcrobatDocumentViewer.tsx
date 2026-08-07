@@ -223,38 +223,8 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           </div>
         )}
 
-        {/* Right: Actions (Debug Panel, Download DOCX/PDF, Zoom, Fullscreen, Print) */}
+        {/* Right: Actions (Zoom, Fullscreen, Print) */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowDebugPanel(!showDebugPanel)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-indigo-300 text-xs font-bold transition-all flex items-center gap-1 border border-slate-700 shadow-sm"
-            title="Toggle Debug & Data Binding Panel"
-          >
-            <Bug className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Debug Panel</span>
-          </button>
-
-          {currentStudent && (
-            <>
-              <button
-                onClick={handleDownloadSingleDocx}
-                className="px-2.5 py-1.5 rounded-xl bg-blue-900/80 hover:bg-blue-800 text-blue-200 text-xs font-bold transition-all flex items-center gap-1 border border-blue-700/70 shadow-sm"
-                title="Download Current Student DOCX"
-              >
-                <Download className="w-3.5 h-3.5 text-blue-300" />
-                <span>DOCX</span>
-              </button>
-
-              <button
-                onClick={handleDownloadSinglePdf}
-                className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-200 text-xs font-bold transition-all flex items-center gap-1 border border-rose-800/70 shadow-sm"
-                title="Download Current Student PDF"
-              >
-                <FileText className="w-3.5 h-3.5 text-rose-300" />
-                <span>PDF</span>
-              </button>
-            </>
-          )}
 
           <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700 shadow-sm">
             <button

@@ -7,7 +7,7 @@ interface StatsGridProps {
 }
 
 export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
-  const isUploaded = stats.totalStudents > 0 || stats.uploadStatus === 'Success';
+  const isUploaded = stats.totalStudents > 0;
 
   const cards = [
     {
