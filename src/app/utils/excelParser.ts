@@ -341,9 +341,12 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const cellText = String(rowCells[c] || '').trim().toLowerCase();
             if (cellText === '') continue;
 
-            if (foundReg === -1 && /^(reg|reg\.no|reg_no|regno|roll|roll\.no|rollno|register|registration)/i.test(cellText)) {
+            const isRegHeader = /(reg|register|regno|reg_no|reg\.no|roll|rollno|roll_no|roll\.no|registration)/i.test(cellText) && !/^(s\.no|sl\.no|sno|slno)$/i.test(cellText);
+            const isNameHeader = /(name|candidate)/i.test(cellText) && !isRegHeader;
+
+            if (foundReg === -1 && isRegHeader) {
               foundReg = c;
-            } else if (foundName === -1 && /^(name|student|student_name|candidate|name of the student)/i.test(cellText)) {
+            } else if (foundName === -1 && isNameHeader) {
               foundName = c;
             } else if (foundDept === -1 && /^(dept|department|branch)/i.test(cellText)) {
               foundDept = c;
@@ -673,14 +676,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Clean up empty specs with no mapped columns
+        // Clean up empty specs with no mapped subject columns
         for (const [gNum, spec] of Array.from(univGroupsMap.entries())) {
-          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.gradeCol === -1 && spec.passCol === -1 && spec.markCol === -1) {
+          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.gradeCol === -1 && spec.markCol === -1) {
             univGroupsMap.delete(gNum);
           }
         }
         for (const [gNum, spec] of Array.from(cieGroupsMap.entries())) {
-          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.cie1MarksCol === -1 && spec.cie2MarksCol === -1 && spec.passCol === -1) {
+          if (spec.codeCol === -1 && spec.titleCol === -1 && spec.cie1MarksCol === -1 && spec.cie2MarksCol === -1) {
             cieGroupsMap.delete(gNum);
           }
         }
