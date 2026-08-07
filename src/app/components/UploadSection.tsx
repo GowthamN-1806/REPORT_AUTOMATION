@@ -71,13 +71,13 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
   const allSlotKeys: ('univ' | 'cie1' | 'cie2' | 'model')[] = ['univ', 'cie1', 'cie2', 'model'];
 
-  // Enable merge engine when any Excel file slot is uploaded
-  const hasAnyFileUploaded = allSlotKeys.some((k) => !!fileSlots[k]?.file);
+  // Enable merge engine strictly when mandatory University Result Excel is uploaded
+  const isUnivUploaded = !!fileSlots.univ?.file;
 
   return (
     <div className="w-full flex flex-col gap-6">
 
-      {/* STEP 1: Upload Excel File Slots */}
+      {/* STEP 1: Upload Excel File Slots (University Result Excel Mandatory, CIE 1 / CIE 2 / Model Optional) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
@@ -115,6 +115,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
             const inputRef = getSlotRef(key);
             const isUploaded = slot.file !== null;
+            const isMandatory = key === 'univ';
 
             const slotLabel =
               key === 'univ'
@@ -133,6 +134,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 className={`rounded-2xl border p-4 transition-all duration-300 ${
                   isUploaded
                     ? 'border-emerald-300 bg-emerald-50/20'
+                    : isMandatory
+                    ? 'border-red-300/90 bg-gradient-to-b from-red-50/30 to-transparent hover:border-red-400'
                     : 'border-slate-200 bg-slate-50/30 hover:border-slate-300'
                 }`}
               >
@@ -147,15 +150,20 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className={`px-2 py-0.5 rounded-lg flex items-center justify-center text-[10px] font-extrabold font-mono ${
-                      isUploaded ? 'bg-emerald-600 text-white' : 'bg-blue-100 text-blue-700'
+                      isUploaded ? 'bg-emerald-600 text-white' : isMandatory ? 'bg-red-600 text-white' : 'bg-blue-100 text-blue-700'
                     }`}>
                       {slotBadgeText}
                     </div>
                     <h5 className="text-xs font-extrabold text-blue-950">
-                      {slotLabel}
+                      {slotLabel} {isMandatory && <span className="text-red-500 font-black">*</span>}
                     </h5>
                   </div>
 
+                  {isMandatory && !isUploaded && (
+                    <span className="inline-flex items-center text-[10px] font-extrabold text-red-600 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">
+                      Mandatory *
+                    </span>
+                  )}
                   {isUploaded && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -167,10 +175,18 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 {!isUploaded ? (
                   <div
                     onClick={() => inputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-5 text-center cursor-pointer bg-white transition-all group hover:bg-blue-50/30"
+                    className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer bg-white transition-all group ${
+                      isMandatory
+                        ? 'border-red-300 hover:border-red-500 hover:bg-red-50/30'
+                        : 'border-slate-300 hover:border-blue-500 hover:bg-blue-50/30'
+                    }`}
                   >
-                    <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-blue-600 mx-auto mb-1.5 transition-all group-hover:scale-110" />
-                    <p className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors">
+                    <UploadCloud className={`w-6 h-6 mx-auto mb-1.5 transition-all group-hover:scale-110 ${
+                      isMandatory ? 'text-red-400 group-hover:text-red-600' : 'text-slate-400 group-hover:text-blue-600'
+                    }`} />
+                    <p className={`text-xs font-bold transition-colors ${
+                      isMandatory ? 'text-red-700 group-hover:text-red-800' : 'text-slate-700 group-hover:text-blue-600'
+                    }`}>
                       Browse or Drop {slotLabel}
                     </p>
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">
@@ -230,13 +246,13 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
         {/* Action: Run Excel Merge Engine Button */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500 font-medium">
-            {!hasAnyFileUploaded ? '⚠️ Upload at least one Excel file slot to merge' : 'Excel file(s) uploaded. Ready to merge.'}
+            {!isUnivUploaded ? '⚠️ University Result Excel is mandatory to merge' : 'University Result Excel uploaded. Ready to merge.'}
           </p>
 
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!hasAnyFileUploaded || isProcessing}
+            disabled={!isUnivUploaded || isProcessing}
             className="px-7 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white text-xs font-black shadow-md hover:shadow-xl transition-all flex items-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.01]"
           >
             <Layers className="w-4 h-4" />
