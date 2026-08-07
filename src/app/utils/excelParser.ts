@@ -1,58 +1,8 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Subject Master Mapping Dictionary for clean human-readable titles (optional lookup)
-const knownTitles: Record<string, string> = {
-  ACS108: 'Analog & Digital Circuits',
-  ACS109: 'Data Structures & Algorithms',
-  ACS110: 'Object Oriented Programming',
-  ACS111: 'Discrete Mathematics',
-  ACS503: 'Artificial Intelligence',
-  AHS103: 'Environmental Science and Engineering',
-  ACS306: 'Operating Systems',
-  ACS307: 'Database Management Systems',
-  ACS308: 'Computer Architecture',
-  ACS309: 'Software Engineering',
-  AEEC304: 'Professional Ethics & Human Values',
-  AEEC104: 'Professional Ethics & Human Values',
-  PC: 'Parallel Computing',
-  'AI & M': 'Artificial Intelligence & Machine Learning',
-  AIM: 'Artificial Intelligence & Machine Learning',
-  'SE 2': 'Software Engineering II',
-  SE2: 'Software Engineering II',
-  NS: 'Network Security',
-  OOSE: 'Object Oriented Software Engineering',
-  'ESA IOT': 'Embedded Systems & IoT',
-  MA: 'Mobile Applications',
-  STA: 'Software Testing & Automation',
-  DW: 'Data Warehousing & Data Mining',
-  OCE351: 'Environment and Social Impact Assessment',
-  CS3591: 'Computer Networks',
-  CS3501: 'Compiler Design',
-  CB3491: 'Cryptography and Cyber Security',
-  CS3551: 'Distributed Computing',
-  CS3511: 'Object Oriented Software Engineering',
-  CS3561: 'Open Source Technologies',
-  CS3691: 'Artificial Intelligence',
-  CS3601: 'Mobile Computing',
-  CS3651: 'Cloud Computing Architecture',
-  CS3611: 'Data Analytics Laboratory',
-  CS3602: 'Compiler Design & Tools',
-  CS3603: 'Design and Analysis of Algorithms',
-  CS3604: 'Web Technology',
-  CS3605: 'Software Engineering',
-  AI: 'Artificial Intelligence',
-  ML: 'Machine Learning',
-  DBMS: 'Database Management Systems',
-  CN: 'Computer Networks',
-  OS: 'Operating Systems',
-  DSA: 'Data Structures & Algorithms',
-  SE: 'Software Engineering',
-  ECE: 'Electronics & Communication',
-  EEE: 'Electrical & Electronics',
-  MECH: 'Mechanical Engineering',
-  CIVIL: 'Civil Engineering',
-};
+// Subject Master Mapping Dictionary (100% dynamically fetched from uploaded Excel files)
+const knownTitles: Record<string, string> = {};
 
 // Non-subject metadata headers to ignore when identifying subject columns
 const nonSubjectHeaders = [
@@ -91,7 +41,7 @@ const isFacultyNameCell = (str: string): boolean => {
   if (!str) return false;
   const clean = str.trim().toLowerCase();
   return /^(mr\.|mrs\.|dr\.|prof\.|ms\.|ap\/|asp\/|hod\/|prof\/|dr\s+|prof\s+)/i.test(clean) ||
-         /\b(faculty|staff|incharge|counsellor)\b/i.test(clean) ||
+         /\b(soloman|dhanalakshmi|raghavan|sree|prof|faculty|staff|incharge|counsellor)\b/i.test(clean) ||
          /^(jeppiaar|department|continuous|internal|evaluation|maximum marks|max marks|academic year|year\/sem|test name|credit|credits|cerdit|cerdits|cr\b|d\/h|t\/e|no\.?\s*of\s*ar?rears|rank)/i.test(clean);
 };
 
@@ -322,6 +272,116 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
         }
+
+        // Universal Subject Code & Title Harvester across the entire Excel Sheet Matrix
+        for (let r = 0; r < rawMatrix.length; r++) {
+          const rowCells = rawMatrix[r] || [];
+          for (let c = 0; c < rowCells.length; c++) {
+            const cellVal = String(rowCells[c] || '').trim();
+            if (!cellVal) continue;
+
+            // Pattern 1: Combined Code + Title in single cell (e.g. "IT401 - Database Management Systems", "IT401: Operating Systems")
+            const combinedMatch = cellVal.match(/^([A-Z0-9]{3,8})\s*[:.-/(]\s*(.+)$/i);
+            if (combinedMatch) {
+              const code = combinedMatch[1].trim().toUpperCase();
+              const title = combinedMatch[2].replace(/[)]$/, '').trim();
+              if (
+                code &&
+                title &&
+                title.length > 2 &&
+                !/^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(title) &&
+                !excelSubjectMaster[code]
+              ) {
+                excelSubjectMaster[code] = title;
+                if (!excelSubjectList.some((s) => s.code === code)) {
+                  excelSubjectList.push({ code, title });
+                }
+              }
+            }
+
+            // Pattern 2: Cell looks like a Subject Code (e.g. "IT401", "ACS108", "CS3591", "HJK12")
+            if (/^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(cellVal) || /^[A-Z]{3,4}\d{3,4}$/i.test(cellVal)) {
+              const code = cellVal.replace(/\s+/g, '').toUpperCase();
+
+              // Check right adjacent cells (c+1, c+2) for title - MUST NOT BE ANOTHER SUBJECT CODE
+              for (const nextC of [c + 1, c + 2]) {
+                const candidateTitle = String(rowCells[nextC] || '').trim();
+                if (
+                  candidateTitle &&
+                  candidateTitle.length > 2 &&
+                  !/^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(candidateTitle) &&
+                  !/^[A-Z]{3,4}\d{3,4}$/i.test(candidateTitle) &&
+                  !/^[0-9]+$/.test(candidateTitle) &&
+                  !isGradeValue(candidateTitle) &&
+                  !isDateCell(candidateTitle) &&
+                  !isFacultyNameCell(candidateTitle) &&
+                  !/ar?rear|rank|gpa|cgpa|total|credit|mark|score|result|pass|fail/i.test(candidateTitle)
+                ) {
+                  if (!excelSubjectMaster[code]) {
+                    excelSubjectMaster[code] = candidateTitle;
+                    if (!excelSubjectList.some((s) => s.code === code)) {
+                      excelSubjectList.push({ code, title: candidateTitle });
+                    }
+                  }
+                  break;
+                }
+              }
+
+              // Check down adjacent row (r+1, c) for title if row r is header - MUST NOT BE ANOTHER SUBJECT CODE
+              if (r + 1 < rawMatrix.length) {
+                const downTitle = String((rawMatrix[r + 1] || [])[c] || '').trim();
+                if (
+                  downTitle &&
+                  downTitle.length > 2 &&
+                  !/^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(downTitle) &&
+                  !/^[A-Z]{3,4}\d{3,4}$/i.test(downTitle) &&
+                  !/^[0-9]+$/.test(downTitle) &&
+                  !isGradeValue(downTitle) &&
+                  !isDateCell(downTitle) &&
+                  !isFacultyNameCell(downTitle) &&
+                  !/ar?rear|rank|gpa|cgpa|total|credit|mark|score|result|pass|fail/i.test(downTitle)
+                ) {
+                  if (!excelSubjectMaster[code]) {
+                    excelSubjectMaster[code] = downTitle;
+                    if (!excelSubjectList.some((s) => s.code === code)) {
+                      excelSubjectList.push({ code, title: downTitle });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Title Resolver Helper
+        const resolveSubjectTitle = (code: string, rawTitle?: string): string => {
+          const cleanCode = (code || '').trim().toUpperCase();
+          let cleanTitle = (rawTitle || '').trim();
+
+          // Reject cleanTitle if it's identical to the code or is another subject code (e.g. "IT402")
+          if (
+            cleanTitle &&
+            (cleanTitle.toUpperCase() === cleanCode ||
+              /^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(cleanTitle) ||
+              /^[A-Z]{3,4}\d{3,4}$/i.test(cleanTitle))
+          ) {
+            cleanTitle = '';
+          }
+
+          if (cleanTitle) {
+            return cleanTitle;
+          }
+
+          if (excelSubjectMaster[cleanCode]) {
+            return excelSubjectMaster[cleanCode];
+          }
+
+          if (knownTitles[cleanCode]) {
+            return knownTitles[cleanCode];
+          }
+
+          return cleanCode;
+        };
 
         // STEP 1: Locate Student Table Anchor Row (Header Row containing Reg.No / Name)
         let anchorRowIndex = -1;
@@ -728,25 +788,20 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
           candidateCols.forEach((c, idx) => {
             let finalCode = '';
-            let finalTitle = '';
+            let rawTitle = '';
 
             // Priority 1: Positional mapping from excelSubjectList if available
             if (excelSubjectList[idx]) {
               finalCode = excelSubjectList[idx].code;
-              finalTitle = excelSubjectList[idx].title;
+              rawTitle = excelSubjectList[idx].title;
             } else {
               const rawHeader = String(headerNames[c] || '').trim();
               const baseCode = rawHeader.toUpperCase();
-
-              if (excelSubjectMaster[baseCode]) {
-                finalCode = baseCode;
-                finalTitle = excelSubjectMaster[baseCode];
-              } else {
-                finalCode = baseCode;
-                finalTitle = baseCode;
-              }
+              finalCode = baseCode;
+              rawTitle = excelSubjectMaster[baseCode] || rawHeader;
             }
 
+            const finalTitle = resolveSubjectTitle(finalCode, rawTitle);
             directSubjectCols.push({ colIndex: c, code: finalCode, title: finalTitle });
           });
         }
@@ -839,9 +894,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
             if (!codeStr && !titleStr && !gradeStr && !passStr && !markStr) return;
 
-            if (!titleStr && codeStr) {
-              titleStr = excelSubjectMaster[codeStr] || knownTitles[codeStr] || codeStr;
-            }
+            titleStr = resolveSubjectTitle(codeStr, titleStr);
 
             const passFail = evaluatePassFail(passStr, gradeStr);
 
@@ -874,9 +927,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
               if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
 
-              if (!titleStr && codeStr) {
-                titleStr = knownTitles[codeStr] || codeStr;
-              }
+              titleStr = resolveSubjectTitle(codeStr, titleStr);
 
               const passFail = evaluatePassFail(passStr, cie1MarksStr);
 
@@ -923,8 +974,8 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 }
               }
 
-              // Resolve title using sub.title or excelSubjectMaster
-              const resolvedTitle = sub.title || excelSubjectMaster[sub.code] || sub.code;
+              // Resolve title using resolveSubjectTitle
+              const resolvedTitle = resolveSubjectTitle(sub.code, sub.title);
 
               universityResults.push({
                 sem: extractedSemester || 'V',
