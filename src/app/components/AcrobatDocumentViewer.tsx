@@ -152,17 +152,17 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
   return (
     <div
-      className={`w-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-xl border border-blue-200/80 transition-all duration-300 ${
+      className={`w-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-200/90 transition-all duration-300 ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : 'h-[920px]'
       }`}
     >
-      {/* Top Toolbar */}
-      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white shadow-md">
+      {/* Top Toolbar: Solid Blue #2563EB Theme with Clean Contrast */}
+      <div className="bg-[#2563EB] px-4 py-3 border-b border-blue-700/60 flex flex-wrap items-center justify-between gap-3 text-white shadow-md rounded-t-2xl transition-all duration-300">
         
         {/* Left: Live Preview Badge & Student Select Dropdown */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-blue-900/60 text-blue-200 text-xs font-mono font-bold px-3 py-1.5 rounded-xl border border-blue-700/60 shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+          <div className="flex items-center gap-2 bg-blue-500/80 text-white text-xs font-mono font-black px-3 py-1.5 rounded-xl border border-blue-400/60 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
             <span>Live Preview</span>
           </div>
 
@@ -171,15 +171,15 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
               <select
                 value={currentPageIndex}
                 onChange={(e) => onPageChange(Number(e.target.value))}
-                className="bg-slate-800/90 hover:bg-slate-700 text-white font-mono text-xs font-bold px-3 py-1.5 pr-8 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all appearance-none shadow-sm"
+                className="bg-blue-700/80 hover:bg-blue-700 text-white font-mono text-xs font-bold px-3 py-1.5 pr-8 rounded-xl border border-blue-500/80 focus:outline-none focus:ring-2 focus:ring-white cursor-pointer transition-all duration-200 appearance-none shadow-sm"
               >
                 {activeStudents.map((s, idx) => (
-                  <option key={s.id || idx} value={idx}>
+                  <option key={s.id || idx} value={idx} className="bg-blue-900 text-white">
                     #{idx + 1} - {s.name} ({s.regNo})
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-white absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           )}
         </div>
@@ -190,20 +190,20 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             <button
               onClick={handlePrevStudent}
               disabled={currentPageIndex === 0}
-              className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+              className="p-1.5 rounded-xl bg-blue-700/80 hover:bg-blue-700 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Previous Student"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-mono font-bold text-slate-200 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/60 shadow-sm">
+            <span className="text-xs font-mono font-black text-white bg-blue-700/80 px-3 py-1 rounded-xl border border-blue-500/80 shadow-sm">
               Report {currentPageIndex + 1} of {totalReports}
             </span>
 
             <button
               onClick={handleNextStudent}
               disabled={currentPageIndex === totalReports - 1}
-              className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+              className="p-1.5 rounded-xl bg-blue-700/80 hover:bg-blue-700 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
               title="Next Student"
             >
               <ChevronRight className="w-4 h-4" />
@@ -217,7 +217,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
                 placeholder="Go #"
                 value={targetReportIndex}
                 onChange={(e) => setTargetReportIndex(e.target.value)}
-                className="w-14 text-xs font-mono px-2 py-1 bg-slate-800/90 border border-slate-700 rounded-lg text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
+                className="w-14 text-xs font-mono px-2 py-1 bg-blue-700/80 border border-blue-500/80 rounded-lg text-white placeholder:text-blue-200 text-center focus:outline-none focus:ring-1 focus:ring-white shadow-sm"
               />
             </form>
           </div>
@@ -226,20 +226,20 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
         {/* Right: Actions (Zoom, Fullscreen, Print) */}
         <div className="flex items-center gap-2">
 
-          <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700 shadow-sm">
+          <div className="flex items-center bg-blue-700/80 rounded-xl p-1 border border-blue-500/80 shadow-sm">
             <button
               onClick={handleZoomOut}
-              className="p-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
+              className="p-1 text-white hover:bg-blue-600 rounded-lg transition-colors duration-200"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[11px] font-mono font-bold text-slate-300 px-2">
+            <span className="text-[11px] font-mono font-bold text-white px-2">
               {zoomLevel}%
             </span>
             <button
               onClick={handleZoomIn}
-              className="p-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
+              className="p-1 text-white hover:bg-blue-600 rounded-lg transition-colors duration-200"
               title="Zoom In"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -248,7 +248,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
+            className="p-1.5 rounded-xl bg-blue-700/80 hover:bg-blue-700 text-white transition-all duration-200 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -256,7 +256,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 
           <button
             onClick={handlePrint}
-            className="p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 transition-colors shadow-sm"
+            className="p-1.5 rounded-xl bg-blue-700/80 hover:bg-blue-700 text-white transition-all duration-200 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
             title="Print Preview"
           >
             <Printer className="w-4 h-4" />
@@ -352,12 +352,12 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
         </div>
       )}
 
-      {/* Main Document Display Container */}
-      <div className="flex-1 bg-[#F2F6FC] border-t border-slate-200/80 overflow-auto p-4 flex justify-center relative shadow-inner">
+      {/* Main Document Display Area: Light Blue-Gray #F8FAFC Background with Pure White Document Page */}
+      <div className="flex-1 bg-[#F8FAFC] border-t border-slate-200/90 overflow-auto p-5 flex justify-center relative shadow-inner">
         {isLoadingDocx && (
-          <div className="absolute inset-0 z-20 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
-            <p className="text-xs font-bold font-mono bg-blue-950/90 text-blue-200 px-4 py-2 rounded-xl shadow-lg border border-blue-800">
+          <div className="absolute inset-0 z-20 bg-slate-900/30 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-3">
+            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+            <p className="text-xs font-bold font-mono bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg border border-blue-500">
               Generating live report preview for {currentStudent?.name} ({currentStudent?.regNo})...
             </p>
           </div>
@@ -373,7 +373,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             className="transition-transform duration-200 origin-top flex justify-center w-full h-full"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
-            <div className="w-full max-w-[880px] h-[1150px] overflow-hidden rounded-xl shadow-[0_12px_40px_rgba(30,58,138,0.15)] border border-slate-200/90 bg-white relative">
+            <div className="w-full max-w-[880px] h-[1150px] overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-slate-200/90 bg-white relative">
               <iframe
                 src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                 title={`Live Preview - ${currentStudent?.name}`}

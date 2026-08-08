@@ -216,6 +216,25 @@ export const generateCombinedPDF = async (
       mX += matrixCols[c];
     }
 
+    // Helper to resolve numeric semester (1..7) from Roman numerals or string
+    const getSemesterNumber = (semVal: any): number => {
+      if (!semVal) return 0;
+      const s = String(semVal).trim().toUpperCase();
+      if (/^(iv|4|04)$/i.test(s)) return 4;
+      if (/^(v|5|05)$/i.test(s)) return 5;
+      if (/^(vi|6|06)$/i.test(s)) return 6;
+      if (/^(vii|7|07)$/i.test(s)) return 7;
+      if (/^(iii|3|03)$/i.test(s)) return 3;
+      if (/^(ii|2|02)$/i.test(s)) return 2;
+      if (/^(i|1|01)$/i.test(s)) return 1;
+      const m = s.match(/([1-7])/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    const activeSemNum = getSemesterNumber(student.semester) ||
+                         getSemesterNumber(student.universityResults?.[0]?.sem) ||
+                         4;
+
     // Row: GPA
     y += 18;
     mX = margin;
@@ -229,7 +248,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const gpaVal = getSemValue(student.gpaBySem, semKey, (c === 5 || c === 5) && student.gpa !== undefined ? String(student.gpa) : '');
+      const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
       pdf.text(String(gpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
       mX += matrixCols[c];
     }
@@ -247,7 +266,7 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'normal');
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const cgpaVal = getSemValue(student.cgpaBySem, semKey, (c === 5 || c === 5) && student.cgpa !== undefined ? String(student.cgpa) : '');
+      const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
       pdf.text(String(cgpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
       mX += matrixCols[c];
     }

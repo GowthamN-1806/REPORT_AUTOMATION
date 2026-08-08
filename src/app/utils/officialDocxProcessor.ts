@@ -21,38 +21,56 @@ export interface DocxPopulationResult {
 }
 
 /**
- * Helper to update text inside a Word XML cell <w:tc>
- * Preserves all original cell properties (<w:tcPr>), paragraph properties (<w:pPr>), and text styling (<w:rPr>).
+ * Escapes special XML characters to prevent Word XML document corruption.
+ * (&, <, >, ", ')
  */
-function setCellContent(cellXml: string, textValue: any): string {
-  const str = textValue !== undefined && textValue !== null ? String(textValue).trim() : '';
-
-  if (cellXml.includes('<w:t')) {
-    let hasWritten = false;
-    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, (match, innerText) => {
-      if (!hasWritten) {
-        hasWritten = true;
-        return match.replace(innerText, str);
-      } else {
-        return match.replace(innerText, '');
-      }
-    });
-  } else {
-    const pEndIndex = cellXml.lastIndexOf('</w:p>');
-    if (pEndIndex !== -1) {
-      const runXml = `<w:r><w:t>${str}</w:t></w:r>`;
-      return cellXml.slice(0, pEndIndex) + runXml + cellXml.slice(pEndIndex);
-    }
-  }
-  return cellXml;
+export function escapeXml(str: any): string {
+  if (str === undefined || str === null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 /**
- * Updates cells inside a table row (<w:tr>) positionally using regex replacement
+ * Helper to update text inside a Word XML cell <w:tc>
+ * Preserves cell properties (<w:tcPr>), paragraph alignment (<w:jc>), and enforces zero vertical spacing (before=0, after=0, single line spacing)
+ * so downloaded Word tables match the compact Live Preview appearance.
+ */
+function setCellContent(cellXml: string, textValue: any): string {
+  const str = textValue !== undefined && textValue !== null ? String(textValue).trim() : '';
+  const escapedStr = escapeXml(str);
+
+  // Preserve <w:tcPr> (cell width, borders, padding)
+  const tcPrMatch = cellXml.match(/<w:tcPr[\s\S]*?<\/w:tcPr>/i);
+  const tcPrXml = tcPrMatch ? tcPrMatch[0] : '';
+
+  // Preserve <w:pPr> from paragraph and enforce zero paragraph spacing (spaceBefore=0, spaceAfter=0, line=240 single)
+  const pPrMatch = cellXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/i);
+  let pPrXml = pPrMatch ? pPrMatch[0] : '';
+
+  const zeroSpacing = '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>';
+  if (!pPrXml || pPrXml.trim() === '') {
+    pPrXml = `<w:pPr>${zeroSpacing}</w:pPr>`;
+  } else if (pPrXml.includes('<w:spacing')) {
+    pPrXml = pPrXml.replace(/<w:spacing[\s\S]*?\/>/gi, zeroSpacing);
+  } else {
+    pPrXml = pPrXml.replace('<w:pPr>', `<w:pPr>${zeroSpacing}`);
+  }
+
+  return `<w:tc>${tcPrXml}<w:p>${pPrXml}<w:r><w:t xml:space="preserve">${escapedStr}</w:t></w:r></w:p></w:tc>`;
+}
+
+/**
+ * Updates cells inside a table row (<w:tr>) positionally, stripping fixed row heights so Word uses automatic compact heights
  */
 function updateRowCells(rowXml: string, cellValues: string[]): string {
   let colIndex = 0;
-  return rowXml.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+  // Remove fixed row heights to keep row heights automatic and compact
+  const cleanedRow = rowXml.replace(/<w:trHeight[\s\S]*?\/>/gi, '');
+  return cleanedRow.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
     const val = cellValues[colIndex] !== undefined ? cellValues[colIndex] : '';
     const updated = setCellContent(cellXml, val);
     colIndex++;
@@ -188,121 +206,212 @@ export async function populateOfficialDocxTemplateWithLogs(
     const replaceRegex = new RegExp(`\\{\\{(?:<[^>]+>)*?${escapedPh}(?:<[^>]+>)*?\\}\\}`, 'gi');
     const fillValue = val !== undefined && val !== null ? String(val) : '';
     
-    xml = xml.replace(replaceRegex, (match) => {
-      if (match.includes('<w:t')) {
-        return setCellContent(match, fillValue);
+    xml = xml.replace(replaceRegex, (m) => {
+      if (m.includes('<w:t')) {
+        return setCellContent(m, fillValue);
       }
-      return fillValue;
+      return escapeXml(fillValue);
     });
   });
 
-  // 2. Populate Tables with studentData
-  const tableMatches = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/gi) || [];
+  // Helper to resolve numeric semester (1..7) from Roman numerals or string
+  const getSemesterNumber = (semVal: any): number => {
+    if (!semVal) return 0;
+    const s = String(semVal).trim().toUpperCase();
+    if (/^(iv|4|04)$/i.test(s)) return 4;
+    if (/^(v|5|05)$/i.test(s)) return 5;
+    if (/^(vi|6|06)$/i.test(s)) return 6;
+    if (/^(vii|7|07)$/i.test(s)) return 7;
+    if (/^(iii|3|03)$/i.test(s)) return 3;
+    if (/^(ii|2|02)$/i.test(s)) return 2;
+    if (/^(i|1|01)$/i.test(s)) return 1;
+    const m = s.match(/([1-7])/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
 
-  if (tableMatches.length >= 4) {
-    // TABLE 2: University Results Table
-    let tbl2 = tableMatches[1];
-    let rows2 = tbl2.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const univList = studentData.university_results;
+  const activeSemNum = getSemesterNumber(student.semester) ||
+                       getSemesterNumber(studentData.semester) ||
+                       getSemesterNumber(student.universityResults?.[0]?.sem) ||
+                       4;
 
-    if (rows2.length > 0 && univList && univList.length > 0) {
-      const headerRow2 = rows2[0];
-      const sampleDataRow2 = rows2[1] || headerRow2;
-
-      let newRowsXml2 = '';
-      univList.forEach((item) => {
-        const vals = [
-          item.sem || 'V',
-          item.code || '',
-          item.title || '',
-          item.grade || '',
-          item.passFail || ''
-        ];
-        newRowsXml2 += updateRowCells(sampleDataRow2, vals);
-      });
-
-      // Preserve table tag attributes and inner content structure
-      const tableInner = headerRow2 + newRowsXml2;
-      tbl2 = tbl2.replace(/<w:tr[\s\S]*<\/w:tr>/i, tableInner);
-      xml = xml.replace(tableMatches[1], tbl2);
+  // Helper for Table 3 semester matrix values
+  const getSemVal = (map: Record<string, any> | undefined, sem: number, fallback: any = ''): string => {
+    if (map) {
+      const key1 = `0${sem}`;
+      const key2 = `${sem}`;
+      const val = map[key1] !== undefined ? map[key1] : map[key2];
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        return String(val);
+      }
     }
+    if (sem === activeSemNum && fallback !== undefined && fallback !== null && String(fallback).trim() !== '') {
+      return String(fallback);
+    }
+    return '';
+  };
 
-    // TABLE 3: GPA & CGPA Summary Table
-    let tbl3 = tableMatches[2];
-    let rows3 = tbl3.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    if (rows3.length >= 5) {
-      // CGPA row (Row 3)
-      let r3 = rows3[3];
-      const cgpaVal = studentData.cgpa ? String(studentData.cgpa) : '';
-      r3 = r3.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
-        if (cIdx === 1) return setCellContent(cellXml, cgpaVal);
+  const isModel = cleanName.includes('model');
+  const isCie2 = cleanName.includes('cie1_cie2');
+
+  // 2. Populate Template Tables with studentData atomically in a single pass
+  let tableIndex = 0;
+  xml = xml.replace(/<w:tbl[\s\S]*?<\/w:tbl>/gi, (tblXml) => {
+    const currentIdx = tableIndex++;
+    let rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    if (rows.length === 0) return tblXml;
+
+    const tblPrMatch = tblXml.match(/<w:tblPr[\s\S]*?<\/w:tblPr>/i);
+    const tblPrXml = tblPrMatch ? tblPrMatch[0] : '';
+    const tblGridMatch = tblXml.match(/<w:tblGrid[\s\S]*?<\/w:tblGrid>/i);
+    const tblGridXml = tblGridMatch ? tblGridMatch[0] : '';
+
+    if (currentIdx === 0 && rows.length >= 2) {
+      // TABLE 1: Student Information Table (Register Number & Name)
+      rows[0] = rows[0].replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+        if (cIdx === 1) return setCellContent(cellXml, studentData.register_number);
         return cellXml;
       });
-      tbl3 = tbl3.replace(rows3[3], r3);
+      rows[1] = rows[1].replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+        if (cIdx === 1) return setCellContent(cellXml, studentData.student_name);
+        return cellXml;
+      });
+      return `<w:tbl>${tblPrXml}${tblGridXml}${rows.join('')}</w:tbl>`;
+    }
 
-      // Class Obtained row (Row 4)
-      let r4 = rows3[4];
+    if (currentIdx === 1 && rows.length > 1) {
+      // TABLE 2: University Results Table (Header = rows[0], Data Rows = rows[1..10])
+      const univList = studentData.university_results || [];
+      const updatedRows: string[] = [rows[0]];
+
+      for (let r = 1; r < rows.length; r++) {
+        const item = univList[r - 1];
+        if (item) {
+          const vals = [
+            item.sem || 'V',
+            item.code || '',
+            item.title || '',
+            item.grade || '',
+            item.passFail || ''
+          ];
+          updatedRows.push(updateRowCells(rows[r], vals));
+        } else {
+          updatedRows.push(updateRowCells(rows[r], ['', '', '', '', '']));
+        }
+      }
+      return `<w:tbl>${tblPrXml}${tblGridXml}${updatedRows.join('')}</w:tbl>`;
+    }
+
+    if (currentIdx === 2 && rows.length >= 5) {
+      // TABLE 3: GPA & CGPA Summary Matrix Table (5 Rows)
+      // Row 1: ARREARS
+      const arrearsVals = ['ARREARS'];
+      for (let c = 1; c <= 7; c++) {
+        arrearsVals.push(getSemVal(student.arrears, c, ''));
+      }
+      rows[1] = updateRowCells(rows[1], arrearsVals);
+
+      // Row 2: GPA
+      const gpaVals = ['GPA'];
+      for (let c = 1; c <= 7; c++) {
+        gpaVals.push(getSemVal(student.gpaBySem || (studentData as any).gpa, c, student.gpa));
+      }
+      rows[2] = updateRowCells(rows[2], gpaVals);
+
+      // Row 3: CGPA
+      const cgpaVals = ['CGPA'];
+      for (let c = 1; c <= 7; c++) {
+        cgpaVals.push(getSemVal(student.cgpaBySem, c, student.cgpa));
+      }
+      rows[3] = updateRowCells(rows[3], cgpaVals);
+
+      // Row 4: CLASS OBTAINED
+      let r4 = rows[4];
       const classVal = studentData.class_obtained || '';
       r4 = r4.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, classVal);
         return cellXml;
       });
-      tbl3 = tbl3.replace(rows3[4], r4);
+      rows[4] = r4;
+
+      return `<w:tbl>${tblPrXml}${tblGridXml}${rows.join('')}</w:tbl>`;
     }
-    xml = xml.replace(tableMatches[2], tbl3);
 
-    // TABLE 4: Internal Evaluation Marks Table
-    let tbl4 = tableMatches[3];
-    let rows4 = tbl4.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
-    const internalList = studentData.internal_results;
-    const isModel = cleanName.includes('model');
-    const isCie2 = cleanName.includes('cie1_cie2');
+    if (currentIdx === 3 && rows.length > 1) {
+      // TABLE 4: Internal Evaluation Marks Table
+      const internalList = studentData.internal_results || [];
+      const updatedRows: string[] = [rows[0]];
 
-    if (rows4.length >= 1 && internalList && internalList.length > 0) {
-      const headerRow4 = rows4[0];
-      const sampleDataRow4 = rows4[1] || headerRow4;
+      for (let r = 1; r < rows.length; r++) {
+        const item = internalList[r - 1];
+        if (item) {
+          const cie1Str = item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? String(item.cie1Marks) : '';
+          const cie2Str = item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? String(item.cie2Marks) : '';
+          const modelStr = item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? String(item.modelMarks) : '';
 
-      let newRowsXml4 = '';
-      internalList.forEach((item) => {
-        const cie1Str = item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '' ? String(item.cie1Marks) : '';
-        const cie2Str = item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '' ? String(item.cie2Marks) : '';
-        const modelStr = item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '' ? String(item.modelMarks) : '';
-
-        let vals: string[] = [];
-        if (isModel) {
-          vals = [
-            item.sem || 'VI',
-            item.code || '',
-            item.title || '',
-            cie1Str,
-            cie2Str,
-            modelStr,
-            item.passFail || (cie1Str || cie2Str || modelStr ? 'PASS' : ''),
-          ];
-        } else if (isCie2) {
-          vals = [
-            item.sem || 'VI',
-            item.code || '',
-            item.title || '',
-            cie1Str,
-            cie2Str,
-            item.passFail || (cie1Str || cie2Str ? 'PASS' : ''),
-          ];
+          let vals: string[] = [];
+          if (isModel) {
+            vals = [
+              item.sem || student.currentSemester || 'VI',
+              item.code || '',
+              item.title || '',
+              cie1Str,
+              cie2Str,
+              modelStr,
+              item.passFail || (cie1Str || cie2Str || modelStr ? 'PASS' : ''),
+            ];
+          } else if (isCie2) {
+            vals = [
+              item.sem || student.currentSemester || 'VI',
+              item.code || '',
+              item.title || '',
+              cie1Str,
+              cie2Str,
+              item.passFail || (cie1Str || cie2Str ? 'PASS' : ''),
+            ];
+          } else {
+            vals = [
+              item.sem || student.currentSemester || 'VI',
+              item.code || '',
+              item.title || '',
+              cie1Str,
+              item.passFail || (cie1Str ? 'PASS' : ''),
+            ];
+          }
+          updatedRows.push(updateRowCells(rows[r], vals));
         } else {
-          vals = [
-            item.sem || 'VI',
-            item.code || '',
-            item.title || '',
-            cie1Str,
-            item.passFail || (cie1Str ? 'PASS' : ''),
-          ];
+          const emptyColsCount = isModel ? 7 : isCie2 ? 6 : 5;
+          updatedRows.push(updateRowCells(rows[r], Array(emptyColsCount).fill('')));
         }
-        newRowsXml4 += updateRowCells(sampleDataRow4, vals);
-      });
+      }
+      return `<w:tbl>${tblPrXml}${tblGridXml}${updatedRows.join('')}</w:tbl>`;
+    }
 
-      const tableInner4 = headerRow4 + newRowsXml4;
-      tbl4 = tbl4.replace(/<w:tr[\s\S]*<\/w:tr>/i, tableInner4);
-      xml = xml.replace(tableMatches[3], tbl4);
+    return tblXml;
+  });
+
+  // 3. Pre-export XML DOM Validation Check
+  if (typeof DOMParser !== 'undefined') {
+    const parser = new DOMParser();
+    const parsedDoc = parser.parseFromString(xml, 'text/xml');
+    const errors = parsedDoc.getElementsByTagName('parsererror');
+    if (errors && errors.length > 0) {
+      const errDetail = errors[0].textContent || 'Malformed XML';
+      console.error('=== DOCX XML VALIDATION ERROR ===', errDetail);
+      throw new Error(`Generated DOCX document.xml is malformed: ${errDetail}`);
+    }
+  }
+
+  // 4. Verify required Office Open XML ZIP structure
+  const requiredParts = [
+    '[Content_Types].xml',
+    'word/document.xml',
+    'word/_rels/document.xml.rels',
+    '_rels/.rels',
+    'word/styles.xml'
+  ];
+  for (const part of requiredParts) {
+    if (!zip.file(part)) {
+      throw new Error(`DOCX package is missing required part: ${part}`);
     }
   }
 

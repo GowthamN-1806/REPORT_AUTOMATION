@@ -408,7 +408,7 @@ export const Dashboard: React.FC = () => {
       <Header />
 
       {/* Top Statistics Bar (4 Cards Grid) */}
-      <StatsGrid stats={stats} />
+      <StatsGrid stats={stats} isProcessing={isProcessing} />
 
       {/* Main Content */}
       <main className="max-w-[1600px] mx-auto px-6 mb-8">
@@ -437,10 +437,10 @@ export const Dashboard: React.FC = () => {
             />
           </div>
         ) : (
-          /* Split Screen Layout (35% Left / 65% Right) after Excel files are merged */
+          /* Split Screen Layout (42% Left / 58% Right) after Excel files are merged */
           <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            {/* Left Controls & File Upload Slots Column (35% width) */}
-            <div className="w-full lg:w-[35%] shrink-0">
+            {/* Left Controls & File Upload Slots Column (42% width for full readability) */}
+            <div className="w-full lg:w-[42%] shrink-0">
               <UploadSection
                 selectedPattern={selectedPattern}
                 onPatternSelect={(pat) => {
@@ -463,8 +463,8 @@ export const Dashboard: React.FC = () => {
               />
             </div>
 
-            {/* Right Live Preview & Student Record Editor Column (65% width) */}
-            <div className="w-full lg:w-[65%] flex-1 min-w-0">
+            {/* Right Live Preview & Student Record Editor Column (58% width) */}
+            <div className="w-full lg:w-[58%] flex-1 min-w-0">
               <AcrobatDocumentViewer
                 students={mergedStudents}
                 currentPageIndex={currentPageIndex}
