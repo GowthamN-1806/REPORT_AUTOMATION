@@ -576,7 +576,7 @@ const buildStudentReportChildren = (
 
 
   // ----------------------------------------------------
-  // PAGE 2: ACKNOWLEDGEMENT & GRADUATE ATTRIBUTES
+  // PAGE 2: ACKNOWLEDGEMENT & DEGREE CLASSIFICATION RULES
   // ----------------------------------------------------
   children.push(
     new Paragraph({
@@ -587,7 +587,7 @@ const buildStudentReportChildren = (
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { before: 80, after: 140 },
+      spacing: { before: 100, after: 120 },
       children: [
         new TextRun({
           text: 'ACKNOWLEDGEMENT',
@@ -617,7 +617,7 @@ const buildStudentReportChildren = (
 
   children.push(
     new Paragraph({
-      spacing: { before: 40, after: 100 },
+      spacing: { before: 40, after: 120 },
       children: [new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', font: 'Times New Roman', size: 20 })],
     })
   );
@@ -627,43 +627,181 @@ const buildStudentReportChildren = (
       spacing: { before: 60, after: 60 },
       children: [
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: student.name || '', bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ' Reg No: ', font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: student.regNo || '', bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ' Branch: ', font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: deptStr, bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ' Year/Sem: ', font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: student.semester || 'IV', bold: true, font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: ' for Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation Results have been received.', font: 'Times New Roman', size: 20 }),
       ],
     })
   );
 
   children.push(
     new Paragraph({
-      spacing: { before: 40, after: 140 },
-      children: [
-        new TextRun({
-          text: 'I have received and reviewed the marks of my ward for the Nov/Dec 2025 examination and Continuous Internal Evaluation.',
-          font: 'Times New Roman',
-          size: 20,
+      alignment: AlignmentType.RIGHT,
+      spacing: { before: 200, after: 60 },
+      children: [new TextRun({ text: 'Signature of the Parent', bold: true, font: 'Times New Roman', size: 20 })],
+    })
+  );
+
+  // Date & JIT/EXAM/FORM-09-b Table
+  children.push(
+    new Table({
+      width: { size: 9400, type: WidthType.DXA },
+      borders: {
+        top: { style: BorderStyle.NONE },
+        bottom: { style: BorderStyle.NONE },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.NONE },
+        insideHorizontal: { style: BorderStyle.NONE },
+        insideVertical: { style: BorderStyle.NONE },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 4700, type: WidthType.DXA },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Date:', font: 'Times New Roman', size: 20 })] })],
+            }),
+            new TableCell({
+              width: { size: 4700, type: WidthType.DXA },
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'JIT/EXAM/FORM-09-b', bold: true, font: 'Arial', size: 19 })] })],
+            }),
+          ],
         }),
       ],
     })
   );
 
-  // Parent Signature & Date Table
   children.push(
-    new Table({
-      width: { size: 9400, type: WidthType.DXA },
-      borders: thinBorders,
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({ width: { size: 4400, type: WidthType.DXA }, children: [new Paragraph({ spacing: { before: 40, after: 40 }, children: [new TextRun({ text: 'Parent Signature', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-            new TableCell({ width: { size: 2500, type: WidthType.DXA }, children: [new Paragraph({ spacing: { before: 40, after: 40 }, children: [new TextRun({ text: 'Date:', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-            new TableCell({ width: { size: 2500, type: WidthType.DXA }, children: [new Paragraph({ spacing: { before: 40, after: 40 }, children: [new TextRun({ text: 'Place:', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-          ],
-        }),
+    new Paragraph({
+      spacing: { before: 100, after: 100 },
+      border: {
+        bottom: { color: 'CBD5E1', space: 1, style: BorderStyle.SINGLE, size: 6 },
+      },
+      children: [],
+    })
+  );
+
+  // Section 16.2 CLASSIFICATION OF THE DEGREE AWARDED
+  children.push(
+    new Paragraph({
+      spacing: { before: 80, after: 40 },
+      children: [new TextRun({ text: '16.2    CLASSIFICATION OF THE DEGREE AWARDED', bold: true, font: 'Arial', size: 19 })],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 30, after: 30 },
+      children: [new TextRun({ text: '16.2.1  FIRST CLASS WITH DISTINCTION', bold: true, font: 'Arial', size: 18 })],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: 'A student who satisfies the following conditions shall be declared to have passed the examination in ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: 'First class with Distinction:', bold: true, font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: '• Should have passed the examination in all the courses of all the eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) in the student\'s First Appearance within ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: 'five years', bold: true, font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: ' (Six years in the case of Mechanical (Sandwich) and Four years in the case of Lateral Entry). Withdrawal from examination (vide Clause 17) will not be considered as an appearance.', font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: '• Should have secured a CGPA of not less than ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: '8.50.', bold: true, font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: '• One year authorized break of study (if availed of) is included in the five years (Six years in the case of Mechanical (Sandwich) and four years in the case of Lateral entry) for award of First class with Distinction.', font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 40 },
+      children: [
+        new TextRun({ text: '• Should NOT have been prevented from writing end semester examination due to lack of attendance in any semester.', font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 30, after: 30 },
+      children: [new TextRun({ text: '16.2.2  FIRST CLASS:', bold: true, font: 'Arial', size: 18 })],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: 'A student who satisfies the following conditions shall be declared to have passed the examination in ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: 'First class:', bold: true, font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: '• Should have passed the examination in all the courses of all eight semesters (10 Semesters in case of Mechanical (Sandwich) and 6 semesters in the case of Lateral Entry) ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: 'within five years.', bold: true, font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: '• One year authorized break of study (if availed of) or prevention from writing the End Semester examination due to lack of attendance (if applicable) is included in the duration of five years for award of First class.', font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 40 },
+      children: [
+        new TextRun({ text: '• Should have secured a CGPA of not less than ', font: 'Times New Roman', size: 17 }),
+        new TextRun({ text: '6.50.', bold: true, font: 'Times New Roman', size: 17 }),
+      ],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 30, after: 30 },
+      children: [new TextRun({ text: '16.2.3  SECOND CLASS:', bold: true, font: 'Arial', size: 18 })],
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      spacing: { before: 20, after: 20 },
+      children: [
+        new TextRun({ text: 'All other students (not covered in clauses 16.2.1 and 16.2.2) who qualify for the award of the degree (vide Clause 16.1) shall be declared to have passed the examination in Second Class.', font: 'Times New Roman', size: 17 }),
       ],
     })
   );
