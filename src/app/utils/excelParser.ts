@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
-// Subject Master Mapping Dictionary (100% dynamically fetched from uploaded Excel files)
+// Subject Master Mapping Dictionary (100% dynamically fetched from uploaded Excel files - ZERO hardcoded defaults)
 const knownTitles: Record<string, string> = {};
 
 // Non-subject metadata headers to ignore when identifying subject columns
@@ -96,20 +96,41 @@ const isPlaceholderToken = (str: string): boolean => {
 };
 
 // Helper to strictly validate if a row belongs to a real student (filters out bottom subject reference blocks & HOD footers)
-const isNonStudentRow = (regNo: string, name: string): boolean => {
-  const cleanReg = regNo.trim().toLowerCase();
-  const cleanName = name.trim().toLowerCase();
+const isNonStudentRow = (regNo: string, name: string, knownSubjectCodes?: Set<string>): boolean => {
+  const rawReg = regNo.trim();
+  const rawName = name.trim();
+  const cleanReg = rawReg.toLowerCase();
+  const cleanName = rawName.toLowerCase();
+  const upperReg = rawReg.toUpperCase();
+  const upperName = rawName.toUpperCase();
   const combined = (cleanReg + ' ' + cleanName).replace(/[\s_.-]+/g, '');
 
   if (!cleanReg && !cleanName) return true;
 
-  // Header & metadata label rows
-  if (/^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(cleanReg) ||
-      /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no)/i.test(cleanName)) {
+  // 1. Check if regNo or name matches any harvested Subject Code from the Excel file
+  if (knownSubjectCodes && (knownSubjectCodes.has(upperReg) || knownSubjectCodes.has(upperName))) {
     return true;
   }
 
-  // Non-student subject reference block & footer keywords
+  // 2. Check if regNo or name matches Subject Code pattern (e.g. IT401, IT402, CS3591, HJK12)
+  if (/^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(rawReg) || /^[A-Z]{3,4}\d{3,4}$/i.test(rawReg) ||
+      /^[A-Z]{2,5}\s*\d{2,4}[A-Z]?$/i.test(rawName) || /^[A-Z]{3,4}\d{3,4}$/i.test(rawName)) {
+    return true;
+  }
+
+  // 3. Check if name is a Subject Code or short course acronym (e.g. OS, DBMS, PC, AI&ML, AI&MI, SE1, SE2, CN, AIML, MINI PROJECT)
+  if (/^(os|dbms|pc|ai&mi|ai&ml|aiml|cn|se1|se2|dsa|oop|se|lab|miniproject|mini project)$/i.test(rawName) ||
+      /^[a-z]{2,4}\d{1,2}$/i.test(cleanName)) {
+    return true;
+  }
+
+  // 4. Header & metadata label rows
+  if (/^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|subject|course|code)/i.test(cleanReg) ||
+      /^(s\.?no\.?|sl\.?no\.?|sno|slno|register|name|reg\.?no|roll\.?no|subject|course|code)/i.test(cleanName)) {
+    return true;
+  }
+
+  // 5. Non-student subject reference block & footer keywords
   const invalidKeywords = [
     'subjectname', 'subname', 'subjectcode', 'subcode', 'coursecode', 'coursename',
     'database', 'operatingsystem', 'computernetwork', 'artificialintelligence',
@@ -123,16 +144,9 @@ const isNonStudentRow = (regNo: string, name: string): boolean => {
     return true;
   }
 
-  // If regNo exists, it should contain digits (e.g. 210624104024)
-  if (cleanReg && !/\d{3,}/.test(cleanReg)) {
+  // 6. Real student regNo must be numeric (e.g. 210625205001). If it contains letters (like IT401), it's not a student regNo.
+  if (rawReg && /[a-zA-Z]/.test(rawReg)) {
     return true;
-  }
-
-  // If regNo is empty, name shouldn't be a subject title or course name
-  if (!cleanReg) {
-    if (/lab|project|system|computing|network|intelligence|engineering|science|ethics|enhancement|management/i.test(cleanName)) {
-      return true;
-    }
   }
 
   return false;
@@ -809,6 +823,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         // STEP 5: Process Every Student Data Row dynamically
         const parsedStudents: StudentRecord[] = [];
 
+        const knownSubjectCodes = new Set<string>();
+        Object.keys(excelSubjectMaster).forEach((k) => knownSubjectCodes.add(k.toUpperCase()));
+        excelSubjectList.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
+        directSubjectCols.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
+
         for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
           const rowCells = rawMatrix[r] || [];
 
@@ -826,7 +845,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           if (isDateCell(nameStr) || isFacultyNameCell(nameStr) || isPlaceholderToken(nameStr)) nameStr = '';
 
           // Skip non-student rows (header labels, bottom subject reference block, HOD footers)
-          if (isNonStudentRow(regNoStr, nameStr)) {
+          if (isNonStudentRow(regNoStr, nameStr, knownSubjectCodes)) {
             continue;
           }
 

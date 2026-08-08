@@ -373,11 +373,13 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             className="transition-transform duration-200 origin-top flex justify-center w-full h-full"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
-            <iframe
-              src={pdfPreviewUrl}
-              title={`Live Preview - ${currentStudent?.name}`}
-              className="w-full max-w-[880px] min-h-[1150px] bg-white rounded-xl shadow-[0_12px_40px_rgba(30,58,138,0.15)] border border-slate-200/90"
-            />
+            <div className="w-full max-w-[880px] h-[1150px] overflow-hidden rounded-xl shadow-[0_12px_40px_rgba(30,58,138,0.15)] border border-slate-200/90 bg-white relative">
+              <iframe
+                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                title={`Live Preview - ${currentStudent?.name}`}
+                className="w-full h-[calc(100%+54px)] -mt-[54px] border-none bg-white"
+              />
+            </div>
           </div>
         ) : null}
       </div>
