@@ -14,11 +14,7 @@ export const generateSingleWordDocument = async (
   _templateFile: string = 'template_cie1.docx',
   regulation: string = '2021'
 ): Promise<void> => {
-  const docBytes = await generateDynamicSingleWordDocument(student, regulation);
-
-  const blob = new Blob([docBytes], {
-    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  });
+  const blob = await generateDynamicSingleWordDocument(student, regulation);
 
   const fileName = `${student.regNo}_${student.name.replace(/\s+/g, '_')}_REPORT.docx`;
   const url = URL.createObjectURL(blob);
@@ -43,11 +39,7 @@ export const generateCombinedWordDocument = async (
 ): Promise<void> => {
   if (!students || students.length === 0) return;
 
-  const mergedDocBytes = await generateDynamicCombinedWordDocument(students, regulation);
-
-  const blob = new Blob([mergedDocBytes], {
-    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  });
+  const blob = await generateDynamicCombinedWordDocument(students, regulation);
 
   const fileName = `JEPPIAAR_IT_ALL_STUDENT_MARKS_REPORTS.docx`;
   const blobUrl = URL.createObjectURL(blob);

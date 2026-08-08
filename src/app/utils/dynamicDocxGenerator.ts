@@ -725,7 +725,7 @@ const buildStudentReportChildren = (
 export const generateDynamicSingleWordDocument = async (
   student: StudentRecord,
   regulation: string = '2021'
-): Promise<Uint8Array> => {
+): Promise<Blob> => {
   const jitLogo = await fetchLogoBuffer('/jit_logo.png');
   const naacLogo = await fetchLogoBuffer('/naac_logo.png');
   const nbaLogo = await fetchLogoBuffer('/nba_logo.png');
@@ -750,7 +750,7 @@ export const generateDynamicSingleWordDocument = async (
     ],
   });
 
-  return await Packer.toUint8Array(doc);
+  return await Packer.toBlob(doc);
 };
 
 /**
@@ -759,7 +759,7 @@ export const generateDynamicSingleWordDocument = async (
 export const generateDynamicCombinedWordDocument = async (
   students: StudentRecord[],
   regulation: string = '2021'
-): Promise<Uint8Array> => {
+): Promise<Blob> => {
   if (!students || students.length === 0) {
     throw new Error('No student data provided for Word document generation.');
   }
@@ -798,5 +798,5 @@ export const generateDynamicCombinedWordDocument = async (
     ],
   });
 
-  return await Packer.toUint8Array(doc);
+  return await Packer.toBlob(doc);
 };
