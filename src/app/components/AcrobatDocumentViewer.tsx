@@ -40,7 +40,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [targetReportIndex, setTargetReportIndex] = useState<string>('');
   const [isLoadingDocx, setIsLoadingDocx] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [populationResult, setPopulationResult] = useState<DocxPopulationResult | null>(null);
@@ -122,15 +121,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   const handleNextStudent = () => {
     if (currentPageIndex < totalReports - 1) {
       onPageChange(currentPageIndex + 1);
-    }
-  };
-
-  const handleJumpToReport = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = parseInt(targetReportIndex, 10);
-    if (!isNaN(val) && val >= 1 && val <= totalReports) {
-      onPageChange(val - 1);
-      setTargetReportIndex('');
     }
   };
 
@@ -250,18 +240,6 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
             >
               <ChevronRight className="w-4 h-4" />
             </button>
-
-            <form onSubmit={handleJumpToReport} className="flex items-center gap-1 ml-2">
-              <input
-                type="number"
-                min={1}
-                max={totalReports}
-                placeholder="Go #"
-                value={targetReportIndex}
-                onChange={(e) => setTargetReportIndex(e.target.value)}
-                className="w-14 text-xs font-mono px-2 py-1 bg-blue-700/80 border border-blue-500/80 rounded-lg text-white placeholder:text-blue-200 text-center focus:outline-none focus:ring-1 focus:ring-white shadow-sm"
-              />
-            </form>
           </div>
         )}
 
