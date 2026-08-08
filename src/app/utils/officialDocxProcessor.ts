@@ -36,7 +36,8 @@ export function escapeXml(str: any): string {
 
 /**
  * Helper to update text inside a Word XML cell <w:tc>
- * Preserves cell properties (<w:tcPr>), paragraph alignment (<w:jc>), and enforces zero vertical spacing (before=0, after=0, single line spacing)
+ * Preserves cell properties (<w:tcPr>), paragraph alignment (<w:jc>), text run properties (<w:rPr>),
+ * and enforces zero vertical spacing (before=0, after=0, single line spacing)
  * so downloaded Word tables match the compact Live Preview appearance.
  */
 function setCellContent(cellXml: string, textValue: any): string {
@@ -60,7 +61,11 @@ function setCellContent(cellXml: string, textValue: any): string {
     pPrXml = pPrXml.replace('<w:pPr>', `<w:pPr>${zeroSpacing}`);
   }
 
-  return `<w:tc>${tcPrXml}<w:p>${pPrXml}<w:r><w:t xml:space="preserve">${escapedStr}</w:t></w:r></w:p></w:tc>`;
+  // Preserve <w:rPr> from text run if present in template cell
+  const rPrMatch = cellXml.match(/<w:rPr[\s\S]*?<\/w:rPr>/i);
+  const rPrXml = rPrMatch ? rPrMatch[0] : '';
+
+  return `<w:tc>${tcPrXml}<w:p>${pPrXml}<w:r>${rPrXml}<w:t xml:space="preserve">${escapedStr}</w:t></w:r></w:p></w:tc>`;
 }
 
 /**

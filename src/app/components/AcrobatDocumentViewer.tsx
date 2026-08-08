@@ -147,7 +147,49 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    if (!pdfPreviewUrl) {
+      window.print();
+      return;
+    }
+
+    // Try direct iframe print
+    const existingIframe = document.getElementById('preview-pdf-iframe') as HTMLIFrameElement;
+    if (existingIframe && existingIframe.contentWindow) {
+      try {
+        existingIframe.contentWindow.focus();
+        existingIframe.contentWindow.print();
+        return;
+      } catch (err) {
+        console.warn('Direct iframe print error, using dedicated print frame:', err);
+      }
+    }
+
+    // Create a dedicated hidden print iframe for the PDF blob URL
+    const pFrame = document.createElement('iframe');
+    pFrame.style.position = 'fixed';
+    pFrame.style.right = '0';
+    pFrame.style.bottom = '0';
+    pFrame.style.width = '0';
+    pFrame.style.height = '0';
+    pFrame.style.border = '0';
+    pFrame.src = pdfPreviewUrl;
+    document.body.appendChild(pFrame);
+
+    pFrame.onload = () => {
+      setTimeout(() => {
+        try {
+          pFrame.contentWindow?.focus();
+          pFrame.contentWindow?.print();
+        } catch (e) {
+          console.error('Print iframe error:', e);
+        }
+        setTimeout(() => {
+          if (document.body.contains(pFrame)) {
+            document.body.removeChild(pFrame);
+          }
+        }, 2000);
+      }, 300);
+    };
   };
 
   return (
@@ -340,7 +382,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           </div>
 
           {/* Raw Extracted Student Data Object */}
-          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
+          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 mt-4">
             <h6 className="font-bold text-slate-300 text-[11px] mb-1 flex items-center gap-1.5">
               <Code2 className="w-3.5 h-3.5 text-indigo-400" />
               Extracted Student Data Object (studentData)
@@ -375,6 +417,7 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           >
             <div className="w-full max-w-[880px] h-[1150px] overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-slate-200/90 bg-white relative">
               <iframe
+                id="preview-pdf-iframe"
                 src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                 title={`Live Preview - ${currentStudent?.name}`}
                 className="w-full h-[calc(100%+54px)] -mt-[54px] border-none bg-white"
