@@ -61,7 +61,7 @@ function setCellContent(cellXml: string, textValue: any): string {
   // 2. Update existing <w:t> elements in-place to preserve all original <w:rPr>, <w:tcPr>, fonts, sizes, and styling
   if (cellXml.includes('<w:t')) {
     let written = false;
-    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, (match) => {
+    return cellXml.replace(/<w:t(?=[\s>])[\s\S]*?<\/w:t>/gi, () => {
       if (!written) {
         written = true;
         return `<w:t xml:space="preserve">${escapedStr}</w:t>`;
@@ -87,7 +87,7 @@ function updateRowCells(rowXml: string, cellValues: string[]): string {
   let colIndex = 0;
   // Remove fixed row heights to keep row heights automatic and compact
   const cleanedRow = rowXml.replace(/<w:trHeight[\s\S]*?\/>/gi, '');
-  return cleanedRow.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml) => {
+  return cleanedRow.replace(/<w:tc(?=[\s>])[\s\S]*?<\/w:tc>/gi, (cellXml) => {
     const val = cellValues[colIndex] !== undefined ? cellValues[colIndex] : '';
     const updated = setCellContent(cellXml, val);
     colIndex++;
@@ -226,7 +226,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     xml = xml.replace(replaceRegex, (m) => {
       if (m.includes('<w:t')) {
         let written = false;
-        return m.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, () => {
+        return m.replace(/<w:t(?=[\s>])[\s\S]*?<\/w:t>/gi, () => {
           if (!written) {
             written = true;
             return `<w:t xml:space="preserve">${escapeXml(fillValue)}</w:t>`;
@@ -279,9 +279,9 @@ export async function populateOfficialDocxTemplateWithLogs(
 
   // 2. Populate Template Tables with studentData atomically in a single pass
   let tableIndex = 0;
-  xml = xml.replace(/<w:tbl[\s\S]*?<\/w:tbl>/gi, (tblXml) => {
+  xml = xml.replace(/<w:tbl(?=[\s>])[\s\S]*?<\/w:tbl>/gi, (tblXml) => {
     const currentIdx = tableIndex++;
-    let rows = tblXml.match(/<w:tr[\s\S]*?<\/w:tr>/gi) || [];
+    let rows = tblXml.match(/<w:tr(?=[\s>])[\s\S]*?<\/w:tr>/gi) || [];
     if (rows.length === 0) return tblXml;
 
     const tblPrMatch = tblXml.match(/<w:tblPr[\s\S]*?<\/w:tblPr>/i);
@@ -291,11 +291,11 @@ export async function populateOfficialDocxTemplateWithLogs(
 
     if (currentIdx === 0 && rows.length >= 2) {
       // TABLE 1: Student Information Table (Register Number & Name)
-      rows[0] = rows[0].replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+      rows[0] = rows[0].replace(/<w:tc(?=[\s>])[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, studentData.register_number);
         return cellXml;
       });
-      rows[1] = rows[1].replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+      rows[1] = rows[1].replace(/<w:tc(?=[\s>])[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, studentData.student_name);
         return cellXml;
       });
@@ -351,7 +351,7 @@ export async function populateOfficialDocxTemplateWithLogs(
       // Row 4: CLASS OBTAINED
       let r4 = rows[4];
       const classVal = studentData.class_obtained || '';
-      r4 = r4.replace(/<w:tc[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
+      r4 = r4.replace(/<w:tc(?=[\s>])[\s\S]*?<\/w:tc>/gi, (cellXml, cIdx) => {
         if (cIdx === 1) return setCellContent(cellXml, classVal);
         return cellXml;
       });
