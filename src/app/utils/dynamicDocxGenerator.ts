@@ -13,16 +13,18 @@ import {
   ImageRun,
   TableBorders,
   VerticalAlign,
-  HeadingLevel,
 } from 'docx';
 import { StudentRecord } from '../types';
 
-// Helper to fetch logo images as ArrayBuffers safely
-const fetchLogoBuffer = async (url: string): Promise<ArrayBuffer | null> => {
+// Helper to fetch logo images as Uint8Array safely
+const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
   try {
     const res = await fetch(url);
     if (res.ok) {
-      return await res.arrayBuffer();
+      const buf = await res.arrayBuffer();
+      if (buf && buf.byteLength > 0) {
+        return new Uint8Array(buf);
+      }
     }
   } catch (e) {
     console.warn(`Failed to fetch logo from ${url}:`, e);
@@ -69,7 +71,7 @@ const thinBorders: TableBorders = {
 const buildStudentReportChildren = (
   student: StudentRecord,
   regulation: string = '2021',
-  logos: { jit: ArrayBuffer | null; naac: ArrayBuffer | null; nba: ArrayBuffer | null },
+  logos: { jit: Uint8Array | null; naac: Uint8Array | null; nba: Uint8Array | null },
   isFirstStudent: boolean = true
 ): (Paragraph | Table)[] => {
   const children: (Paragraph | Table)[] = [];
@@ -99,14 +101,19 @@ const buildStudentReportChildren = (
           new ImageRun({
             data: logos.jit,
             transformation: { width: 50, height: 58 },
+            type: 'png',
           }),
         ],
       })
     );
   }
+  if (leftChildren.length === 0) {
+    leftChildren.push(new Paragraph({ children: [] }));
+  }
+
   headerCells.push(
     new TableCell({
-      width: { size: 1200, type: WidthType.DXA },
+      width: { size: 1400, type: WidthType.DXA },
       borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
       children: leftChildren,
       verticalAlign: VerticalAlign.CENTER,
@@ -116,7 +123,7 @@ const buildStudentReportChildren = (
   // Center Cell: College Titles
   headerCells.push(
     new TableCell({
-      width: { size: 6800, type: WidthType.DXA },
+      width: { size: 6600, type: WidthType.DXA },
       borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
       children: [
         new Paragraph({
@@ -172,6 +179,7 @@ const buildStudentReportChildren = (
       new ImageRun({
         data: logos.naac,
         transformation: { width: 42, height: 46 },
+        type: 'png',
       })
     );
   }
@@ -180,6 +188,7 @@ const buildStudentReportChildren = (
       new ImageRun({
         data: logos.nba,
         transformation: { width: 50, height: 42 },
+        type: 'png',
       })
     );
   }
@@ -189,6 +198,10 @@ const buildStudentReportChildren = (
       children: rightRuns,
     })
   );
+  if (rightChildren.length === 0) {
+    rightChildren.push(new Paragraph({ children: [] }));
+  }
+
   headerCells.push(
     new TableCell({
       width: { size: 1400, type: WidthType.DXA },
