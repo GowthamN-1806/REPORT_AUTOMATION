@@ -668,67 +668,6 @@ const buildStudentReportChildren = (
     })
   );
 
-  // Graduate Attributes Section
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 180, after: 100 },
-      children: [
-        new TextRun({
-          text: 'GRADUATE ATTRIBUTES EVALUATION',
-          bold: true,
-          font: 'Arial',
-          size: 21,
-        }),
-      ],
-    })
-  );
-
-  const gaParams = [
-    'Engineering Knowledge',
-    'Problem Analysis',
-    'Design/Development of Solutions',
-    'Conduct Investigations of Complex Problems',
-    'Modern Tool Usage',
-    'The Engineer and Society',
-    'Environment and Sustainability',
-    'Ethics',
-    'Individual and Team Work',
-    'Communication',
-    'Project Management and Finance',
-    'Life-long Learning',
-  ];
-
-  const gaRows: TableRow[] = [
-    new TableRow({
-      children: [
-        new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'S.No', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-        new TableCell({ width: { size: 6000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'Graduate Attribute Parameter', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-        new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Rating / Remarks', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-      ],
-    }),
-  ];
-
-  gaParams.forEach((param, idx) => {
-    gaRows.push(
-      new TableRow({
-        children: [
-          new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(idx + 1), font: 'Times New Roman', size: 18 })] })] }),
-          new TableCell({ width: { size: 6000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: param, font: 'Times New Roman', size: 18 })] })] }),
-          new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '', font: 'Times New Roman', size: 18 })] })] }),
-        ],
-      })
-    );
-  });
-
-  children.push(
-    new Table({
-      width: { size: 9400, type: WidthType.DXA },
-      borders: thinBorders,
-      rows: gaRows,
-    })
-  );
-
   return children;
 };
 
