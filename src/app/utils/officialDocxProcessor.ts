@@ -36,36 +36,48 @@ export function escapeXml(str: any): string {
 
 /**
  * Helper to update text inside a Word XML cell <w:tc>
- * Preserves cell properties (<w:tcPr>), paragraph alignment (<w:jc>), text run properties (<w:rPr>),
- * and enforces zero vertical spacing (before=0, after=0, single line spacing)
- * so downloaded Word tables match the compact Live Preview appearance.
+ * Performs true in-place XML text updates on existing template cell elements,
+ * preserving 100% of master template cell properties (<w:tcPr>), text run properties (<w:rPr>),
+ * font family (Times New Roman), font size, bold weights, borders, cell margins, and alignments.
+ * Enforces zero paragraph spacing (before=0, after=0, single line spacing)
+ * so downloaded Word reports match the Live Preview report layout exactly.
  */
 function setCellContent(cellXml: string, textValue: any): string {
   const str = textValue !== undefined && textValue !== null ? String(textValue).trim() : '';
   const escapedStr = escapeXml(str);
 
-  // Preserve <w:tcPr> (cell width, borders, padding)
-  const tcPrMatch = cellXml.match(/<w:tcPr[\s\S]*?<\/w:tcPr>/i);
-  const tcPrXml = tcPrMatch ? tcPrMatch[0] : '';
-
-  // Preserve <w:pPr> from paragraph and enforce zero paragraph spacing (spaceBefore=0, spaceAfter=0, line=240 single)
-  const pPrMatch = cellXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/i);
-  let pPrXml = pPrMatch ? pPrMatch[0] : '';
-
+  // 1. Enforce zero paragraph spacing inside <w:pPr> while preserving all existing alignment and paragraph properties
   const zeroSpacing = '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>';
-  if (!pPrXml || pPrXml.trim() === '') {
-    pPrXml = `<w:pPr>${zeroSpacing}</w:pPr>`;
-  } else if (pPrXml.includes('<w:spacing')) {
-    pPrXml = pPrXml.replace(/<w:spacing[\s\S]*?\/>/gi, zeroSpacing);
-  } else {
-    pPrXml = pPrXml.replace('<w:pPr>', `<w:pPr>${zeroSpacing}`);
+  if (cellXml.includes('<w:pPr>')) {
+    if (cellXml.includes('<w:spacing')) {
+      cellXml = cellXml.replace(/<w:spacing[\s\S]*?\/>/gi, zeroSpacing);
+    } else {
+      cellXml = cellXml.replace('<w:pPr>', `<w:pPr>${zeroSpacing}`);
+    }
+  } else if (cellXml.includes('<w:p>')) {
+    cellXml = cellXml.replace('<w:p>', `<w:p><w:pPr>${zeroSpacing}</w:pPr>`);
   }
 
-  // Preserve <w:rPr> from text run if present in template cell
-  const rPrMatch = cellXml.match(/<w:rPr[\s\S]*?<\/w:rPr>/i);
-  const rPrXml = rPrMatch ? rPrMatch[0] : '';
+  // 2. Update existing <w:t> elements in-place to preserve all original <w:rPr>, <w:tcPr>, fonts, sizes, and styling
+  if (cellXml.includes('<w:t')) {
+    let written = false;
+    return cellXml.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, (match) => {
+      if (!written) {
+        written = true;
+        return `<w:t xml:space="preserve">${escapedStr}</w:t>`;
+      }
+      return '<w:t></w:t>';
+    });
+  }
 
-  return `<w:tc>${tcPrXml}<w:p>${pPrXml}<w:r>${rPrXml}<w:t xml:space="preserve">${escapedStr}</w:t></w:r></w:p></w:tc>`;
+  // 3. If no <w:t> element exists in the template cell, append a text run into paragraph
+  const pEndIndex = cellXml.lastIndexOf('</w:p>');
+  if (pEndIndex !== -1) {
+    const runXml = `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr><w:t xml:space="preserve">${escapedStr}</w:t></w:r>`;
+    return cellXml.slice(0, pEndIndex) + runXml + cellXml.slice(pEndIndex);
+  }
+
+  return cellXml;
 }
 
 /**
@@ -213,7 +225,14 @@ export async function populateOfficialDocxTemplateWithLogs(
     
     xml = xml.replace(replaceRegex, (m) => {
       if (m.includes('<w:t')) {
-        return setCellContent(m, fillValue);
+        let written = false;
+        return m.replace(/<w:t[^>]*>([\s\S]*?)<\/w:t>/gi, () => {
+          if (!written) {
+            written = true;
+            return `<w:t xml:space="preserve">${escapeXml(fillValue)}</w:t>`;
+          }
+          return '<w:t></w:t>';
+        });
       }
       return escapeXml(fillValue);
     });
