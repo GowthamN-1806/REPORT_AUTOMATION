@@ -53,24 +53,28 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
   const cleanTemplateName = (activeTemplate || 'template_cie1.docx')
     .replace(/^\/?(backend\/templates\/|templates\/)?/, '');
 
-  // Render live PDF preview for the currently selected student whenever currentPageIndex or student data changes
+  const [basePdfBlobUrl, setBasePdfBlobUrl] = useState<string | null>(null);
+
+  // Render combined live PDF preview for ALL students whenever students or regulation changes
   useEffect(() => {
     let isMounted = true;
 
     async function loadPdfPreview() {
-      if (!currentStudent) return;
+      if (!activeStudents || activeStudents.length === 0) return;
 
       try {
         setIsLoadingDocx(true);
         setPreviewError(null);
 
-        // Generate PDF Blob URL for the currently selected student report
-        const pdfUrl = await generateCombinedPDF([currentStudent], null, undefined, regulation, true);
+        // Generate combined PDF Blob URL for ALL active students so user can scroll continuously through all reports
+        const pdfUrl = await generateCombinedPDF(activeStudents, null, undefined, regulation, true);
 
         if (!isMounted) return;
 
         if (typeof pdfUrl === 'string') {
-          setPdfPreviewUrl(pdfUrl);
+          setBasePdfBlobUrl(pdfUrl);
+          const targetPage = currentPageIndex * 2 + 1;
+          setPdfPreviewUrl(`${pdfUrl}#page=${targetPage}&toolbar=0&navpanes=0&scrollbar=1`);
         }
 
         // Run debug mapping in background for panel metrics
@@ -95,7 +99,21 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [currentPageIndex, students, activeTemplate, regulation]);
+  }, [students, activeTemplate, regulation]);
+
+  // Jump preview iframe page when user changes page dropdown/navigation
+  useEffect(() => {
+    if (basePdfBlobUrl) {
+      const targetPage = currentPageIndex * 2 + 1;
+      setPdfPreviewUrl(`${basePdfBlobUrl}#page=${targetPage}&toolbar=0&navpanes=0&scrollbar=1`);
+    }
+
+    if (currentStudent) {
+      populateOfficialDocxTemplateWithLogs(cleanTemplateName, currentStudent, regulation)
+        .then((res) => setPopulationResult(res))
+        .catch(() => {});
+    }
+  }, [currentPageIndex, basePdfBlobUrl]);
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 140));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 70));
@@ -383,10 +401,11 @@ export const AcrobatDocumentViewer: React.FC<AcrobatDocumentViewerProps> = ({
           >
             <div className="w-full max-w-[880px] h-[1150px] overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-slate-200/90 bg-white relative">
               <iframe
+                key={pdfPreviewUrl}
                 id="preview-pdf-iframe"
-                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                title={`Live Preview - ${currentStudent?.name}`}
-                className="w-full h-[calc(100%+54px)] -mt-[54px] border-none bg-white"
+                src={pdfPreviewUrl}
+                title={`Live Preview - All Student Reports`}
+                className="w-full h-full border-none bg-white"
               />
             </div>
           </div>

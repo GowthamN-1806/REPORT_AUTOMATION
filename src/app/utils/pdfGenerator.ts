@@ -282,83 +282,102 @@ export const generateCombinedPDF = async (
     pdf.setFontSize(10);
     pdf.text(student.classObtained || '', margin + 111, y + 12);
 
-    // Continuous Internal Evaluation Header
-    y += 30;
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(11);
-    pdf.text('Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:', margin, y);
-
-    // Continuous Internal Evaluation Table (Dynamic columns: 5, 6, or 7 based on uploaded exams)
-    y += 10;
-
+    // Continuous Internal Evaluation Header & Table
     const cieList = student.internalEvalResults || [];
+    const hasCie1 = cieList.some((item) => item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '');
     const hasCie2 = cieList.some((item) => item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '');
     const hasModel = cieList.some((item) => item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '');
 
-    let cieHeaders: string[] = [];
-    let colW2: number[] = [];
+    if (cieList.length > 0) {
+      y += 30;
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(11);
+      pdf.text('Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:', margin, y);
 
-    if (hasModel) {
-      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Model Marks', 'Pass/Fail'];
-      colW2 = [42, 60, 168, 62, 62, 62, 69];
-    } else if (hasCie2) {
-      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'CIE II Marks', 'Pass/Fail'];
-      colW2 = [52, 72, 204, 62, 62, 73];
-    } else {
-      cieHeaders = ['Semester', 'Subject Code', 'Subject Name', 'CIE I Marks', 'Pass/Fail'];
-      colW2 = [65, 85, 235, 65, 75];
-    }
+      y += 10;
 
-    currX = margin;
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(hasModel ? 7.5 : (hasCie2 ? 8.5 : 9.5));
-
-    cieHeaders.forEach((h, hIdx) => {
-      pdf.rect(currX, y, colW2[hIdx], 20);
-      pdf.text(h, currX + (hIdx === 2 ? 6 : colW2[hIdx] / 2), y + 13, { align: hIdx === 2 ? 'left' : 'center' });
-      currX += colW2[hIdx];
-    });
-
-    y += 20;
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(9);
-    const maxCieRows = cieList.length;
-
-    for (let r = 0; r < maxCieRows; r++) {
-      const item = cieList[r];
-      let x = margin;
-      colW2.forEach((w) => {
-        pdf.rect(x, y, w, 18);
-        x += w;
-      });
-      
-      if (item) {
-        let cx = margin;
-        pdf.text(item.sem || student.currentSemester || 'V', cx + colW2[0] / 2, y + 12, { align: 'center' }); cx += colW2[0];
-        pdf.setFont('times', 'bold');
-        pdf.text(item.code || '', cx + colW2[1] / 2, y + 12, { align: 'center' }); cx += colW2[1];
-        pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 32), cx + 6, y + 12); cx += colW2[2];
-        pdf.setFont('times', 'bold');
-        pdf.text(item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '', cx + colW2[3] / 2, y + 12, { align: 'center' }); cx += colW2[3];
-
-        if (hasCie2 || hasModel) {
-          pdf.text(item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '', cx + colW2[4] / 2, y + 12, { align: 'center' }); cx += colW2[4];
-        }
-
-        if (hasModel) {
-          pdf.text(item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '', cx + colW2[5] / 2, y + 12, { align: 'center' }); cx += colW2[5];
-        }
-
-        const pfColIdx = hasModel ? 6 : (hasCie2 ? 5 : 4);
-        pdf.text(item.passFail || '', cx + colW2[pfColIdx] / 2, y + 12, { align: 'center' });
+      // Build dynamic columns list based exclusively on uploaded exam data
+      interface DynamicCol {
+        id: 'sem' | 'code' | 'title' | 'cie1' | 'cie2' | 'model' | 'passFail';
+        header: string;
+        width: number;
+        align: 'left' | 'center';
       }
 
-      y += 18;
+      const activeCols: DynamicCol[] = [
+        { id: 'sem', header: 'Semester', width: 45, align: 'center' },
+        { id: 'code', header: 'Subject Code', width: 65, align: 'center' },
+      ];
+
+      const examColsCount = (hasCie1 ? 1 : 0) + (hasCie2 ? 1 : 0) + (hasModel ? 1 : 0);
+      const examColWidth = examColsCount >= 3 ? 58 : 62;
+
+      if (hasCie1) {
+        activeCols.push({ id: 'cie1', header: 'CIE I Marks', width: examColWidth, align: 'center' });
+      }
+      if (hasCie2) {
+        activeCols.push({ id: 'cie2', header: 'CIE II Marks', width: examColWidth, align: 'center' });
+      }
+      if (hasModel) {
+        activeCols.push({ id: 'model', header: 'Model Marks', width: examColWidth, align: 'center' });
+      }
+
+      activeCols.push({ id: 'passFail', header: 'Pass/Fail', width: 68, align: 'center' });
+
+      // Calculate title width to take up remaining horizontal space (total width = 525)
+      const fixedWidthSum = activeCols.reduce((acc, col) => acc + col.width, 0);
+      const titleWidth = Math.max(120, 525 - fixedWidthSum);
+
+      // Insert title column after subject code
+      activeCols.splice(2, 0, { id: 'title', header: 'Subject Name', width: titleWidth, align: 'left' });
+
+      // Render Header Row
+      currX = margin;
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(activeCols.length >= 7 ? 7.5 : (activeCols.length >= 6 ? 8.5 : 9.5));
+
+      activeCols.forEach((col) => {
+        pdf.rect(currX, y, col.width, 20);
+        pdf.text(col.header, currX + (col.align === 'left' ? 6 : col.width / 2), y + 13, { align: col.align });
+        currX += col.width;
+      });
+
+      y += 20;
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(9);
+
+      // Render Data Rows
+      cieList.forEach((item) => {
+        let x = margin;
+        activeCols.forEach((col) => {
+          pdf.rect(x, y, col.width, 18);
+          x += col.width;
+        });
+
+        if (item) {
+          let cx = margin;
+          activeCols.forEach((col) => {
+            let cellText = '';
+            if (col.id === 'sem') cellText = item.sem || student.currentSemester || 'V';
+            else if (col.id === 'code') cellText = item.code || '';
+            else if (col.id === 'title') cellText = (item.title || '').substring(0, 32);
+            else if (col.id === 'cie1') cellText = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
+            else if (col.id === 'cie2') cellText = item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '';
+            else if (col.id === 'model') cellText = item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '';
+            else if (col.id === 'passFail') cellText = item.passFail || '';
+
+            pdf.setFont('times', col.id === 'code' || col.id.startsWith('cie') || col.id === 'model' || col.id === 'passFail' ? 'bold' : 'normal');
+            pdf.text(cellText, cx + (col.align === 'left' ? 6 : col.width / 2), y + 12, { align: col.align });
+            cx += col.width;
+          });
+        }
+
+        y += 18;
+      });
     }
 
-    // Counsellor Signature
-    y += 40;
+    // Signature of Counsellor
+    y += 35;
     pdf.setFont('times', 'bold');
     pdf.setFontSize(11);
     pdf.text('Signature of Counsellor', pageWidth - margin, y, { align: 'right' });

@@ -478,85 +478,116 @@ const buildStudentReportChildren = (
     })
   );
 
-  // Internal Evaluation Header
-  children.push(
-    new Paragraph({
-      spacing: { before: 140, after: 40 },
-      children: [
-        new TextRun({
-          text: 'Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:',
-          bold: true,
-          font: 'Times New Roman',
-          size: 21,
-        }),
-      ],
-    })
-  );
-
   // Table 4: Internal Evaluation Marks Table
   const cieList = student.internalEvalResults || [];
+  const hasCie1 = cieList.some((item) => item && item.cie1Marks !== undefined && item.cie1Marks !== null && String(item.cie1Marks).trim() !== '');
   const hasCie2 = cieList.some((item) => item && item.cie2Marks !== undefined && item.cie2Marks !== null && String(item.cie2Marks).trim() !== '');
   const hasModel = cieList.some((item) => item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '');
 
-  let colW2 = [1200, 1600, 4200, 1200, 1200];
-  if (hasModel) {
-    colW2 = [1000, 1400, 3400, 1200, 1200, 1200, 1000];
-  } else if (hasCie2) {
-    colW2 = [1100, 1500, 3800, 1000, 1000, 1000];
-  }
+  if (cieList.length > 0) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 140, after: 40 },
+        children: [
+          new TextRun({
+            text: 'Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:',
+            bold: true,
+            font: 'Times New Roman',
+            size: 21,
+          }),
+        ],
+      })
+    );
 
-  const cieRows: TableRow[] = [];
+    // Build dynamic columns list based exclusively on uploaded exam data
+    interface DynamicDocxCol {
+      id: 'sem' | 'code' | 'title' | 'cie1' | 'cie2' | 'model' | 'passFail';
+      header: string;
+      width: number;
+      align: AlignmentType;
+    }
 
-  // CIE Table Header
-  const cieHeadCells: TableCell[] = [
-    new TableCell({ width: { size: colW2[0], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Semester', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-    new TableCell({ width: { size: colW2[1], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Subject Code', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-    new TableCell({ width: { size: colW2[2], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'Subject Name', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-    new TableCell({ width: { size: colW2[3], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'CIE I Marks', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-  ];
-
-  if (hasCie2 || hasModel) {
-    cieHeadCells.push(new TableCell({ width: { size: colW2[4], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'CIE II Marks', bold: true, font: 'Times New Roman', size: 19 })] })] }));
-  }
-  if (hasModel) {
-    cieHeadCells.push(new TableCell({ width: { size: colW2[5], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Model Marks', bold: true, font: 'Times New Roman', size: 19 })] })] }));
-  }
-  const pfIdx = hasModel ? 6 : (hasCie2 ? 5 : 4);
-  cieHeadCells.push(new TableCell({ width: { size: colW2[pfIdx], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 19 })] })] }));
-
-  cieRows.push(new TableRow({ children: cieHeadCells }));
-
-  cieList.forEach((item) => {
-    const c1 = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
-    const c2 = item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '';
-    const cm = item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '';
-
-    const rowCells: TableCell[] = [
-      new TableCell({ width: { size: colW2[0], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.sem || student.currentSemester || 'IV', font: 'Times New Roman', size: 18 })] })] }),
-      new TableCell({ width: { size: colW2[1], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.code || '', bold: true, font: 'Times New Roman', size: 18 })] })] }),
-      new TableCell({ width: { size: colW2[2], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: item.title || '', font: 'Times New Roman', size: 18 })] })] }),
-      new TableCell({ width: { size: colW2[3], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c1, bold: true, font: 'Times New Roman', size: 18 })] })] }),
+    const activeDocxCols: DynamicDocxCol[] = [
+      { id: 'sem', header: 'Semester', width: 1100, align: AlignmentType.CENTER },
+      { id: 'code', header: 'Subject Code', width: 1500, align: AlignmentType.CENTER },
     ];
 
-    if (hasCie2 || hasModel) {
-      rowCells.push(new TableCell({ width: { size: colW2[4], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c2, bold: true, font: 'Times New Roman', size: 18 })] })] }));
+    const examColsCount = (hasCie1 ? 1 : 0) + (hasCie2 ? 1 : 0) + (hasModel ? 1 : 0);
+    const examColWidth = examColsCount >= 3 ? 1100 : 1200;
+
+    if (hasCie1) {
+      activeDocxCols.push({ id: 'cie1', header: 'CIE I Marks', width: examColWidth, align: AlignmentType.CENTER });
+    }
+    if (hasCie2) {
+      activeDocxCols.push({ id: 'cie2', header: 'CIE II Marks', width: examColWidth, align: AlignmentType.CENTER });
     }
     if (hasModel) {
-      rowCells.push(new TableCell({ width: { size: colW2[5], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: cm, bold: true, font: 'Times New Roman', size: 18 })] })] }));
+      activeDocxCols.push({ id: 'model', header: 'Model Marks', width: examColWidth, align: AlignmentType.CENTER });
     }
 
-    rowCells.push(new TableCell({ width: { size: colW2[pfIdx], type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.passFail || '', bold: true, font: 'Times New Roman', size: 18 })] })] }));
+    activeDocxCols.push({ id: 'passFail', header: 'Pass/Fail', width: 1200, align: AlignmentType.CENTER });
 
-    cieRows.push(new TableRow({ children: rowCells }));
-  });
+    // Calculate title width to take up remaining horizontal space (total width = 9400 dxa)
+    const fixedWidthSum = activeDocxCols.reduce((acc, col) => acc + col.width, 0);
+    const titleWidth = Math.max(2400, 9400 - fixedWidthSum);
 
-  children.push(
-    new Table({
-      width: { size: 9400, type: WidthType.DXA },
-      borders: thinBorders,
-      rows: cieRows,
-    })
-  );
+    // Insert title column after subject code
+    activeDocxCols.splice(2, 0, { id: 'title', header: 'Subject Name', width: titleWidth, align: AlignmentType.LEFT });
+
+    const cieRows: TableRow[] = [];
+
+    // CIE Table Header
+    const cieHeadCells: TableCell[] = activeDocxCols.map(
+      (col) =>
+        new TableCell({
+          width: { size: col.width, type: WidthType.DXA },
+          children: [
+            new Paragraph({
+              alignment: col.align,
+              children: [new TextRun({ text: col.header, bold: true, font: 'Times New Roman', size: 19 })],
+            }),
+          ],
+        })
+    );
+
+    cieRows.push(new TableRow({ children: cieHeadCells }));
+
+    // CIE Data Rows
+    cieList.forEach((item) => {
+      const rowCells: TableCell[] = activeDocxCols.map((col) => {
+        let cellText = '';
+        if (col.id === 'sem') cellText = item.sem || student.currentSemester || 'V';
+        else if (col.id === 'code') cellText = item.code || '';
+        else if (col.id === 'title') cellText = item.title || '';
+        else if (col.id === 'cie1') cellText = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
+        else if (col.id === 'cie2') cellText = item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '';
+        else if (col.id === 'model') cellText = item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '';
+        else if (col.id === 'passFail') cellText = item.passFail || '';
+
+        const isBold = col.id === 'code' || col.id.startsWith('cie') || col.id === 'model' || col.id === 'passFail';
+
+        return new TableCell({
+          width: { size: col.width, type: WidthType.DXA },
+          children: [
+            new Paragraph({
+              alignment: col.align,
+              children: [new TextRun({ text: cellText, bold: isBold, font: 'Times New Roman', size: 18 })],
+            }),
+          ],
+        });
+      });
+
+      cieRows.push(new TableRow({ children: rowCells }));
+    });
+
+    children.push(
+      new Table({
+        width: { size: 9400, type: WidthType.DXA },
+        borders: thinBorders,
+        rows: cieRows,
+      })
+    );
+  }
 
   // Signature of Counsellor
   children.push(

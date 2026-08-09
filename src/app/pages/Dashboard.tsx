@@ -96,7 +96,7 @@ export const Dashboard: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [stepMessage, setStepMessage] = useState<string>('Reading Excel file...');
   const [processedCount, setProcessedCount] = useState<number>(0);
-  const [totalCount, setTotalCount] = useState<number>(512);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [progressPercent, setProgressPercent] = useState<number>(0);
 
   // Toasts
@@ -146,13 +146,24 @@ export const Dashboard: React.FC = () => {
 
         setFileSlots(updatedSlots);
 
-        // Clear preview state so reports are ONLY generated when user clicks RUN
-        setMergeResult(null);
-        setMergedStudents([]);
-
         if (slotKey === 'univ') {
+          // Uploading University Result resets previous generated state until user clicks RUN
+          setMergeResult(null);
+          setMergedStudents([]);
+          setTotalCount(parsed.length);
           addToast('success', 'University Result Uploaded', `${file.name} parsed (${parsed.length} Students). Click RUN to generate reports.`);
         } else {
+          // If Live Preview is ALREADY active, re-merge dataset to update Live Preview with new optional file
+          if (updatedSlots.univ.file && mergedStudents.length > 0) {
+            const univList = updatedSlots.univ.students;
+            const cie1List = updatedSlots.cie1.students;
+            const cie2List = updatedSlots.cie2.students;
+            const modelList = updatedSlots.model.students;
+
+            const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+            setMergeResult(res);
+            setMergedStudents(res.mergedStudents);
+          }
           addToast('info', 'Optional File Uploaded', `${file.name} saved (${parsed.length} Students).`);
         }
       } else {
@@ -180,20 +191,63 @@ export const Dashboard: React.FC = () => {
 
     setFileSlots(updatedSlots);
 
-    // Reset preview state until user clicks RUN again
-    setMergeResult(null);
-    setMergedStudents([]);
-    setSummary(null);
-    setStats({
-      totalStudents: 0,
-      reportsGenerated: 0,
-      pdfPages: 0,
-      department: 'N/A',
-      academicYear: '2025 - 2026',
-      uploadStatus: 'Awaiting Upload',
-    });
+    // If University Result Excel (master file) is deleted, reset application state completely
+    if (slotKey === 'univ') {
+      setMergeResult(null);
+      setMergedStudents([]);
+      setSummary(null);
+      setTotalCount(0);
+      setStats({
+        totalStudents: 0,
+        reportsGenerated: 0,
+        pdfPages: 0,
+        department: 'N/A',
+        academicYear: '2025 - 2026',
+        uploadStatus: 'Awaiting Upload',
+      });
+      addToast('info', 'University Result Removed', 'Master file cleared. Reset to initial upload state.');
+    } else {
+      // If an optional file (CIE1, CIE2, Model) is removed:
+      // Keep existing preview state! If preview is currently active, re-merge remaining files dynamically.
+      if (updatedSlots.univ.file && mergedStudents.length > 0) {
+        const univList = updatedSlots.univ.students;
+        const cie1List = updatedSlots.cie1.students;
+        const cie2List = updatedSlots.cie2.students;
+        const modelList = updatedSlots.model.students;
 
-    addToast('info', 'File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
+        const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+        setMergeResult(res);
+        setMergedStudents(res.mergedStudents);
+
+        const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
+        const acadYear = '2025 - 2026';
+        const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
+
+        setSummary({
+          fileName: updatedSlots.univ.name || 'Merged_Results.xlsx',
+          fileSize: updatedSlots.univ.size || '120 KB',
+          department: deptName,
+          academicYear: acadYear,
+          totalStudents: res.mergedStudents.length,
+          subjectsPerStudent: subCount,
+          reportsCount: res.mergedStudents.length,
+          templateUsed: res.templateFile,
+          uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+          status: 'Ready for Download',
+        });
+
+        setStats({
+          totalStudents: res.mergedStudents.length,
+          reportsGenerated: res.mergedStudents.length,
+          pdfPages: res.mergedStudents.length * 2,
+          department: deptName,
+          academicYear: acadYear,
+          uploadStatus: 'Success',
+        });
+      }
+
+      addToast('info', 'Optional File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
+    }
   };
 
   // Run Excel Merge Engine
@@ -203,26 +257,33 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    const univList = fileSlots.univ.students;
+    const actualStudentCount = univList.length;
+
     setIsProcessing(true);
+    setTotalCount(actualStudentCount);
+    setProcessedCount(0);
     setStepMessage('Initializing Excel Merge Engine...');
     setProgressPercent(10);
 
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 250));
+    setProcessedCount(Math.round(actualStudentCount * 0.35));
     setProgressPercent(40);
-    setStepMessage('Matching student records by Register Number...');
+    setStepMessage(`Matching ${actualStudentCount} student records...`);
 
-    const univList = fileSlots.univ.students;
     const cie1List = fileSlots.cie1.students;
     const cie2List = fileSlots.cie2.students;
     const modelList = fileSlots.model.students;
 
     const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
 
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 350));
+    setProcessedCount(Math.round(actualStudentCount * 0.85));
     setProgressPercent(80);
-    setStepMessage(`Selecting Template ${res.templateFile}...`);
+    setStepMessage(`Generating report layouts for ${res.mergedStudents.length} students...`);
 
     await new Promise((r) => setTimeout(r, 200));
+    setProcessedCount(res.mergedStudents.length);
     setProgressPercent(100);
     setIsProcessing(false);
 
