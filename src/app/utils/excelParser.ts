@@ -621,6 +621,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           titleCol: number;
           cie1MarksCol: number;
           cie2MarksCol: number;
+          modelMarksCol: number;
           passCol: number;
           semCol: number;
         }
@@ -641,11 +642,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const rawPrefix = match[1].trim();
           const num = Number(match[2]);
           const cleanPrefix = rawPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const isCieHeader = cleanPrefix.includes('cie') || /cie/i.test(rawHeader);
+          const isCieHeader = cleanPrefix.includes('cie') || cleanPrefix.includes('model') || /cie|model|internal/i.test(rawHeader);
 
           // Check if prefix is a recognized group keyword before creating a grouped spec
-          const isGroupKeyword = /(code|subject|sub|title|name|grade|pass|fail|result|status|sem|cie|mark|score|univ|university)/i.test(cleanPrefix) ||
-                                 /cie|univ|university/i.test(rawHeader);
+          const isGroupKeyword = /(code|subject|sub|title|name|grade|pass|fail|result|status|sem|cie|model|mark|score|univ|university)/i.test(cleanPrefix) ||
+                                 /cie|model|univ|university/i.test(rawHeader);
           if (!isGroupKeyword) continue;
 
           const targetMap = isCieHeader ? cieGroupsMap : univGroupsMap;
@@ -659,6 +660,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               passCol: -1,
               cie1MarksCol: -1,
               cie2MarksCol: -1,
+              modelMarksCol: -1,
               semCol: -1,
             });
           }
@@ -666,17 +668,20 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const spec = targetMap.get(num)!;
 
           if (isCieHeader) {
-            // Strict CIE Header Classifier (CIE_Code_N, CIE_Subject_N, CIE1_Marks_N, CIE2_Marks_N, CIE_Pass_N)
+            // Strict CIE / Model Exam Header Classifier
             if (cleanPrefix.includes('code')) {
               spec.codeCol = c;
             } else if (cleanPrefix.includes('subject') || cleanPrefix.includes('title') || cleanPrefix.includes('name')) {
               spec.titleCol = c;
+            } else if (cleanPrefix.includes('model') || cleanPrefix.includes('mod') || cleanPrefix.includes('mark3') || cleanPrefix.includes('marks3')) {
+              spec.modelMarksCol = c;
             } else if (cleanPrefix.includes('cie2') || cleanPrefix.includes('cie_2') || cleanPrefix.includes('cieii') || cleanPrefix.includes('mark2') || cleanPrefix.includes('marks2')) {
               spec.cie2MarksCol = c;
             } else if (cleanPrefix.includes('cie1') || cleanPrefix.includes('cie_1') || cleanPrefix.includes('ciei') || cleanPrefix.includes('mark1') || cleanPrefix.includes('marks1')) {
               spec.cie1MarksCol = c;
             } else if (cleanPrefix.includes('mark') || cleanPrefix.includes('score')) {
-              if (spec.cie1MarksCol === -1) spec.cie1MarksCol = c;
+              if (/model/i.test(rawHeader) || cleanPrefix.includes('model')) spec.modelMarksCol = c;
+              else if (spec.cie1MarksCol === -1) spec.cie1MarksCol = c;
               else if (spec.cie2MarksCol === -1 && c !== spec.cie1MarksCol) spec.cie2MarksCol = c;
             } else if (cleanPrefix.includes('pass') || cleanPrefix.includes('fail') || cleanPrefix.includes('result') || cleanPrefix.includes('status')) {
               spec.passCol = c;
@@ -701,7 +706,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
         }
 
-        // Secondary Pass to ensure Grade_N and CIE marks columns are explicitly resolved if missed
+        // Secondary Pass to ensure Grade_N, CIE, and Model marks columns are explicitly resolved if missed
         univGroupsMap.forEach((spec, gNum) => {
           if (spec.gradeCol === -1) {
             for (let c = 0; c < headerNames.length; c++) {
@@ -729,6 +734,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
               if (h === `cie2marks${gNum}` || h === `cie2mark${gNum}` || h.includes(`cie2marks${gNum}`) || h.includes(`cie2_marks_${gNum}`)) {
                 spec.cie2MarksCol = c;
+                break;
+              }
+            }
+          }
+          if (spec.modelMarksCol === -1) {
+            for (let c = 0; c < headerNames.length; c++) {
+              const h = headerNames[c].toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (h === `modelmarks${gNum}` || h === `modelmark${gNum}` || h === `model${gNum}` || h.includes(`modelmarks${gNum}`) || h.includes(`model_marks_${gNum}`)) {
+                spec.modelMarksCol = c;
                 break;
               }
             }
@@ -927,13 +941,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             });
           });
 
-          // 2. CIE Results Table: Read ONLY CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, CIE_Pass_1..N
+          // 2. CIE / Model Results Table: Read CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, Model_Marks_1..N
           if (sortedCieSpecs.length > 0) {
             sortedCieSpecs.forEach((spec) => {
               const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
               const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
               const cie1MarksRaw = spec.cie1MarksCol !== -1 ? rowCells[spec.cie1MarksCol] : '';
               const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
+              const modelMarksRaw = spec.modelMarksCol !== -1 ? rowCells[spec.modelMarksCol] : '';
               const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
               const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
 
@@ -941,14 +956,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               let titleStr = String(titleRaw || '').trim();
               const cie1MarksStr = String(cie1MarksRaw !== undefined && cie1MarksRaw !== null ? cie1MarksRaw : '').trim();
               const cie2MarksStr = String(cie2MarksRaw !== undefined && cie2MarksRaw !== null ? cie2MarksRaw : '').trim();
+              const modelMarksStr = String(modelMarksRaw !== undefined && modelMarksRaw !== null ? modelMarksRaw : '').trim();
               const passStr = String(passRaw || '').trim().toUpperCase();
               const semStr = semRaw ? cleanSemesterValue(semRaw) : '';
 
-              if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !passStr) return;
+              if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !modelMarksStr && !passStr) return;
 
               titleStr = resolveSubjectTitle(codeStr, titleStr);
 
-              const passFail = evaluatePassFail(passStr, cie1MarksStr);
+              const passFail = evaluatePassFail(passStr, modelMarksStr || cie1MarksStr || cie2MarksStr);
 
               internalEvalResults.push({
                 sem: semStr || extractedSemester || 'VI',
@@ -956,6 +972,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 title: titleStr,
                 cie1Marks: cie1MarksStr,
                 cie2Marks: cie2MarksStr,
+                modelMarks: modelMarksStr,
                 passFail,
               });
             });

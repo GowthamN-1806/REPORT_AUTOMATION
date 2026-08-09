@@ -320,19 +320,27 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
         const modelSubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
         if (modelMatch.internalEvalResults && modelMatch.internalEvalResults.length > 0) {
           modelMatch.internalEvalResults.forEach((ie) => {
+            const markVal = (ie.modelMarks !== undefined && ie.modelMarks !== null && String(ie.modelMarks).trim() !== '')
+              ? ie.modelMarks
+              : ((ie.cie1Marks !== undefined && ie.cie1Marks !== null && String(ie.cie1Marks).trim() !== '')
+                ? ie.cie1Marks
+                : ie.cie2Marks);
             modelSubList.push({
               code: ie.code,
               title: ie.title,
-              mark: ie.modelMarks !== undefined ? ie.modelMarks : (ie.cie1Marks !== undefined ? ie.cie1Marks : ''),
+              mark: markVal !== undefined && markVal !== null ? String(markVal).trim() : '',
               sem: ie.sem,
             });
           });
         } else if (modelMatch.universityResults && modelMatch.universityResults.length > 0) {
           modelMatch.universityResults.forEach((ur) => {
+            const markVal = ur.mark !== undefined && ur.mark !== null && String(ur.mark).trim() !== ''
+              ? ur.mark
+              : (ur.grade || '');
             modelSubList.push({
               code: ur.code,
               title: ur.title,
-              mark: ur.mark !== undefined && ur.mark !== null && ur.mark !== '' ? ur.mark : (ur.grade !== undefined ? ur.grade : ''),
+              mark: String(markVal).trim(),
               sem: ur.sem,
             });
           });
@@ -351,15 +359,32 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             passFail: ms.mark !== '' ? (Number(ms.mark) >= 50 ? 'PASS' : 'FAIL') : '',
           }));
         } else {
-          student.internalEvalResults = student.internalEvalResults.map((ie) => {
-            const matchSub = modelSubList.find(
-              (mSub) => normalizeRegNo(mSub.code) === normalizeRegNo(ie.code)
+          student.internalEvalResults = student.internalEvalResults.map((ie, ieIdx) => {
+            // 3-Tier Matcher: Code match -> Title match -> Index-based fallback
+            let matchSub = modelSubList.find(
+              (mSub) => mSub.code && ie.code && normalizeRegNo(mSub.code) === normalizeRegNo(ie.code)
             );
+
+            if (!matchSub && ie.title) {
+              const cleanIeTitle = ie.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+              matchSub = modelSubList.find(
+                (mSub) => mSub.title && mSub.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === cleanIeTitle
+              );
+            }
+
+            if (!matchSub && ieIdx < modelSubList.length) {
+              matchSub = modelSubList[ieIdx];
+            }
+
             const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (modelSem || ie.sem || 'VI');
+            const modelVal = matchSub && matchSub.mark !== undefined && matchSub.mark !== null && String(matchSub.mark).trim() !== ''
+              ? String(matchSub.mark).trim()
+              : ie.modelMarks;
+
             return {
               ...ie,
               sem: itemSem,
-              modelMarks: matchSub ? matchSub.mark : ie.modelMarks,
+              modelMarks: modelVal,
             };
           });
         }
