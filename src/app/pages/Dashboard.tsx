@@ -146,49 +146,14 @@ export const Dashboard: React.FC = () => {
 
         setFileSlots(updatedSlots);
 
-        // Only run merge engine if mandatory University Result Excel is uploaded
-        if (updatedSlots.univ.file) {
-          const univList = updatedSlots.univ.students;
-          const cie1List = updatedSlots.cie1.students;
-          const cie2List = updatedSlots.cie2.students;
-          const modelList = updatedSlots.model.students;
+        // Clear preview state so reports are ONLY generated when user clicks RUN
+        setMergeResult(null);
+        setMergedStudents([]);
 
-          const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-          setMergeResult(res);
-          setMergedStudents(res.mergedStudents);
-          setCurrentPageIndex(0);
-
-          const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-          const acadYear = '2025 - 2026';
-          const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
-
-          setSummary({
-            fileName: file.name,
-            fileSize: sizeStr,
-            department: deptName,
-            academicYear: acadYear,
-            totalStudents: res.mergedStudents.length,
-            subjectsPerStudent: subCount,
-            reportsCount: res.mergedStudents.length,
-            templateUsed: res.templateFile,
-            uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-            status: 'Ready for Download',
-          });
-
-          setStats({
-            totalStudents: res.mergedStudents.length,
-            reportsGenerated: res.mergedStudents.length,
-            pdfPages: res.mergedStudents.length * 2,
-            department: deptName,
-            academicYear: acadYear,
-            uploadStatus: 'Success',
-          });
-
-          addToast('success', 'File Uploaded', `${file.name} parsed (${parsed.length} Students). Report preview loaded.`);
+        if (slotKey === 'univ') {
+          addToast('success', 'University Result Uploaded', `${file.name} parsed (${parsed.length} Students). Click RUN to generate reports.`);
         } else {
-          setMergeResult(null);
-          setMergedStudents([]);
-          addToast('info', 'File Saved', `${file.name} uploaded. Upload University Result Excel to generate reports.`);
+          addToast('info', 'Optional File Uploaded', `${file.name} saved (${parsed.length} Students).`);
         }
       } else {
         addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
@@ -215,41 +180,18 @@ export const Dashboard: React.FC = () => {
 
     setFileSlots(updatedSlots);
 
-    const univList = updatedSlots.univ.students;
-    const cie1List = updatedSlots.cie1.students;
-    const cie2List = updatedSlots.cie2.students;
-    const modelList = updatedSlots.model.students;
-
-    if (updatedSlots.univ.file) {
-      const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-      setMergeResult(res);
-      setMergedStudents(res.mergedStudents);
-      setCurrentPageIndex(0);
-
-      const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-      const acadYear = '2025 - 2026';
-
-      setStats({
-        totalStudents: res.mergedStudents.length,
-        reportsGenerated: res.mergedStudents.length,
-        pdfPages: res.mergedStudents.length * 2,
-        department: deptName,
-        academicYear: acadYear,
-        uploadStatus: 'Success',
-      });
-    } else {
-      setMergeResult(null);
-      setMergedStudents([]);
-      setSummary(null);
-      setStats({
-        totalStudents: 0,
-        reportsGenerated: 0,
-        pdfPages: 0,
-        department: 'N/A',
-        academicYear: '2025 - 2026',
-        uploadStatus: 'Awaiting Upload',
-      });
-    }
+    // Reset preview state until user clicks RUN again
+    setMergeResult(null);
+    setMergedStudents([]);
+    setSummary(null);
+    setStats({
+      totalStudents: 0,
+      reportsGenerated: 0,
+      pdfPages: 0,
+      department: 'N/A',
+      academicYear: '2025 - 2026',
+      uploadStatus: 'Awaiting Upload',
+    });
 
     addToast('info', 'File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
   };
