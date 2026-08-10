@@ -20,7 +20,8 @@ import { StudentRecord } from '../types';
 // Helper to fetch logo images as Uint8Array safely
 const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
   try {
-    const res = await fetch(url);
+    const fullUrl = typeof window !== 'undefined' && window.location ? new URL(url, window.location.origin).href : url;
+    const res = await fetch(fullUrl);
     if (res.ok) {
       const buf = await res.arrayBuffer();
       if (buf && buf.byteLength > 0) {
@@ -28,7 +29,7 @@ const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
       }
     }
   } catch (e) {
-    console.warn(`Failed to fetch logo from ${url}:`, e);
+    // Logo fetch failed, document will generate without embedded logo gracefully
   }
   return null;
 };
@@ -219,7 +220,9 @@ const buildStudentReportChildren = (
     })
   );
 
-  // Spacing
+  const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
+
+  // Spacing & Greetings
   children.push(
     new Paragraph({
       spacing: { before: 100, after: 40 },
@@ -233,30 +236,45 @@ const buildStudentReportChildren = (
     })
   );
 
-  // Context Paragraph & Regulation
-  children.push(
-    new Paragraph({
-      spacing: { before: 0, after: 60 },
-      children: [
-        new TextRun({
-          text: 'This is to inform you that the results of the Semester End Examination held during ',
-          font: 'Times New Roman',
-          size: 20, // 10pt
-        }),
-        new TextRun({
-          text: 'Nov/Dec',
-          bold: true,
-          font: 'Times New Roman',
-          size: 20,
-        }),
-        new TextRun({
-          text: ' 2025 have been released.',
-          font: 'Times New Roman',
-          size: 20,
-        }),
-      ],
-    })
-  );
+  if (hasUniv) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 0, after: 60 },
+        children: [
+          new TextRun({
+            text: 'This is to inform you that the results of the Semester End Examination held during ',
+            font: 'Times New Roman',
+            size: 20, // 10pt
+          }),
+          new TextRun({
+            text: 'Nov/Dec',
+            bold: true,
+            font: 'Times New Roman',
+            size: 20,
+          }),
+          new TextRun({
+            text: ' 2025 have been released.',
+            font: 'Times New Roman',
+            size: 20,
+          }),
+        ],
+      })
+    );
+  } else {
+    children.push(
+      new Paragraph({
+        spacing: { before: 0, after: 60 },
+        children: [
+          new TextRun({
+            text: 'Continuous Internal Evaluation Mark Report',
+            bold: true,
+            font: 'Times New Roman',
+            size: 20,
+          }),
+        ],
+      })
+    );
+  }
 
   children.push(
     new Paragraph({
@@ -272,56 +290,6 @@ const buildStudentReportChildren = (
       ],
     })
   );
-
-  const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
-
-  if (hasUniv) {
-    // Header line: This is to inform you that...
-    children.push(
-      new Paragraph({
-        spacing: { before: 40, after: 40 },
-        children: [
-          new TextRun({ text: 'Greetings from Jeppiaar Institute of Technology,', font: 'Times New Roman', size: 20 }),
-        ],
-      })
-    );
-
-    children.push(
-      new Paragraph({
-        spacing: { before: 0, after: 120 },
-        children: [
-          new TextRun({
-            text: 'This is to inform you that the results of the Semester End Examination held during Nov/Dec 2025 have been released.',
-            font: 'Times New Roman',
-            size: 20,
-          }),
-        ],
-      })
-    );
-  } else {
-    children.push(
-      new Paragraph({
-        spacing: { before: 40, after: 40 },
-        children: [
-          new TextRun({ text: 'Greetings from Jeppiaar Institute of Technology,', font: 'Times New Roman', size: 20 }),
-        ],
-      })
-    );
-
-    children.push(
-      new Paragraph({
-        spacing: { before: 0, after: 120 },
-        children: [
-          new TextRun({
-            text: 'Continuous Internal Evaluation Mark Report',
-            bold: true,
-            font: 'Times New Roman',
-            size: 20,
-          }),
-        ],
-      })
-    );
-  }
 
   // Table 1: Register Number & Student Name
   children.push(
@@ -473,21 +441,6 @@ const buildStudentReportChildren = (
       );
     }
 
-    // Helper to resolve numeric semester (1..7)
-    const getSemesterNumber = (semVal: any): number => {
-      if (!semVal) return 0;
-      const s = String(semVal).trim().toUpperCase();
-      if (/^(iv|4|04)$/i.test(s)) return 4;
-      if (/^(v|5|05)$/i.test(s)) return 5;
-      if (/^(vi|6|06)$/i.test(s)) return 6;
-      if (/^(vii|7|07)$/i.test(s)) return 7;
-      if (/^(iii|3|03)$/i.test(s)) return 3;
-      if (/^(ii|2|02)$/i.test(s)) return 2;
-      if (/^(i|1|01)$/i.test(s)) return 1;
-      const m = s.match(/([1-7])/);
-      return m ? parseInt(m[1], 10) : 0;
-    };
-
     const activeSemNum = getSemesterNumber(student.semester) ||
                          getSemesterNumber(student.universityResults?.[0]?.sem) ||
                          4;
@@ -544,6 +497,8 @@ const buildStudentReportChildren = (
   const hasModel = cieList.some((item) => item && item.modelMarks !== undefined && item.modelMarks !== null && String(item.modelMarks).trim() !== '');
 
   if (cieList.length > 0) {
+    const cieRows: TableRow[] = [];
+
     children.push(
       new Paragraph({
         spacing: { before: 140, after: 40 },
@@ -825,7 +780,7 @@ const buildStudentReportChildren = (
   const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
   children.push(
     new Paragraph({
-      alignment: AlignmentType.CENTER,
+      alignment: AlignmentType.LEFT,
       spacing: { before: 40, after: 40 },
       children: [new TextRun({ text: `The Class Counsellor, Department of ${deptStr},`, font: 'Times New Roman', size: 20 })],
     })

@@ -28,6 +28,7 @@ interface UploadSectionProps {
   onDownloadPDF: () => void;
   mergeResult: MergeEngineResult | null;
   isProcessing: boolean;
+  progressPercent?: number;
   regulation?: string;
   onRegulationChange?: (val: string) => void;
 }
@@ -41,6 +42,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
   onDownloadPDF,
   mergeResult,
   isProcessing,
+  progressPercent = 0,
   regulation = '2021',
   onRegulationChange,
 }) => {
@@ -82,19 +84,10 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
       {/* Main Combined Workflow Excel Upload Card */}
       <div className="bg-white rounded-2xl p-4.5 sm:p-5 shadow-sm border border-slate-200/90 hover:shadow-md transition-all duration-300">
         
-        {/* Section Header with Regulation Code on Top-Right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-md ring-4 ring-blue-50 shrink-0">
-              1
-            </div>
-            <h3 className="text-base font-black text-slate-950 tracking-tight font-poppins">
-              Upload Required Excel Files
-            </h3>
-          </div>
-
-          {/* Regulation Code Box placed at Top-Right */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/90 px-3 py-1 rounded-xl shadow-xs">
+        {/* Top Header Bar: Regulation Code on Left & GENERATE REPORT Button on Right */}
+        <div className="flex items-center justify-between gap-3 mb-4">
+          {/* Regulation Code Input placed on Top-Left */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <label className="text-xs font-extrabold text-slate-700">
               Regulation Code:
@@ -104,9 +97,41 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
               value={regulation}
               onChange={(e) => onRegulationChange && onRegulationChange(e.target.value)}
               placeholder="2021"
-              className="w-16 text-xs font-black font-mono px-2 py-0.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-center shadow-xs"
+              className="w-16 text-xs font-black font-mono px-2 py-0.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-center shadow-2xs"
             />
           </div>
+
+          {/* GENERATE REPORT Button placed on Top-Right */}
+          <button
+            type="button"
+            onClick={onRunMerge}
+            disabled={!isAnyFileUploaded || isProcessing}
+            title={
+              !isAnyFileUploaded
+                ? 'Upload at least one Excel file to enable Generate Report'
+                : isProcessing
+                ? 'Processing student reports...'
+                : 'Click to generate all student reports and preview'
+            }
+            className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+              !isAnyFileUploaded || isProcessing
+                ? 'bg-slate-200 text-slate-400 border border-slate-300/80 cursor-not-allowed opacity-60 shadow-none'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+            }`}
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                <span>GENERATE REPORT</span>
+              </>
+            ) : (
+              <>
+                <Layers className="w-3.5 h-3.5" />
+                <span>GENERATE REPORT</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
         </div>
 
         {/* 2 × 2 Desktop & Tablet Grid Layout */}
@@ -135,7 +160,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             const inputRef = getSlotRef(key);
             const isUploaded = slot.file !== null;
             const isDragging = dragOverSlot === key;
-            const isMandatory = key === 'univ';
 
             const slotLabel =
               key === 'univ'
@@ -147,14 +171,33 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 : 'Model Exam Excel';
 
             const slotBadgeText = key === 'univ' ? 'UNIV' : key === 'cie1' ? 'CIE 1' : key === 'cie2' ? 'CIE 2' : 'MODEL';
+            
             const badgeColor =
               key === 'univ'
-                ? 'bg-red-600 text-white'
+                ? 'bg-blue-600 text-white'
                 : key === 'cie1'
                 ? 'bg-teal-600 text-white'
                 : key === 'cie2'
                 ? 'bg-purple-600 text-white'
                 : 'bg-amber-500 text-white';
+
+            const btnColor =
+              key === 'univ'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : key === 'cie1'
+                ? 'bg-teal-600 hover:bg-teal-700'
+                : key === 'cie2'
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'bg-amber-600 hover:bg-amber-700';
+
+            const iconBgColor =
+              key === 'univ'
+                ? 'bg-blue-50 text-blue-600 group-hover/drop:bg-blue-600 group-hover/drop:text-white'
+                : key === 'cie1'
+                ? 'bg-teal-50 text-teal-600 group-hover/drop:bg-teal-600 group-hover/drop:text-white'
+                : key === 'cie2'
+                ? 'bg-purple-50 text-purple-600 group-hover/drop:bg-purple-600 group-hover/drop:text-white'
+                : 'bg-amber-50 text-amber-600 group-hover/drop:bg-amber-600 group-hover/drop:text-white';
 
             return (
               <div
@@ -164,8 +207,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                     ? 'border-emerald-400/90 bg-emerald-50/20'
                     : isDragging
                     ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-400/50'
-                    : isMandatory
-                    ? 'border-red-300/90 bg-gradient-to-b from-red-50/30 via-white to-red-50/10 hover:border-red-500 hover:shadow-red-100/50'
                     : 'border-slate-200/90 bg-white hover:border-blue-400'
                 }`}
               >
@@ -193,10 +234,6 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       Uploaded
                     </span>
-                  ) : isMandatory ? (
-                    <span className="inline-flex items-center text-[11px] font-black text-red-700 bg-red-100/90 px-2 py-0.5 rounded-full border border-red-200 shrink-0 shadow-xs">
-                      Required *
-                    </span>
                   ) : (
                     <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 shrink-0">
                       Optional
@@ -218,31 +255,19 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                         onFileUploadToSlot(key, e.dataTransfer.files[0]);
                       }
                     }}
-                    className={`flex-1 flex flex-col items-center justify-center text-center p-2.5 mt-2 border-2 border-dashed rounded-xl transition-all duration-200 group/drop cursor-pointer ${
-                      isMandatory
-                        ? 'border-red-200 bg-red-50/20 hover:border-red-500 hover:bg-red-50/30'
-                        : 'border-slate-200 bg-slate-50/40 hover:border-blue-500 hover:bg-blue-50/30'
-                    }`}
+                    className="flex-1 flex flex-col items-center justify-center text-center p-2.5 mt-2 border-2 border-dashed rounded-xl transition-all duration-200 group/drop cursor-pointer border-slate-200 bg-slate-50/40 hover:border-blue-500 hover:bg-blue-50/30"
                   >
-                    <div className={`w-8 h-8 mx-auto mb-1 rounded-xl flex items-center justify-center transition-all duration-200 shadow-xs ${
-                      isMandatory
-                        ? 'bg-red-100 text-red-600 group-hover/drop:scale-105 group-hover/drop:bg-red-600 group-hover/drop:text-white'
-                        : 'bg-blue-50 text-blue-600 group-hover/drop:scale-105 group-hover/drop:bg-blue-600 group-hover/drop:text-white'
-                    }`}>
+                    <div className={`w-8 h-8 mx-auto mb-1 rounded-xl flex items-center justify-center transition-all duration-200 shadow-xs ${iconBgColor}`}>
                       <FileSpreadsheet className="w-4.5 h-4.5" />
                     </div>
 
-                    <p className={`text-xs font-black transition-colors ${
-                      isMandatory ? 'text-red-950 group-hover/drop:text-red-700' : 'text-slate-800 group-hover/drop:text-blue-600'
-                    }`}>
+                    <p className="text-xs font-black transition-colors text-slate-800 group-hover/drop:text-blue-600">
                       {isDragging ? 'Drop Excel File Here' : 'Drag & Drop Excel File Here'}
                     </p>
 
                     <button
                       type="button"
-                      className={`mt-1.5 text-[11px] font-black text-white px-3 py-1 rounded-xl shadow-sm transition-all duration-200 inline-flex items-center gap-1.5 tracking-wide ${
-                        isMandatory ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
+                      className={`mt-1.5 text-[11px] font-black text-white px-3 py-1 rounded-xl shadow-sm transition-all duration-200 inline-flex items-center gap-1.5 tracking-wide ${btnColor}`}
                     >
                       Choose Excel File
                     </button>
@@ -285,42 +310,27 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           })}
         </div>
 
-        {/* RUN Button Section (Above Download Buttons) */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 flex justify-end">
-          <button
-            type="button"
-            onClick={onRunMerge}
-            disabled={!isAnyFileUploaded || isProcessing}
-            title={
-              !isAnyFileUploaded
-                ? 'Upload at least one Excel file to enable RUN button'
-                : isProcessing
-                ? 'Processing student reports...'
-                : 'Click to generate all student reports and preview'
-            }
-            className={`px-7 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-2 ${
-              !isAnyFileUploaded || isProcessing
-                ? 'bg-slate-200 text-slate-400 border border-slate-300/80 cursor-not-allowed opacity-60 shadow-none'
-                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
-            }`}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-                <span>Processing...</span>
-              </>
-            ) : (
-              <>
-                <Layers className="w-4 h-4" />
-                <span>RUN</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </div>
+        {/* Real-time Inline Progress Bar directly above Download Buttons */}
+        {isProcessing && (
+          <div className="mt-3.5 pt-3.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-xs font-mono font-black text-slate-700 mb-1.5">
+              <span className="flex items-center gap-1.5 text-blue-600">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Generating Reports</span>
+              </span>
+              <span className="text-blue-700 font-extrabold">{progressPercent || 0}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/90 shadow-inner">
+              <div
+                className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 rounded-full transition-all duration-150 ease-out shadow-xs"
+                style={{ width: `${progressPercent || 0}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Integrated Side-by-Side Word & PDF Download Buttons */}
-        <div className="mt-3.5 pt-3.5 border-t border-slate-100 flex flex-row gap-3">
+        <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-row gap-3">
           {/* Word Download Button */}
           <button
             type="button"

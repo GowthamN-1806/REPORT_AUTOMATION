@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { StatsGrid } from '../components/StatsGrid';
 import { UploadSection } from '../components/UploadSection';
 import { AcrobatDocumentViewer } from '../components/AcrobatDocumentViewer';
 import { Footer } from '../components/Footer';
-import { ProcessingModal } from '../components/ProcessingModal';
-import { ToastContainer, ToastMessage } from '../components/Toast';
 import { StudentRecord, UploadSummary, SystemStats, ResultPattern, UploadedFileSlotInfo } from '../types';
 import { parseExcelFile } from '../utils/excelParser';
 import { generateCombinedWordDocument } from '../utils/docGenerator';
@@ -69,9 +66,10 @@ export const Dashboard: React.FC = () => {
     },
   });
 
-  // Merged Dataset State
+  // Merged Dataset & Synchronized Preview State
   const [mergeResult, setMergeResult] = useState<MergeEngineResult | null>(null);
   const [mergedStudents, setMergedStudents] = useState<StudentRecord[]>([]);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
 
   const [summary, setSummary] = useState<UploadSummary | null>(null);
@@ -99,31 +97,9 @@ export const Dashboard: React.FC = () => {
   const [totalCount, setTotalCount] = useState<number>(0);
   const [progressPercent, setProgressPercent] = useState<number>(0);
 
-  // Toasts
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  const addToast = (type: 'success' | 'error' | 'info', title: string, message: string) => {
-    const newToast: ToastMessage = {
-      id: `toast-${Date.now()}-${Math.random()}`,
-      type,
-      title,
-      message,
-    };
-    setToasts((prev) => [...prev, newToast]);
-
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
-    }, 4500);
-  };
-
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
   // Upload File to Specific Slot
   const handleSlotFileUpload = async (slotKey: 'univ' | 'cie1' | 'cie2' | 'model', file: File) => {
     try {
-      addToast('info', 'Reading Excel...', `Parsing ${file.name}`);
       const parsed = await parseExcelFile(file);
 
       if (parsed && parsed.length > 0) {
@@ -147,7 +123,7 @@ export const Dashboard: React.FC = () => {
         setFileSlots(updatedSlots);
 
         if (mergedStudents.length > 0) {
-          // If Live Preview is ALREADY active, re-merge dataset to update Live Preview with new file
+          // If Preview is ALREADY active, re-merge dataset to update Preview with new file
           const univList = updatedSlots.univ.students;
           const cie1List = updatedSlots.cie1.students;
           const cie2List = updatedSlots.cie2.students;
@@ -156,13 +132,16 @@ export const Dashboard: React.FC = () => {
           const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
           setMergeResult(res);
           setMergedStudents(res.mergedStudents);
+
+          // Synchronously update the PDF preview
+          const updatedPdfUrl = await generateCombinedPDF(res.mergedStudents, null, undefined, regulation, true);
+          if (typeof updatedPdfUrl === 'string') {
+            setPreviewPdfUrl(updatedPdfUrl);
+          }
         }
-        addToast('success', `${newSlotData.label} Uploaded`, `${file.name} parsed (${parsed.length} Students). Click RUN or continue uploading.`);
-      } else {
-        addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
       }
     } catch (err: any) {
-      addToast('error', 'Upload Failed', typeof err === 'string' ? err : err?.message || 'Failed to read Excel file.');
+      console.error('File upload parsing error:', err);
     }
   };
 
@@ -189,6 +168,7 @@ export const Dashboard: React.FC = () => {
       // Reset application state completely ONLY if ALL files are deleted
       setMergeResult(null);
       setMergedStudents([]);
+      setPreviewPdfUrl(null);
       setSummary(null);
       setTotalCount(0);
       setStats({
@@ -199,7 +179,6 @@ export const Dashboard: React.FC = () => {
         academicYear: '2025 - 2026',
         uploadStatus: 'Awaiting Upload',
       });
-      addToast('info', 'File Removed', 'All Excel files cleared. Reset to initial state.');
     } else {
       // If at least one file remains and preview is active, re-merge remaining files dynamically
       if (mergedStudents.length > 0) {
@@ -217,8 +196,8 @@ export const Dashboard: React.FC = () => {
         const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
 
         setSummary({
-          fileName: updatedSlots.univ.name || 'Merged_Results.xlsx',
-          fileSize: updatedSlots.univ.size || '120 KB',
+          fileName: updatedSlots.univ.name || updatedSlots.cie1.name || updatedSlots.cie2.name || updatedSlots.model.name || 'Merged_Results.xlsx',
+          fileSize: updatedSlots.univ.size || updatedSlots.cie1.size || updatedSlots.cie2.size || updatedSlots.model.size || '120 KB',
           department: deptName,
           academicYear: acadYear,
           totalStudents: res.mergedStudents.length,
@@ -237,49 +216,61 @@ export const Dashboard: React.FC = () => {
           academicYear: acadYear,
           uploadStatus: 'Success',
         });
-      }
 
-      addToast('info', 'Optional File Removed', `Cleared ${slotKey.toUpperCase()} Excel slot.`);
+        generateCombinedPDF(res.mergedStudents, null, undefined, regulation, true).then((url) => {
+          if (typeof url === 'string') {
+            setPreviewPdfUrl(url);
+          }
+        });
+      }
     }
   };
 
-  // Run Excel Merge Engine
+  // Run Excel Merge Engine & Synchronize Real PDF Generation
   const handleRunMerge = async () => {
-    if (!fileSlots.univ.file) {
-      addToast('error', 'Mandatory File Missing', 'University Result Excel file is mandatory! Please upload University Result Excel.');
+    const hasAnyFile = Boolean(fileSlots.univ.file || fileSlots.cie1.file || fileSlots.cie2.file || fileSlots.model.file);
+    if (!hasAnyFile) {
       return;
     }
 
     const univList = fileSlots.univ.students;
-    const actualStudentCount = univList.length;
+    const cie1List = fileSlots.cie1.students;
+    const cie2List = fileSlots.cie2.students;
+    const modelList = fileSlots.model.students;
+    const actualStudentCount = Math.max(univList.length, cie1List.length, cie2List.length, modelList.length);
 
     setIsProcessing(true);
     setTotalCount(actualStudentCount);
     setProcessedCount(0);
-    setStepMessage('Initializing Excel Merge Engine...');
-    setProgressPercent(10);
-
-    await new Promise((r) => setTimeout(r, 250));
-    setProcessedCount(Math.round(actualStudentCount * 0.35));
-    setProgressPercent(40);
-    setStepMessage(`Matching ${actualStudentCount} student records...`);
-
-    const cie1List = fileSlots.cie1.students;
-    const cie2List = fileSlots.cie2.students;
-    const modelList = fileSlots.model.students;
+    setStepMessage('Matching student records & grading matrices...');
+    setProgressPercent(15);
 
     const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
 
-    await new Promise((r) => setTimeout(r, 350));
-    setProcessedCount(Math.round(actualStudentCount * 0.85));
-    setProgressPercent(80);
-    setStepMessage(`Generating report layouts for ${res.mergedStudents.length} students...`);
+    setStepMessage(`Generating official report pages for ${res.mergedStudents.length} students...`);
+    setProgressPercent(25);
 
-    await new Promise((r) => setTimeout(r, 200));
-    setProcessedCount(res.mergedStudents.length);
+    // Generate the complete PDF preview directly during the progress bar with real-time feedback
+    const generatedPdfBlobUrl = await generateCombinedPDF(
+      res.mergedStudents,
+      null,
+      (current, total) => {
+        setProcessedCount(current);
+        const calculatedPercent = 25 + Math.round((current / total) * 70);
+        setProgressPercent(calculatedPercent);
+        setStepMessage(`Compiling report ${current} of ${total}...`);
+      },
+      regulation,
+      true
+    );
+
     setProgressPercent(100);
-    setIsProcessing(false);
+    setStepMessage('Reports generated successfully!');
+    await new Promise((r) => setTimeout(r, 120));
 
+    if (typeof generatedPdfBlobUrl === 'string') {
+      setPreviewPdfUrl(generatedPdfBlobUrl);
+    }
     setMergeResult(res);
     setMergedStudents(res.mergedStudents);
     setCurrentPageIndex(0);
@@ -310,13 +301,7 @@ export const Dashboard: React.FC = () => {
       uploadStatus: 'Success',
     });
 
-    addToast('success', 'Excel Files Merged!', `Unified ${res.mergedStudents.length} student records into template ${res.templateFile}.`);
-
-    confetti({
-      particleCount: 50,
-      spread: 60,
-      origin: { y: 0.8 },
-    });
+    setIsProcessing(false);
   };
 
   // Load Demo Data
@@ -330,13 +315,11 @@ export const Dashboard: React.FC = () => {
     setMergedStudents((prev) =>
       prev.map((s) => (s.id === updatedStudent.id || s.regNo === updatedStudent.regNo ? updatedStudent : s))
     );
-    addToast('success', 'Student Updated', `Saved in-memory changes for ${updatedStudent.name} (${updatedStudent.regNo}).`);
   };
 
   // Document Generation Handler
   const handleGenerateDocuments = async () => {
     if (!mergedStudents || mergedStudents.length === 0) {
-      addToast('error', 'No Merged Data', 'Please merge Excel files first.');
       return;
     }
 
@@ -353,49 +336,40 @@ export const Dashboard: React.FC = () => {
       const pct = 20 + Math.round((current / total) * 70);
       setProgressPercent(pct);
       setStepMessage(`Generating Result Letters for Student ${current} / ${total}...`);
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 80));
     }
 
     setProgressPercent(100);
     setStepMessage('Result Letters Generated!');
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 120));
 
     setIsProcessing(false);
-    addToast('success', 'Generation Complete', `Generated result letters for ${mergedStudents.length} students.`);
   };
 
   // Download Word
   const handleDownloadWord = async () => {
     if (!mergedStudents || mergedStudents.length === 0) {
-      addToast('error', 'No Merged Reports', 'Please merge Excel files first.');
       return;
     }
     try {
-      addToast('info', 'Word Download Started', `Generating Word (.docx) for ${mergedStudents.length} student reports...`);
       const targetTemplate = mergeResult?.templateFile || getTemplateForPattern(selectedPattern);
       await generateCombinedWordDocument(mergedStudents, targetTemplate, regulation);
-      addToast('success', 'Word Document Ready', `JEPPIAAR_IT_Mark_Reports_${selectedPattern.toUpperCase()}.docx downloaded.`);
     } catch (err: any) {
-      addToast('error', 'Download Failed', 'Could not create Word document.');
+      console.error('Word download failed:', err);
     }
   };
 
   // Download PDF
   const handleDownloadPDF = async () => {
     if (!mergedStudents || mergedStudents.length === 0) {
-      addToast('error', 'No Merged Reports', 'Please merge Excel files first.');
       return;
     }
     try {
-      addToast('info', 'PDF Download Started', `Generating PDF (.pdf) for ${mergedStudents.length} student reports...`);
       await generateCombinedPDF(mergedStudents, null, undefined, regulation);
-      addToast('success', 'PDF Document Ready', `JEPPIAAR_IT_Mark_Reports_${selectedPattern.toUpperCase()}.pdf downloaded.`);
     } catch (err: any) {
-      addToast('error', 'Download Failed', 'Could not generate PDF document.');
+      console.error('PDF download failed:', err);
     }
   };
-
-  const isMergedReady = mergeResult && mergeResult.isReadyForPreview && mergedStudents.length > 0;
 
   return (
     <div className="min-h-screen bg-[#F7FAFF] text-slate-800 pb-8 font-sans selection:bg-blue-500 selection:text-white">
@@ -406,11 +380,11 @@ export const Dashboard: React.FC = () => {
       {/* Top Statistics Bar (4 Cards Grid) */}
       <StatsGrid stats={stats} isProcessing={isProcessing} />
 
-      {/* Main Content */}
+      {/* Main Content: Persistent Split-Screen Layout (Upload Left / Preview Right) */}
       <main className="max-w-[1600px] mx-auto px-6 mb-8">
-        {!isMergedReady ? (
-          /* Centered Upload Section before Excel files are merged */
-          <div className="max-w-4xl mx-auto py-4">
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+          {/* Left Controls & File Upload Slots Column (42% width) */}
+          <div className="w-full lg:w-[42%] shrink-0">
             <UploadSection
               selectedPattern={selectedPattern}
               onPatternSelect={(pat) => {
@@ -428,66 +402,29 @@ export const Dashboard: React.FC = () => {
               onDownloadPDF={handleDownloadPDF}
               mergeResult={mergeResult}
               isProcessing={isProcessing}
+              progressPercent={progressPercent}
               regulation={regulation}
               onRegulationChange={handleRegulationChange}
             />
           </div>
-        ) : (
-          /* Split Screen Layout (42% Left / 58% Right) after Excel files are merged */
-          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            {/* Left Controls & File Upload Slots Column (42% width for full readability) */}
-            <div className="w-full lg:w-[42%] shrink-0">
-              <UploadSection
-                selectedPattern={selectedPattern}
-                onPatternSelect={(pat) => {
-                  setSelectedPattern(pat);
-                  setMergeResult(null);
-                }}
-                fileSlots={fileSlots}
-                onFileUploadToSlot={handleSlotFileUpload}
-                onRemoveSlotFile={handleSlotFileRemove}
-                onLoadSampleData={handleLoadSampleData}
-                onDownloadSampleTemplate={handleDownloadSampleTemplate}
-                onRunMerge={handleRunMerge}
-                onGenerateDocuments={handleGenerateDocuments}
-                onDownloadWord={handleDownloadWord}
-                onDownloadPDF={handleDownloadPDF}
-                mergeResult={mergeResult}
-                isProcessing={isProcessing}
-                regulation={regulation}
-                onRegulationChange={handleRegulationChange}
-              />
-            </div>
 
-            {/* Right Live Preview & Student Record Editor Column (58% width) */}
-            <div className="w-full lg:w-[58%] flex-1 min-w-0">
-              <AcrobatDocumentViewer
-                students={mergedStudents}
-                currentPageIndex={currentPageIndex}
-                onPageChange={(idx) => setCurrentPageIndex(idx)}
-                regulation={regulation}
-                onUpdateStudent={handleUpdateStudent}
-                activeTemplate={mergeResult?.templateFile || getTemplateForPattern(selectedPattern)}
-              />
-            </div>
+          {/* Right Preview & Student Record Editor Column (58% width) */}
+          <div className="w-full lg:w-[58%] flex-1 min-w-0">
+            <AcrobatDocumentViewer
+              students={mergedStudents}
+              currentPageIndex={currentPageIndex}
+              onPageChange={(idx) => setCurrentPageIndex(idx)}
+              regulation={regulation}
+              onUpdateStudent={handleUpdateStudent}
+              activeTemplate={mergeResult?.templateFile || getTemplateForPattern(selectedPattern)}
+              pdfUrl={previewPdfUrl}
+            />
           </div>
-        )}
+        </div>
       </main>
 
       {/* Footer */}
       <Footer />
-
-      {/* Processing Modal Dialog */}
-      <ProcessingModal
-        isOpen={isProcessing}
-        stepMessage={stepMessage}
-        processedCount={processedCount}
-        totalCount={totalCount}
-        progressPercent={progressPercent}
-      />
-
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
     </div>
   );

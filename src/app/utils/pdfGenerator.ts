@@ -501,14 +501,14 @@ export const generateCombinedPDF = async (
     pdf.setTextColor(15, 23, 42);
     pdf.text('ACKNOWLEDGEMENT', pageWidth / 2, p2Y, { align: 'center' });
 
-    p2Y += 22;
+    p2Y += 20;
     pdf.setFont('times', 'normal');
     pdf.setFontSize(10.5);
     pdf.text('To', margin, p2Y);
 
-    p2Y += 16;
+    p2Y += 15;
     const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
-    pdf.text(`The Class Counsellor, Department of ${deptStr},`, pageWidth / 2, p2Y, { align: 'center' });
+    pdf.text(`The Class Counsellor, Department of ${deptStr},`, margin, p2Y);
 
     // Helper to render a justified line of text segments across contentWidth
     const renderJustifiedLine = (
