@@ -72,8 +72,8 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
 
   const allSlotKeys: ('univ' | 'cie1' | 'cie2' | 'model')[] = ['univ', 'cie1', 'cie2', 'model'];
 
-  // RUN button is enabled immediately when required University Result Excel is uploaded
-  const isUnivUploaded = !!fileSlots.univ?.file;
+  // RUN button is enabled immediately when AT LEAST ONE Excel file is uploaded
+  const isAnyFileUploaded = Boolean(fileSlots.univ?.file || fileSlots.cie1?.file || fileSlots.cie2?.file || fileSlots.model?.file);
   // Downloads are enabled once merge engine runs and generates preview
   const isReadyToDownload = mergeResult && mergeResult.isReadyForPreview;
 
@@ -290,16 +290,16 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
           <button
             type="button"
             onClick={onRunMerge}
-            disabled={!isUnivUploaded || isProcessing}
+            disabled={!isAnyFileUploaded || isProcessing}
             title={
-              !isUnivUploaded
-                ? 'Upload University Result Excel to enable RUN button'
+              !isAnyFileUploaded
+                ? 'Upload at least one Excel file to enable RUN button'
                 : isProcessing
                 ? 'Processing student reports...'
                 : 'Click to generate all student reports and preview'
             }
             className={`px-7 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-2 ${
-              !isUnivUploaded || isProcessing
+              !isAnyFileUploaded || isProcessing
                 ? 'bg-slate-200 text-slate-400 border border-slate-300/80 cursor-not-allowed opacity-60 shadow-none'
                 : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
             }`}

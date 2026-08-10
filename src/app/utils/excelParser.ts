@@ -964,16 +964,21 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
               titleStr = resolveSubjectTitle(codeStr, titleStr);
 
-              const passFail = evaluatePassFail(passStr, modelMarksStr || cie1MarksStr || cie2MarksStr);
+              const cie1Pf = evaluatePassFail(passStr, cie1MarksStr);
+              const cie2Pf = evaluatePassFail(passStr, cie2MarksStr);
+              const modelPf = evaluatePassFail(passStr, modelMarksStr);
 
               internalEvalResults.push({
                 sem: semStr || extractedSemester || 'VI',
                 code: codeStr,
                 title: titleStr,
                 cie1Marks: cie1MarksStr,
+                cie1PassFail: cie1Pf,
                 cie2Marks: cie2MarksStr,
+                cie2PassFail: cie2Pf,
                 modelMarks: modelMarksStr,
-                passFail,
+                modelPassFail: modelPf,
+                passFail: modelPf || cie2Pf || cie1Pf,
               });
             });
           }

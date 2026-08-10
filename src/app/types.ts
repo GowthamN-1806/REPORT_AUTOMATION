@@ -14,9 +14,12 @@ export interface InternalEvalResult {
   code: string;
   title: string;
   cie1Marks?: number | string;
+  cie1PassFail?: 'PASS' | 'FAIL' | '';
   cie2Marks?: number | string;
+  cie2PassFail?: 'PASS' | 'FAIL' | '';
   modelMarks?: number | string;
-  passFail: 'PASS' | 'FAIL' | '';
+  modelPassFail?: 'PASS' | 'FAIL' | '';
+  passFail?: 'PASS' | 'FAIL' | '';
 }
 
 export interface StudentRecord {

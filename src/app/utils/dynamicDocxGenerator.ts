@@ -13,6 +13,7 @@ import {
   ImageRun,
   TableBorders,
   VerticalAlign,
+  VerticalMergeType,
 } from 'docx';
 import { StudentRecord } from '../types';
 
@@ -272,6 +273,56 @@ const buildStudentReportChildren = (
     })
   );
 
+  const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
+
+  if (hasUniv) {
+    // Header line: This is to inform you that...
+    children.push(
+      new Paragraph({
+        spacing: { before: 40, after: 40 },
+        children: [
+          new TextRun({ text: 'Greetings from Jeppiaar Institute of Technology,', font: 'Times New Roman', size: 20 }),
+        ],
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        spacing: { before: 0, after: 120 },
+        children: [
+          new TextRun({
+            text: 'This is to inform you that the results of the Semester End Examination held during Nov/Dec 2025 have been released.',
+            font: 'Times New Roman',
+            size: 20,
+          }),
+        ],
+      })
+    );
+  } else {
+    children.push(
+      new Paragraph({
+        spacing: { before: 40, after: 40 },
+        children: [
+          new TextRun({ text: 'Greetings from Jeppiaar Institute of Technology,', font: 'Times New Roman', size: 20 }),
+        ],
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        spacing: { before: 0, after: 120 },
+        children: [
+          new TextRun({
+            text: 'Continuous Internal Evaluation Mark Report',
+            bold: true,
+            font: 'Times New Roman',
+            size: 20,
+          }),
+        ],
+      })
+    );
+  }
+
   // Table 1: Register Number & Student Name
   children.push(
     new Table({
@@ -328,155 +379,163 @@ const buildStudentReportChildren = (
 
   children.push(new Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
 
-  // Table 2: University Results Table
-  const univList = student.universityResults || [];
-  const univRows: TableRow[] = [];
+  if (hasUniv) {
+    // Table 2: University Results Table
+    const univList = student.universityResults || [];
+    const univRows: TableRow[] = [];
 
-  // Header Row
-  univRows.push(
-    new TableRow({
-      children: [
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Semester', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-        new TableCell({ width: { size: 1800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Subject Code', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-        new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'Subject Name', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Grade', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-      ],
-    })
-  );
-
-  univList.forEach((item) => {
+    // Header Row
     univRows.push(
       new TableRow({
         children: [
-          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.sem || 'IV', font: 'Times New Roman', size: 19 })] })] }),
-          new TableCell({ width: { size: 1800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.code || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-          new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: item.title || '', font: 'Times New Roman', size: 19 })] })] }),
-          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.grade || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.passFail || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
+          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Semester', bold: true, font: 'Times New Roman', size: 20 })] })] }),
+          new TableCell({ width: { size: 1800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Subject Code', bold: true, font: 'Times New Roman', size: 20 })] })] }),
+          new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'Subject Name', bold: true, font: 'Times New Roman', size: 20 })] })] }),
+          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Grade', bold: true, font: 'Times New Roman', size: 20 })] })] }),
+          new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 20 })] })] }),
         ],
       })
     );
-  });
 
-  children.push(
-    new Table({
-      width: { size: 9400, type: WidthType.DXA },
-      borders: thinBorders,
-      rows: univRows,
-    })
-  );
+    univList.forEach((item) => {
+      univRows.push(
+        new TableRow({
+          children: [
+            new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.sem || 'IV', font: 'Times New Roman', size: 19 })] })] }),
+            new TableCell({ width: { size: 1800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.code || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
+            new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: item.title || '', font: 'Times New Roman', size: 19 })] })] }),
+            new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.grade || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
+            new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.passFail || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
+          ],
+        })
+      );
+    });
 
-  // Section Header: University Results & GPA Matrix
-  children.push(
-    new Paragraph({
-      spacing: { before: 120, after: 40 },
-      children: [
-        new TextRun({
-          text: 'Nov/Dec 2025 University Results:-',
-          bold: true,
-          font: 'Times New Roman',
-          size: 21,
-        }),
-      ],
-    })
-  );
+    children.push(
+      new Table({
+        width: { size: 9400, type: WidthType.DXA },
+        borders: thinBorders,
+        rows: univRows,
+      })
+    );
 
-  children.push(
-    new Paragraph({
-      spacing: { before: 0, after: 60 },
-      children: [
-        new TextRun({
-          text: 'GPA/CGPA:-',
-          bold: true,
-          font: 'Times New Roman',
-          size: 21,
-        }),
-      ],
-    })
-  );
+    children.push(new Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
 
-  // Table 3: GPA & CGPA Summary Matrix Table
-  const activeSemNum = getSemesterNumber(student.semester) ||
-                       getSemesterNumber(student.universityResults?.[0]?.sem) ||
-                       4;
+    // Headers for Matrix Table
+    children.push(
+      new Paragraph({
+        spacing: { before: 80, after: 40 },
+        children: [
+          new TextRun({
+            text: 'Nov/Dec 2025 University Results:-',
+            bold: true,
+            font: 'Times New Roman',
+            size: 21,
+          }),
+        ],
+      })
+    );
 
-  const matrixColsW = [2400, 1000, 1000, 1000, 1000, 1000, 1000, 1000];
+    children.push(
+      new Paragraph({
+        spacing: { before: 40, after: 60 },
+        children: [
+          new TextRun({
+            text: 'GPA/CGPA:-',
+            bold: true,
+            font: 'Times New Roman',
+            size: 21,
+          }),
+        ],
+      })
+    );
 
-  // Header Row: SEMESTER | 01 | 02 | 03 | 04 | 05 | 06 | 07
-  const mHeadCells: TableCell[] = [
-    new TableCell({ width: { size: matrixColsW[0], type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'SEMESTER', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-  ];
-  for (let c = 1; c <= 7; c++) {
-    mHeadCells.push(
-      new TableCell({
-        width: { size: matrixColsW[c], type: WidthType.DXA },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `0${c}`, bold: true, font: 'Times New Roman', size: 20 })] })],
+    // Table 3: Matrix Table (SEMESTER, ARREARS, GPA, CGPA, CLASS OBTAINED)
+    // Header Row: SEMESTER | 01 | 02 | 03 | 04 | 05 | 06 | 07
+    const mHeadCells: TableCell[] = [
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'SEMESTER', bold: true, font: 'Times New Roman', size: 18 })] })] }),
+    ];
+    for (let c = 1; c <= 7; c++) {
+      mHeadCells.push(
+        new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `0${c}`, bold: true, font: 'Times New Roman', size: 18 })] })] })
+      );
+    }
+
+    // Row 1: ARREARS
+    const arrCells: TableCell[] = [
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'ARREARS', bold: true, font: 'Times New Roman', size: 18 })] })] }),
+    ];
+    for (let c = 1; c <= 7; c++) {
+      const semKey = `0${c}`;
+      const arrVal = getSemValue(student.arrears, semKey, '');
+      arrCells.push(
+        new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(arrVal), font: 'Times New Roman', size: 18 })] })] })
+      );
+    }
+
+    // Helper to resolve numeric semester (1..7)
+    const getSemesterNumber = (semVal: any): number => {
+      if (!semVal) return 0;
+      const s = String(semVal).trim().toUpperCase();
+      if (/^(iv|4|04)$/i.test(s)) return 4;
+      if (/^(v|5|05)$/i.test(s)) return 5;
+      if (/^(vi|6|06)$/i.test(s)) return 6;
+      if (/^(vii|7|07)$/i.test(s)) return 7;
+      if (/^(iii|3|03)$/i.test(s)) return 3;
+      if (/^(ii|2|02)$/i.test(s)) return 2;
+      if (/^(i|1|01)$/i.test(s)) return 1;
+      const m = s.match(/([1-7])/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    const activeSemNum = getSemesterNumber(student.semester) ||
+                         getSemesterNumber(student.universityResults?.[0]?.sem) ||
+                         4;
+
+    // Row 2: GPA
+    const gpaCells: TableCell[] = [
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'GPA', bold: true, font: 'Times New Roman', size: 18 })] })] }),
+    ];
+    for (let c = 1; c <= 7; c++) {
+      const semKey = `0${c}`;
+      const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
+      gpaCells.push(
+        new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(gpaVal), font: 'Times New Roman', size: 18 })] })] })
+      );
+    }
+
+    // Row 3: CGPA
+    const cgpaCells: TableCell[] = [
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'CGPA', bold: true, font: 'Times New Roman', size: 18 })] })] }),
+    ];
+    for (let c = 1; c <= 7; c++) {
+      const semKey = `0${c}`;
+      const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
+      cgpaCells.push(
+        new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(cgpaVal), font: 'Times New Roman', size: 18 })] })] })
+      );
+    }
+
+    // Row 4: CLASS OBTAINED
+    const classRowCells: TableCell[] = [
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'CLASS OBTAINED', bold: true, font: 'Times New Roman', size: 18 })] })] }),
+      new TableCell({ width: { size: 7000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: student.classObtained || '', font: 'Times New Roman', size: 20 })] })] }),
+    ];
+
+    children.push(
+      new Table({
+        width: { size: 9400, type: WidthType.DXA },
+        borders: thinBorders,
+        rows: [
+          new TableRow({ children: mHeadCells }),
+          new TableRow({ children: arrCells }),
+          new TableRow({ children: gpaCells }),
+          new TableRow({ children: cgpaCells }),
+          new TableRow({ children: classRowCells }),
+        ],
       })
     );
   }
-
-  // Row 1: ARREARS
-  const arrCells: TableCell[] = [
-    new TableCell({ width: { size: matrixColsW[0], type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'ARREARS', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-  ];
-  for (let c = 1; c <= 7; c++) {
-    const val = getSemValue(student.arrears, `0${c}`, '');
-    arrCells.push(
-      new TableCell({
-        width: { size: matrixColsW[c], type: WidthType.DXA },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(val), font: 'Times New Roman', size: 19 })] })],
-      })
-    );
-  }
-
-  // Row 2: GPA
-  const gpaCells: TableCell[] = [
-    new TableCell({ width: { size: matrixColsW[0], type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'GPA', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-  ];
-  for (let c = 1; c <= 7; c++) {
-    const val = getSemValue(student.gpaBySem, `0${c}`, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
-    gpaCells.push(
-      new TableCell({
-        width: { size: matrixColsW[c], type: WidthType.DXA },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(val), font: 'Times New Roman', size: 19 })] })],
-      })
-    );
-  }
-
-  // Row 3: CGPA
-  const cgpaCells: TableCell[] = [
-    new TableCell({ width: { size: matrixColsW[0], type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'CGPA', bold: true, font: 'Times New Roman', size: 20 })] })] }),
-  ];
-  for (let c = 1; c <= 7; c++) {
-    const val = getSemValue(student.cgpaBySem, `0${c}`, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
-    cgpaCells.push(
-      new TableCell({
-        width: { size: matrixColsW[c], type: WidthType.DXA },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(val), font: 'Times New Roman', size: 19 })] })],
-      })
-    );
-  }
-
-  // Row 4: CLASS OBTAINED
-  const classRowCells: TableCell[] = [
-    new TableCell({ width: { size: 2400, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: 'CLASS OBTAINED', bold: true, font: 'Times New Roman', size: 18 })] })] }),
-    new TableCell({ width: { size: 7000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: student.classObtained || '', font: 'Times New Roman', size: 20 })] })] }),
-  ];
-
-  children.push(
-    new Table({
-      width: { size: 9400, type: WidthType.DXA },
-      borders: thinBorders,
-      rows: [
-        new TableRow({ children: mHeadCells }),
-        new TableRow({ children: arrCells }),
-        new TableRow({ children: gpaCells }),
-        new TableRow({ children: cgpaCells }),
-        new TableRow({ children: classRowCells }),
-      ],
-    })
-  );
 
   // Table 4: Internal Evaluation Marks Table
   const cieList = student.internalEvalResults || [];
@@ -501,56 +560,179 @@ const buildStudentReportChildren = (
 
     // Build dynamic columns list based exclusively on uploaded exam data
     interface DynamicDocxCol {
-      id: 'sem' | 'code' | 'title' | 'cie1' | 'cie2' | 'model' | 'passFail';
+      id: 'sem' | 'code' | 'title' | 'cie1' | 'cie1Pf' | 'cie2' | 'cie2Pf' | 'model' | 'modelPf' | 'passFail';
       header: string;
       width: number;
       align: AlignmentType;
     }
 
     const activeDocxCols: DynamicDocxCol[] = [
-      { id: 'sem', header: 'Semester', width: 1100, align: AlignmentType.CENTER },
-      { id: 'code', header: 'Subject Code', width: 1500, align: AlignmentType.CENTER },
+      { id: 'sem', header: 'Semester', width: 900, align: AlignmentType.CENTER },
+      { id: 'code', header: 'Subject Code', width: 1200, align: AlignmentType.CENTER },
     ];
 
     const examColsCount = (hasCie1 ? 1 : 0) + (hasCie2 ? 1 : 0) + (hasModel ? 1 : 0);
-    const examColWidth = examColsCount >= 3 ? 1100 : 1200;
+    
+    let markWidth = 1100;
+    let pfWidth = 1100;
+    if (examColsCount === 2) {
+      markWidth = 900;
+      pfWidth = 950;
+    } else if (examColsCount >= 3) {
+      markWidth = 780;
+      pfWidth = 820;
+    }
 
     if (hasCie1) {
-      activeDocxCols.push({ id: 'cie1', header: 'CIE I Marks', width: examColWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'cie1', header: 'CIE I Marks', width: markWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'cie1Pf', header: 'CIE I Result', width: pfWidth, align: AlignmentType.CENTER });
     }
     if (hasCie2) {
-      activeDocxCols.push({ id: 'cie2', header: 'CIE II Marks', width: examColWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'cie2', header: 'CIE II Marks', width: markWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'cie2Pf', header: 'CIE II Result', width: pfWidth, align: AlignmentType.CENTER });
     }
     if (hasModel) {
-      activeDocxCols.push({ id: 'model', header: 'Model Marks', width: examColWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'model', header: 'Model Marks', width: markWidth, align: AlignmentType.CENTER });
+      activeDocxCols.push({ id: 'modelPf', header: 'Model Result', width: pfWidth, align: AlignmentType.CENTER });
     }
 
-    activeDocxCols.push({ id: 'passFail', header: 'Pass/Fail', width: 1200, align: AlignmentType.CENTER });
+    if (examColsCount === 0) {
+      activeDocxCols.push({ id: 'passFail', header: 'Pass/Fail', width: 1200, align: AlignmentType.CENTER });
+    }
 
     // Calculate title width to take up remaining horizontal space (total width = 9400 dxa)
     const fixedWidthSum = activeDocxCols.reduce((acc, col) => acc + col.width, 0);
-    const titleWidth = Math.max(2400, 9400 - fixedWidthSum);
+    const titleWidth = Math.max(1800, 9400 - fixedWidthSum);
 
     // Insert title column after subject code
     activeDocxCols.splice(2, 0, { id: 'title', header: 'Subject Name', width: titleWidth, align: AlignmentType.LEFT });
 
-    const cieRows: TableRow[] = [];
+    // Build 2-Tier Grouped Header Rows for Word (.DOCX)
+    const row1Cells: TableCell[] = [
+      new TableCell({
+        width: { size: 900, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.RESTART,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Semester', bold: true, font: 'Times New Roman', size: 18 })] })],
+      }),
+      new TableCell({
+        width: { size: 1200, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.RESTART,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Subject Code', bold: true, font: 'Times New Roman', size: 18 })] })],
+      }),
+      new TableCell({
+        width: { size: titleWidth, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.RESTART,
+        children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'Subject Name', bold: true, font: 'Times New Roman', size: 18 })] })],
+      }),
+    ];
 
-    // CIE Table Header
-    const cieHeadCells: TableCell[] = activeDocxCols.map(
-      (col) =>
+    const row2Cells: TableCell[] = [
+      new TableCell({
+        width: { size: 900, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.CONTINUE,
+        children: [new Paragraph({ children: [] })],
+      }),
+      new TableCell({
+        width: { size: 1200, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.CONTINUE,
+        children: [new Paragraph({ children: [] })],
+      }),
+      new TableCell({
+        width: { size: titleWidth, type: WidthType.DXA },
+        verticalMerge: VerticalMergeType.CONTINUE,
+        children: [new Paragraph({ children: [] })],
+      }),
+    ];
+
+    if (hasCie1) {
+      row1Cells.push(
         new TableCell({
-          width: { size: col.width, type: WidthType.DXA },
-          children: [
-            new Paragraph({
-              alignment: col.align,
-              children: [new TextRun({ text: col.header, bold: true, font: 'Times New Roman', size: 19 })],
-            }),
-          ],
+          columnSpan: 2,
+          width: { size: markWidth + pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'CIE I', bold: true, font: 'Times New Roman', size: 18 })] })],
         })
-    );
+      );
+      row2Cells.push(
+        new TableCell({
+          width: { size: markWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Marks', bold: true, font: 'Times New Roman', size: 18 })] })],
+        }),
+        new TableCell({
+          width: { size: pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+    }
 
-    cieRows.push(new TableRow({ children: cieHeadCells }));
+    if (hasCie2) {
+      row1Cells.push(
+        new TableCell({
+          columnSpan: 2,
+          width: { size: markWidth + pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'CIE II', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+      row2Cells.push(
+        new TableCell({
+          width: { size: markWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Marks', bold: true, font: 'Times New Roman', size: 18 })] })],
+        }),
+        new TableCell({
+          width: { size: pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+    }
+
+    if (hasModel) {
+      row1Cells.push(
+        new TableCell({
+          columnSpan: 2,
+          width: { size: markWidth + pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Model Exam', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+      row2Cells.push(
+        new TableCell({
+          width: { size: markWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Marks', bold: true, font: 'Times New Roman', size: 18 })] })],
+        }),
+        new TableCell({
+          width: { size: pfWidth, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+    }
+
+    if (examColsCount === 0) {
+      row1Cells.push(
+        new TableCell({
+          width: { size: 1200, type: WidthType.DXA },
+          verticalMerge: VerticalMergeType.RESTART,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Pass/Fail', bold: true, font: 'Times New Roman', size: 18 })] })],
+        })
+      );
+      row2Cells.push(
+        new TableCell({
+          width: { size: 1200, type: WidthType.DXA },
+          verticalMerge: VerticalMergeType.CONTINUE,
+          children: [new Paragraph({ children: [] })],
+        })
+      );
+    }
+
+    cieRows.push(new TableRow({ children: row1Cells }));
+    cieRows.push(new TableRow({ children: row2Cells }));
+
+    const evaluateCiePfDocxHelper = (markVal: any): string => {
+      if (markVal === undefined || markVal === null) return '';
+      const str = String(markVal).trim().toUpperCase();
+      if (!str) return '';
+      if (/^(O|A\+|A|B\+|B|C|D|P|PASS)$/.test(str)) return 'PASS';
+      if (/^(RA|U|AB|ABSENT|FAIL|F)$/.test(str)) return 'FAIL';
+      const num = Number(str);
+      return !isNaN(num) ? (num >= 50 ? 'PASS' : 'FAIL') : '';
+    };
 
     // CIE Data Rows
     cieList.forEach((item) => {
@@ -560,18 +742,21 @@ const buildStudentReportChildren = (
         else if (col.id === 'code') cellText = item.code || '';
         else if (col.id === 'title') cellText = item.title || '';
         else if (col.id === 'cie1') cellText = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
+        else if (col.id === 'cie1Pf') cellText = item.cie1PassFail || evaluateCiePfDocxHelper(item.cie1Marks);
         else if (col.id === 'cie2') cellText = item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '';
+        else if (col.id === 'cie2Pf') cellText = item.cie2PassFail || evaluateCiePfDocxHelper(item.cie2Marks);
         else if (col.id === 'model') cellText = item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '';
+        else if (col.id === 'modelPf') cellText = item.modelPassFail || evaluateCiePfDocxHelper(item.modelMarks);
         else if (col.id === 'passFail') cellText = item.passFail || '';
 
-        const isBold = col.id === 'code' || col.id.startsWith('cie') || col.id === 'model' || col.id === 'passFail';
+        const isBold = col.id === 'code' || col.id.startsWith('cie') || col.id.startsWith('model') || col.id === 'passFail';
 
         return new TableCell({
           width: { size: col.width, type: WidthType.DXA },
           children: [
             new Paragraph({
               alignment: col.align,
-              children: [new TextRun({ text: cellText, bold: isBold, font: 'Times New Roman', size: 18 })],
+              children: [new TextRun({ text: cellText, bold: isBold, font: 'Times New Roman', size: activeDocxCols.length >= 8 ? 16 : 18 })],
             }),
           ],
         });
@@ -648,6 +833,7 @@ const buildStudentReportChildren = (
 
   children.push(
     new Paragraph({
+      alignment: AlignmentType.CENTER,
       spacing: { before: 40, after: 120 },
       children: [new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', font: 'Times New Roman', size: 20 })],
     })

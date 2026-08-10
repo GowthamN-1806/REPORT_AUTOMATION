@@ -100,26 +100,40 @@ export const generateCombinedPDF = async (
     pdf.text('Nov/Dec', margin + textWidth, y);
     const novWidth = pdf.getTextWidth('Nov/Dec');
     pdf.setFont('times', 'normal');
-    pdf.text(' 2025 have been released.', margin + textWidth + novWidth, y);
-
+    
     y += 18;
     pdf.setFont('times', 'bold');
     pdf.text(`Regulation: ${regulation || '2021'}`, pageWidth - margin, y, { align: 'right' });
 
-    // Register Number & Name Box Table
-    y += 8;
-    pdf.setDrawColor(0, 0, 0);
-    pdf.setLineWidth(0.8);
-    
-    // Row 1: Reg No
+    const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
+
+    if (hasUniv) {
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(10.5);
+      pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
+      y += 16;
+      pdf.text('This is to inform you that the results of the Semester End Examination held during Nov/Dec 2025 have been released.', margin, y);
+    } else {
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(10.5);
+      pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
+      y += 16;
+      pdf.setFont('times', 'bold');
+      pdf.text('Continuous Internal Evaluation Mark Report', margin, y);
+    }
+
+    // Student Details Box Table (Register Number & Name of Student)
+    y += 24;
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(10.5);
+
     pdf.rect(margin, y, 160, 20);
     pdf.rect(margin + 160, y, contentWidth - 160, 20);
     pdf.setFont('times', 'normal');
-    pdf.text('Register number:', margin + 6, y + 14);
+    pdf.text('Register Number:', margin + 6, y + 14);
     pdf.setFont('times', 'bold');
     pdf.text(student.regNo || '', margin + 166, y + 14);
 
-    // Row 2: Name
     y += 20;
     pdf.rect(margin, y, 160, 20);
     pdf.rect(margin + 160, y, contentWidth - 160, 20);
@@ -128,159 +142,161 @@ export const generateCombinedPDF = async (
     pdf.setFont('times', 'bold');
     pdf.text(student.name || '', margin + 166, y + 14);
 
-    // University Results Table
-    y += 32;
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(10.5);
+    if (hasUniv) {
+      // University Results Table
+      y += 32;
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(10.5);
 
-    // Header Row
-    const colW1 = [65, 85, 235, 65, 75];
-    let currX = margin;
-    
-    ['Semester', 'Subject Code', 'Subject Name', 'Grade', 'Pass/Fail'].forEach((h, hIdx) => {
-      pdf.rect(currX, y, colW1[hIdx], 20);
-      pdf.text(h, currX + (hIdx === 2 ? 6 : colW1[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
-      currX += colW1[hIdx];
-    });
-
-    y += 20;
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(10);
-
-    const univList = student.universityResults || [];
-    const maxUnivRows = univList.length;
-
-    for (let r = 0; r < maxUnivRows; r++) {
-      const item = univList[r];
-      let x = margin;
-      colW1.forEach((w) => {
-        pdf.rect(x, y, w, 18);
-        x += w;
-      });
+      // Header Row
+      const colW1 = [65, 85, 235, 65, 75];
+      let currX = margin;
       
-      if (item) {
-        let cx = margin;
-        pdf.text(item.sem || '', cx + colW1[0] / 2, y + 12, { align: 'center' }); cx += colW1[0];
-        pdf.setFont('times', 'bold');
-        pdf.text(item.code || '', cx + colW1[1] / 2, y + 12, { align: 'center' }); cx += colW1[1];
-        pdf.setFont('times', 'normal');
-        pdf.text((item.title || '').substring(0, 48), cx + 6, y + 12); cx += colW1[2];
-        pdf.setFont('times', 'bold');
-        pdf.text(item.grade || '', cx + colW1[3] / 2, y + 12, { align: 'center' }); cx += colW1[3];
-        pdf.text(item.passFail || '', cx + colW1[4] / 2, y + 12, { align: 'center' });
+      ['Semester', 'Subject Code', 'Subject Name', 'Grade', 'Pass/Fail'].forEach((h, hIdx) => {
+        pdf.rect(currX, y, colW1[hIdx], 20);
+        pdf.text(h, currX + (hIdx === 2 ? 6 : colW1[hIdx] / 2), y + 14, { align: hIdx === 2 ? 'left' : 'center' });
+        currX += colW1[hIdx];
+      });
+
+      y += 20;
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(10);
+
+      const univList = student.universityResults || [];
+      const maxUnivRows = univList.length;
+
+      for (let r = 0; r < maxUnivRows; r++) {
+        const item = univList[r];
+        let x = margin;
+        colW1.forEach((w) => {
+          pdf.rect(x, y, w, 18);
+          x += w;
+        });
+        
+        if (item) {
+          let cx = margin;
+          pdf.text(item.sem || '', cx + colW1[0] / 2, y + 12, { align: 'center' }); cx += colW1[0];
+          pdf.setFont('times', 'bold');
+          pdf.text(item.code || '', cx + colW1[1] / 2, y + 12, { align: 'center' }); cx += colW1[1];
+          pdf.setFont('times', 'normal');
+          pdf.text((item.title || '').substring(0, 48), cx + 6, y + 12); cx += colW1[2];
+          pdf.setFont('times', 'bold');
+          pdf.text(item.grade || '', cx + colW1[3] / 2, y + 12, { align: 'center' }); cx += colW1[3];
+          pdf.text(item.passFail || '', cx + colW1[4] / 2, y + 12, { align: 'center' });
+        }
+
+        y += 18;
       }
 
+      // Nov/Dec 2025 University Results Header
+      y += 12;
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(11);
+      pdf.text('Nov/Dec 2025 University Results:-', margin, y);
+
       y += 18;
-    }
+      pdf.text('GPA/CGPA:-', margin, y);
 
-    // Nov/Dec 2025 University Results Header
-    y += 12;
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(11);
-    pdf.text('Nov/Dec 2025 University Results:-', margin, y);
+      // Matrix Table (SEMESTER, ARREARS, GPA, CGPA, CLASS OBTAINED)
+      y += 8;
+      const matrixCols = [100, ...Array(7).fill((contentWidth - 100) / 7)];
 
-    y += 18;
-    pdf.text('GPA/CGPA:-', margin, y);
+      // Matrix Header: SEMESTER | 01 | 02 | 03 | 04 | 05 | 06 | 07
+      let mX = margin;
+      matrixCols.forEach((w) => {
+        pdf.rect(mX, y, w, 18);
+        mX += w;
+      });
+      mX = margin;
+      pdf.text('SEMESTER', mX + 8, y + 12); mX += matrixCols[0];
+      for (let c = 1; c <= 7; c++) {
+        pdf.text(`0${c}`, mX + matrixCols[c] / 2, y + 12, { align: 'center' });
+        mX += matrixCols[c];
+      }
 
-    // Matrix Table (SEMESTER, ARREARS, GPA, CGPA, CLASS OBTAINED)
-    y += 8;
-    const matrixCols = [100, ...Array(7).fill((contentWidth - 100) / 7)];
+      // Row: ARREARS
+      y += 18;
+      mX = margin;
+      matrixCols.forEach((w) => {
+        pdf.rect(mX, y, w, 18);
+        mX += w;
+      });
+      mX = margin;
+      pdf.text('ARREARS', mX + 8, y + 12); mX += matrixCols[0];
+      pdf.setFont('times', 'normal');
+      for (let c = 1; c <= 7; c++) {
+        const semKey = `0${c}`;
+        const arrVal = getSemValue(student.arrears, semKey, '');
+        pdf.text(String(arrVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
+        mX += matrixCols[c];
+      }
 
-    // Matrix Header: SEMESTER | 01 | 02 | 03 | 04 | 05 | 06 | 07
-    let mX = margin;
-    matrixCols.forEach((w) => {
-      pdf.rect(mX, y, w, 18);
-      mX += w;
-    });
-    mX = margin;
-    pdf.text('SEMESTER', mX + 8, y + 12); mX += matrixCols[0];
-    for (let c = 1; c <= 7; c++) {
-      pdf.text(`0${c}`, mX + matrixCols[c] / 2, y + 12, { align: 'center' });
-      mX += matrixCols[c];
-    }
+      // Helper to resolve numeric semester (1..7) from Roman numerals or string
+      const getSemesterNumber = (semVal: any): number => {
+        if (!semVal) return 0;
+        const s = String(semVal).trim().toUpperCase();
+        if (/^(iv|4|04)$/i.test(s)) return 4;
+        if (/^(v|5|05)$/i.test(s)) return 5;
+        if (/^(vi|6|06)$/i.test(s)) return 6;
+        if (/^(vii|7|07)$/i.test(s)) return 7;
+        if (/^(iii|3|03)$/i.test(s)) return 3;
+        if (/^(ii|2|02)$/i.test(s)) return 2;
+        if (/^(i|1|01)$/i.test(s)) return 1;
+        const m = s.match(/([1-7])/);
+        return m ? parseInt(m[1], 10) : 0;
+      };
 
-    // Row: ARREARS
-    y += 18;
-    mX = margin;
-    matrixCols.forEach((w) => {
-      pdf.rect(mX, y, w, 18);
-      mX += w;
-    });
-    mX = margin;
-    pdf.text('ARREARS', mX + 8, y + 12); mX += matrixCols[0];
-    pdf.setFont('times', 'normal');
-    for (let c = 1; c <= 7; c++) {
-      const semKey = `0${c}`;
-      const arrVal = getSemValue(student.arrears, semKey, '');
-      pdf.text(String(arrVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
-      mX += matrixCols[c];
-    }
-
-    // Helper to resolve numeric semester (1..7) from Roman numerals or string
-    const getSemesterNumber = (semVal: any): number => {
-      if (!semVal) return 0;
-      const s = String(semVal).trim().toUpperCase();
-      if (/^(iv|4|04)$/i.test(s)) return 4;
-      if (/^(v|5|05)$/i.test(s)) return 5;
-      if (/^(vi|6|06)$/i.test(s)) return 6;
-      if (/^(vii|7|07)$/i.test(s)) return 7;
-      if (/^(iii|3|03)$/i.test(s)) return 3;
-      if (/^(ii|2|02)$/i.test(s)) return 2;
-      if (/^(i|1|01)$/i.test(s)) return 1;
-      const m = s.match(/([1-7])/);
-      return m ? parseInt(m[1], 10) : 0;
-    };
-
-    const activeSemNum = getSemesterNumber(student.semester) ||
+      const activeSemNum = getSemesterNumber(student.semester) ||
                          getSemesterNumber(student.universityResults?.[0]?.sem) ||
                          4;
 
-    // Row: GPA
-    y += 18;
-    mX = margin;
-    matrixCols.forEach((w) => {
-      pdf.rect(mX, y, w, 18);
-      mX += w;
-    });
-    pdf.setFont('times', 'bold');
-    mX = margin;
-    pdf.text('GPA', mX + 8, y + 12); mX += matrixCols[0];
-    pdf.setFont('times', 'normal');
-    for (let c = 1; c <= 7; c++) {
-      const semKey = `0${c}`;
-      const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
-      pdf.text(String(gpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
-      mX += matrixCols[c];
-    }
+      // Row: GPA
+      y += 18;
+      mX = margin;
+      matrixCols.forEach((w) => {
+        pdf.rect(mX, y, w, 18);
+        mX += w;
+      });
+      pdf.setFont('times', 'bold');
+      mX = margin;
+      pdf.text('GPA', mX + 8, y + 12); mX += matrixCols[0];
+      pdf.setFont('times', 'normal');
+      for (let c = 1; c <= 7; c++) {
+        const semKey = `0${c}`;
+        const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
+        pdf.text(String(gpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
+        mX += matrixCols[c];
+      }
 
-    // Row: CGPA
-    y += 18;
-    mX = margin;
-    matrixCols.forEach((w) => {
-      pdf.rect(mX, y, w, 18);
-      mX += w;
-    });
-    pdf.setFont('times', 'bold');
-    mX = margin;
-    pdf.text('CGPA', mX + 8, y + 12); mX += matrixCols[0];
-    pdf.setFont('times', 'normal');
-    for (let c = 1; c <= 7; c++) {
-      const semKey = `0${c}`;
-      const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
-      pdf.text(String(cgpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
-      mX += matrixCols[c];
-    }
+      // Row: CGPA
+      y += 18;
+      mX = margin;
+      matrixCols.forEach((w) => {
+        pdf.rect(mX, y, w, 18);
+        mX += w;
+      });
+      pdf.setFont('times', 'bold');
+      mX = margin;
+      pdf.text('CGPA', mX + 8, y + 12); mX += matrixCols[0];
+      pdf.setFont('times', 'normal');
+      for (let c = 1; c <= 7; c++) {
+        const semKey = `0${c}`;
+        const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
+        pdf.text(String(cgpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
+        mX += matrixCols[c];
+      }
 
-    // Row: CLASS OBTAINED
-    y += 18;
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(8.5);
-    pdf.rect(margin, y, 105, 18);
-    pdf.rect(margin + 105, y, contentWidth - 105, 18);
-    pdf.text('CLASS OBTAINED', margin + 6, y + 12);
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(10);
-    pdf.text(student.classObtained || '', margin + 111, y + 12);
+      // Row: CLASS OBTAINED
+      y += 18;
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(8.5);
+      pdf.rect(margin, y, 105, 18);
+      pdf.rect(margin + 105, y, contentWidth - 105, 18);
+      pdf.text('CLASS OBTAINED', margin + 6, y + 12);
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(10);
+      pdf.text(student.classObtained || '', margin + 111, y + 12);
+    }
 
     // Continuous Internal Evaluation Header & Table
     const cieList = student.internalEvalResults || [];
@@ -298,53 +314,134 @@ export const generateCombinedPDF = async (
 
       // Build dynamic columns list based exclusively on uploaded exam data
       interface DynamicCol {
-        id: 'sem' | 'code' | 'title' | 'cie1' | 'cie2' | 'model' | 'passFail';
+        id: 'sem' | 'code' | 'title' | 'cie1' | 'cie1Pf' | 'cie2' | 'cie2Pf' | 'model' | 'modelPf' | 'passFail';
         header: string;
         width: number;
         align: 'left' | 'center';
       }
 
       const activeCols: DynamicCol[] = [
-        { id: 'sem', header: 'Semester', width: 45, align: 'center' },
-        { id: 'code', header: 'Subject Code', width: 65, align: 'center' },
+        { id: 'sem', header: 'Semester', width: 40, align: 'center' },
+        { id: 'code', header: 'Subject Code', width: 60, align: 'center' },
       ];
 
       const examColsCount = (hasCie1 ? 1 : 0) + (hasCie2 ? 1 : 0) + (hasModel ? 1 : 0);
-      const examColWidth = examColsCount >= 3 ? 58 : 62;
+      
+      let markWidth = 60;
+      let pfWidth = 65;
+      if (examColsCount === 2) {
+        markWidth = 48;
+        pfWidth = 54;
+      } else if (examColsCount >= 3) {
+        markWidth = 43;
+        pfWidth = 46;
+      }
 
       if (hasCie1) {
-        activeCols.push({ id: 'cie1', header: 'CIE I Marks', width: examColWidth, align: 'center' });
+        activeCols.push({ id: 'cie1', header: 'CIE I Marks', width: markWidth, align: 'center' });
+        activeCols.push({ id: 'cie1Pf', header: 'CIE I Result', width: pfWidth, align: 'center' });
       }
       if (hasCie2) {
-        activeCols.push({ id: 'cie2', header: 'CIE II Marks', width: examColWidth, align: 'center' });
+        activeCols.push({ id: 'cie2', header: 'CIE II Marks', width: markWidth, align: 'center' });
+        activeCols.push({ id: 'cie2Pf', header: 'CIE II Result', width: pfWidth, align: 'center' });
       }
       if (hasModel) {
-        activeCols.push({ id: 'model', header: 'Model Marks', width: examColWidth, align: 'center' });
+        activeCols.push({ id: 'model', header: 'Model Marks', width: markWidth, align: 'center' });
+        activeCols.push({ id: 'modelPf', header: 'Model Result', width: pfWidth, align: 'center' });
       }
 
-      activeCols.push({ id: 'passFail', header: 'Pass/Fail', width: 68, align: 'center' });
+      if (examColsCount === 0) {
+        activeCols.push({ id: 'passFail', header: 'Pass/Fail', width: 65, align: 'center' });
+      }
 
       // Calculate title width to take up remaining horizontal space (total width = 525)
       const fixedWidthSum = activeCols.reduce((acc, col) => acc + col.width, 0);
-      const titleWidth = Math.max(120, 525 - fixedWidthSum);
+      const titleWidth = Math.max(110, 525 - fixedWidthSum);
 
       // Insert title column after subject code
       activeCols.splice(2, 0, { id: 'title', header: 'Subject Name', width: titleWidth, align: 'left' });
 
-      // Render Header Row
-      currX = margin;
+      // Render 2-Tier Grouped Header Row
+      let headerY1 = y;
+      let headerY2 = y + 16;
+      let headerHeight = 32;
+
       pdf.setFont('times', 'bold');
-      pdf.setFontSize(activeCols.length >= 7 ? 7.5 : (activeCols.length >= 6 ? 8.5 : 9.5));
+      pdf.setFontSize(examColsCount >= 3 ? 8 : 8.5);
 
-      activeCols.forEach((col) => {
-        pdf.rect(currX, y, col.width, 20);
-        pdf.text(col.header, currX + (col.align === 'left' ? 6 : col.width / 2), y + 13, { align: col.align });
-        currX += col.width;
-      });
+      // 1. First 3 vertical-span headers: Semester, Subject Code, Subject Name
+      pdf.rect(margin, headerY1, 40, headerHeight);
+      pdf.text('Semester', margin + 20, headerY1 + 20, { align: 'center' });
 
-      y += 20;
+      pdf.rect(margin + 40, headerY1, 60, headerHeight);
+      pdf.text('Subject Code', margin + 70, headerY1 + 20, { align: 'center' });
+
+      pdf.rect(margin + 100, headerY1, titleWidth, headerHeight);
+      pdf.text('Subject Name', margin + 106, headerY1 + 20, { align: 'left' });
+
+      let currX = margin + 100 + titleWidth;
+
+      // 2. Exam Group Headers & Sub-Headers (CIE I, CIE II, Model Exam)
+      if (hasCie1) {
+        const groupW = markWidth + pfWidth;
+        pdf.rect(currX, headerY1, groupW, 16);
+        pdf.text('CIE I', currX + groupW / 2, headerY1 + 11, { align: 'center' });
+
+        pdf.rect(currX, headerY2, markWidth, 16);
+        pdf.text('Marks', currX + markWidth / 2, headerY2 + 11, { align: 'center' });
+
+        pdf.rect(currX + markWidth, headerY2, pfWidth, 16);
+        pdf.text('Pass/Fail', currX + markWidth + pfWidth / 2, headerY2 + 11, { align: 'center' });
+
+        currX += groupW;
+      }
+
+      if (hasCie2) {
+        const groupW = markWidth + pfWidth;
+        pdf.rect(currX, headerY1, groupW, 16);
+        pdf.text('CIE II', currX + groupW / 2, headerY1 + 11, { align: 'center' });
+
+        pdf.rect(currX, headerY2, markWidth, 16);
+        pdf.text('Marks', currX + markWidth / 2, headerY2 + 11, { align: 'center' });
+
+        pdf.rect(currX + markWidth, headerY2, pfWidth, 16);
+        pdf.text('Pass/Fail', currX + markWidth + pfWidth / 2, headerY2 + 11, { align: 'center' });
+
+        currX += groupW;
+      }
+
+      if (hasModel) {
+        const groupW = markWidth + pfWidth;
+        pdf.rect(currX, headerY1, groupW, 16);
+        pdf.text('Model Exam', currX + groupW / 2, headerY1 + 11, { align: 'center' });
+
+        pdf.rect(currX, headerY2, markWidth, 16);
+        pdf.text('Marks', currX + markWidth / 2, headerY2 + 11, { align: 'center' });
+
+        pdf.rect(currX + markWidth, headerY2, pfWidth, 16);
+        pdf.text('Pass/Fail', currX + markWidth + pfWidth / 2, headerY2 + 11, { align: 'center' });
+
+        currX += groupW;
+      }
+
+      if (examColsCount === 0) {
+        pdf.rect(currX, headerY1, 65, headerHeight);
+        pdf.text('Pass/Fail', currX + 32.5, headerY1 + 20, { align: 'center' });
+      }
+
+      y += headerHeight;
       pdf.setFont('times', 'normal');
-      pdf.setFontSize(9);
+      pdf.setFontSize(8.5);
+
+      const evaluateCiePfHelper = (markVal: any): string => {
+        if (markVal === undefined || markVal === null) return '';
+        const str = String(markVal).trim().toUpperCase();
+        if (!str) return '';
+        if (/^(O|A\+|A|B\+|B|C|D|P|PASS)$/.test(str)) return 'PASS';
+        if (/^(RA|U|AB|ABSENT|FAIL|F)$/.test(str)) return 'FAIL';
+        const num = Number(str);
+        return !isNaN(num) ? (num >= 50 ? 'PASS' : 'FAIL') : '';
+      };
 
       // Render Data Rows
       cieList.forEach((item) => {
@@ -360,13 +457,17 @@ export const generateCombinedPDF = async (
             let cellText = '';
             if (col.id === 'sem') cellText = item.sem || student.currentSemester || 'V';
             else if (col.id === 'code') cellText = item.code || '';
-            else if (col.id === 'title') cellText = (item.title || '').substring(0, 32);
+            else if (col.id === 'title') cellText = (item.title || '').substring(0, 28);
             else if (col.id === 'cie1') cellText = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
+            else if (col.id === 'cie1Pf') cellText = item.cie1PassFail || evaluateCiePfHelper(item.cie1Marks);
             else if (col.id === 'cie2') cellText = item.cie2Marks !== undefined && item.cie2Marks !== null ? String(item.cie2Marks) : '';
+            else if (col.id === 'cie2Pf') cellText = item.cie2PassFail || evaluateCiePfHelper(item.cie2Marks);
             else if (col.id === 'model') cellText = item.modelMarks !== undefined && item.modelMarks !== null ? String(item.modelMarks) : '';
+            else if (col.id === 'modelPf') cellText = item.modelPassFail || evaluateCiePfHelper(item.modelMarks);
             else if (col.id === 'passFail') cellText = item.passFail || '';
 
-            pdf.setFont('times', col.id === 'code' || col.id.startsWith('cie') || col.id === 'model' || col.id === 'passFail' ? 'bold' : 'normal');
+            const isBold = col.id === 'code' || col.id.startsWith('cie') || col.id.startsWith('model') || col.id === 'passFail';
+            pdf.setFont('times', isBold ? 'bold' : 'normal');
             pdf.text(cellText, cx + (col.align === 'left' ? 6 : col.width / 2), y + 12, { align: col.align });
             cx += col.width;
           });
@@ -400,40 +501,85 @@ export const generateCombinedPDF = async (
     pdf.setTextColor(15, 23, 42);
     pdf.text('ACKNOWLEDGEMENT', pageWidth / 2, p2Y, { align: 'center' });
 
-    p2Y += 20;
+    p2Y += 22;
     pdf.setFont('times', 'normal');
-    pdf.setFontSize(10);
+    pdf.setFontSize(10.5);
     pdf.text('To', margin, p2Y);
 
-    p2Y += 15;
+    p2Y += 16;
     const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
     pdf.text(`The Class Counsellor, Department of ${deptStr},`, pageWidth / 2, p2Y, { align: 'center' });
 
+    p2Y += 16;
+    pdf.setFont('times', 'normal');
+    pdf.text('Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', pageWidth / 2, p2Y, { align: 'center' });
+
+    // Helper to render a justified line of text segments across contentWidth
+    const renderJustifiedLine = (
+      segments: { text: string; bold?: boolean }[],
+      startY: number
+    ) => {
+      pdf.setFontSize(10.5);
+      const words: { text: string; bold: boolean; width: number }[] = [];
+      segments.forEach((seg) => {
+        pdf.setFont('times', seg.bold ? 'bold' : 'normal');
+        const segWords = seg.text.split(' ');
+        segWords.forEach((w, wIdx) => {
+          if (w === '' && wIdx > 0) return;
+          const wordText = w;
+          const wWidth = pdf.getTextWidth(wordText);
+          words.push({ text: wordText, bold: !!seg.bold, width: wWidth });
+        });
+      });
+
+      if (words.length === 0) return;
+
+      pdf.setFont('times', 'normal');
+      const normalSpaceWidth = pdf.getTextWidth(' ');
+
+      const totalWordsWidth = words.reduce((acc, w) => acc + w.width, 0);
+      const totalNormalSpaces = (words.length - 1) * normalSpaceWidth;
+      const totalNaturalWidth = totalWordsWidth + totalNormalSpaces;
+
+      const extraSpaceTotal = Math.max(0, contentWidth - totalNaturalWidth);
+      const extraPerSpace = words.length > 1 ? extraSpaceTotal / (words.length - 1) : 0;
+
+      let currentX = margin;
+      words.forEach((w, idx) => {
+        pdf.setFont('times', w.bold ? 'bold' : 'normal');
+        pdf.text(w.text, currentX, startY);
+        currentX += w.width + normalSpaceWidth + extraPerSpace;
+      });
+    };
+
+    p2Y += 22;
+    // Justified Paragraph Line 1
+    renderJustifiedLine([
+      { text: 'Progress report of my Son / Daughter Name: ', bold: false },
+      { text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true },
+      { text: ' for', bold: false }
+    ], p2Y);
+
     p2Y += 15;
+    // Justified Paragraph Line 2
+    renderJustifiedLine([
+      { text: 'Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation', bold: false }
+    ], p2Y);
+
+    p2Y += 15;
+    // Paragraph Line 3 (Last Line - Left Aligned)
     pdf.setFont('times', 'normal');
-    pdf.text('Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', margin, p2Y);
-
-    p2Y += 20;
-    pdf.text('Progress report of my Son / Daughter Name: ', margin, p2Y);
-    const p1 = pdf.getTextWidth('Progress report of my Son / Daughter Name: ');
-    pdf.setFont('times', 'bold');
-    pdf.text(`${student.name || ''} – Reg. ${student.regNo || ''}`, margin + p1, p2Y);
-    const p2 = pdf.getTextWidth(`${student.name || ''} – Reg. ${student.regNo || ''}`);
-    pdf.setFont('times', 'normal');
-    pdf.text(' for', margin + p1 + p2, p2Y);
-
-    p2Y += 14;
-    pdf.text('Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation', margin, p2Y);
-
-    p2Y += 14;
+    pdf.setFontSize(10.5);
     pdf.text('Results have been received.', margin, p2Y);
 
-    p2Y += 30;
+    p2Y += 34;
     pdf.setFont('times', 'bold');
+    pdf.setFontSize(10.5);
     pdf.text('Signature of the Parent', pageWidth - margin, p2Y, { align: 'right' });
 
-    p2Y += 18;
+    p2Y += 20;
     pdf.setFont('times', 'normal');
+    pdf.setFontSize(10.5);
     pdf.text('Date:', margin, p2Y);
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(9.5);

@@ -85,25 +85,32 @@ export const mergeExcelDatasets = (
     activePattern = 'pattern2';
   }
 
-  // Base student dataset comes STRICTLY from University Results Excel
-  if (univCount === 0) {
+  // Base student dataset comes from University Results Excel if present,
+  // or fallback to CIE 1 / CIE 2 / Model Exam Excel dynamically!
+  const baseStudents = univCount > 0 ? univStudents :
+                       (cie1Count > 0 ? cie1Students :
+                       (cie2Count > 0 ? cie2Students : modelStudents));
+
+  if (baseStudents.length === 0) {
     return {
       pattern: activePattern,
       detectedPatternName,
       templateFile,
       mergedStudents: [],
-      totalStudentsCount: 0,
-      matchedCount: 0,
+      mergedCount: 0,
+      univCount,
+      cie1Count,
+      cie2Count,
+      modelCount,
       missingRecordsCount: 0,
       duplicateRegNosCount: 0,
       missingGpaCount: 0,
       missingSubjectsCount: 0,
-      validationWarnings: ['University Result Excel is mandatory to merge and generate reports.'],
+      invalidRowsCount: 0,
+      validationWarnings: ['Please upload at least one Excel file (University, CIE 1, CIE 2, or Model Exam) to generate reports.'],
       isReadyForPreview: false,
     };
   }
-
-  const baseStudents = univStudents;
 
   const mergedStudentsMap = new Map<string, StudentRecord>();
   let duplicateRegNosCount = 0;
@@ -111,12 +118,12 @@ export const mergeExcelDatasets = (
   let missingSubjectsCount = 0;
 
   baseStudents.forEach((s) => {
-    const key = normalizeRegNo(s.regNo);
+    const key = normalizeRegNo(s.regNo) || (s.name ? s.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '');
     if (!key) return;
 
     if (mergedStudentsMap.has(key)) {
       duplicateRegNosCount++;
-      validationWarnings.push(`Duplicate Register Number: ${s.regNo} (${s.name})`);
+      validationWarnings.push(`Duplicate Record: ${s.regNo || s.name}`);
     } else {
       if (!s.cgpa && !s.gpa && univCount > 0) {
         missingGpaCount++;
@@ -130,7 +137,7 @@ export const mergeExcelDatasets = (
         regulation: s.regulation,
         currentSemester: s.currentSemester,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
-        internalEvalResults: [],
+        internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
         gpa: univCount > 0 ? s.gpa : undefined,
         cgpa: univCount > 0 ? s.cgpa : undefined,
         classObtained: univCount > 0 ? s.classObtained : '',
@@ -207,8 +214,11 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             code: cs.code,
             title: cs.title,
             cie1Marks: cs.mark,
+            cie1PassFail: evaluateCiePassFail(cs.mark),
             cie2Marks: '',
+            cie2PassFail: '',
             modelMarks: '',
+            modelPassFail: '',
             passFail: evaluateCiePassFail(cs.mark),
           }));
         } else {
@@ -219,11 +229,13 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             );
             const mark = matchSub ? matchSub.mark : ie.cie1Marks;
             const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie1Sem || ie.sem || 'VI');
+            const pf = evaluateCiePassFail(mark);
             return {
               ...ie,
               sem: itemSem,
               cie1Marks: mark,
-              passFail: evaluateCiePassFail(mark) || ie.passFail,
+              cie1PassFail: pf || ie.cie1PassFail,
+              passFail: pf || ie.passFail,
             };
           });
         }
@@ -256,7 +268,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             cie2SubList.push({
               code: ie.code,
               title: ie.title,
-              mark: ie.cie2Marks !== undefined ? ie.cie2Marks : (ie.cie1Marks !== undefined ? ie.cie1Marks : ''),
+              mark: ie.cie2Marks !== undefined && ie.cie2Marks !== null && String(ie.cie2Marks).trim() !== '' ? ie.cie2Marks : (ie.cie1Marks !== undefined ? ie.cie1Marks : ''),
               sem: ie.sem,
             });
           });
@@ -279,20 +291,37 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             code: cs.code,
             title: cs.title,
             cie1Marks: '',
+            cie1PassFail: '',
             cie2Marks: cs.mark,
+            cie2PassFail: evaluateCiePassFail(cs.mark),
             modelMarks: '',
-            passFail: cs.mark !== '' ? (Number(cs.mark) >= 50 ? 'PASS' : 'FAIL') : '',
+            modelPassFail: '',
+            passFail: evaluateCiePassFail(cs.mark),
           }));
         } else {
-          student.internalEvalResults = student.internalEvalResults.map((ie) => {
-            const matchSub = cie2SubList.find(
-              (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
+          student.internalEvalResults = student.internalEvalResults.map((ie, ieIdx) => {
+            let matchSub = cie2SubList.find(
+              (cSub) => cSub.code && ie.code && normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
             );
+            if (!matchSub && ie.title) {
+              const cleanIeTitle = ie.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+              matchSub = cie2SubList.find(
+                (cSub) => cSub.title && cSub.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === cleanIeTitle
+              );
+            }
+            if (!matchSub && ieIdx < cie2SubList.length) {
+              matchSub = cie2SubList[ieIdx];
+            }
+
             const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie2Sem || ie.sem || 'VI');
+            const mark = matchSub ? matchSub.mark : ie.cie2Marks;
+            const pf = evaluateCiePassFail(mark);
+
             return {
               ...ie,
               sem: itemSem,
-              cie2Marks: matchSub ? matchSub.mark : ie.cie2Marks,
+              cie2Marks: mark,
+              cie2PassFail: pf || ie.cie2PassFail,
             };
           });
         }
@@ -354,9 +383,12 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
             code: ms.code,
             title: ms.title,
             cie1Marks: '',
+            cie1PassFail: '',
             cie2Marks: '',
+            cie2PassFail: '',
             modelMarks: ms.mark,
-            passFail: ms.mark !== '' ? (Number(ms.mark) >= 50 ? 'PASS' : 'FAIL') : '',
+            modelPassFail: evaluateCiePassFail(ms.mark),
+            passFail: evaluateCiePassFail(ms.mark),
           }));
         } else {
           student.internalEvalResults = student.internalEvalResults.map((ie, ieIdx) => {
@@ -381,10 +413,13 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               ? String(matchSub.mark).trim()
               : ie.modelMarks;
 
+            const modelPf = evaluateCiePassFail(modelVal);
+
             return {
               ...ie,
               sem: itemSem,
               modelMarks: modelVal,
+              modelPassFail: modelPf || ie.modelPassFail,
             };
           });
         }

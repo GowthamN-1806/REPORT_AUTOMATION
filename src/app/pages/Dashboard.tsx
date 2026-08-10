@@ -146,26 +146,18 @@ export const Dashboard: React.FC = () => {
 
         setFileSlots(updatedSlots);
 
-        if (slotKey === 'univ') {
-          // Uploading University Result resets previous generated state until user clicks RUN
-          setMergeResult(null);
-          setMergedStudents([]);
-          setTotalCount(parsed.length);
-          addToast('success', 'University Result Uploaded', `${file.name} parsed (${parsed.length} Students). Click RUN to generate reports.`);
-        } else {
-          // If Live Preview is ALREADY active, re-merge dataset to update Live Preview with new optional file
-          if (updatedSlots.univ.file && mergedStudents.length > 0) {
-            const univList = updatedSlots.univ.students;
-            const cie1List = updatedSlots.cie1.students;
-            const cie2List = updatedSlots.cie2.students;
-            const modelList = updatedSlots.model.students;
+        if (mergedStudents.length > 0) {
+          // If Live Preview is ALREADY active, re-merge dataset to update Live Preview with new file
+          const univList = updatedSlots.univ.students;
+          const cie1List = updatedSlots.cie1.students;
+          const cie2List = updatedSlots.cie2.students;
+          const modelList = updatedSlots.model.students;
 
-            const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-            setMergeResult(res);
-            setMergedStudents(res.mergedStudents);
-          }
-          addToast('info', 'Optional File Uploaded', `${file.name} saved (${parsed.length} Students).`);
+          const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
+          setMergeResult(res);
+          setMergedStudents(res.mergedStudents);
         }
+        addToast('success', `${newSlotData.label} Uploaded`, `${file.name} parsed (${parsed.length} Students). Click RUN or continue uploading.`);
       } else {
         addToast('error', 'Invalid Excel', 'No student records found in uploaded file.');
       }
@@ -191,8 +183,10 @@ export const Dashboard: React.FC = () => {
 
     setFileSlots(updatedSlots);
 
-    // If University Result Excel (master file) is deleted, reset application state completely
-    if (slotKey === 'univ') {
+    const hasAnyFile = Boolean(updatedSlots.univ.file || updatedSlots.cie1.file || updatedSlots.cie2.file || updatedSlots.model.file);
+
+    if (!hasAnyFile) {
+      // Reset application state completely ONLY if ALL files are deleted
       setMergeResult(null);
       setMergedStudents([]);
       setSummary(null);
@@ -205,11 +199,10 @@ export const Dashboard: React.FC = () => {
         academicYear: '2025 - 2026',
         uploadStatus: 'Awaiting Upload',
       });
-      addToast('info', 'University Result Removed', 'Master file cleared. Reset to initial upload state.');
+      addToast('info', 'File Removed', 'All Excel files cleared. Reset to initial state.');
     } else {
-      // If an optional file (CIE1, CIE2, Model) is removed:
-      // Keep existing preview state! If preview is currently active, re-merge remaining files dynamically.
-      if (updatedSlots.univ.file && mergedStudents.length > 0) {
+      // If at least one file remains and preview is active, re-merge remaining files dynamically
+      if (mergedStudents.length > 0) {
         const univList = updatedSlots.univ.students;
         const cie1List = updatedSlots.cie1.students;
         const cie2List = updatedSlots.cie2.students;
