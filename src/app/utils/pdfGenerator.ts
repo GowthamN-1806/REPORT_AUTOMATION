@@ -510,10 +510,6 @@ export const generateCombinedPDF = async (
     const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
     pdf.text(`The Class Counsellor, Department of ${deptStr},`, pageWidth / 2, p2Y, { align: 'center' });
 
-    p2Y += 16;
-    pdf.setFont('times', 'normal');
-    pdf.text('Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', pageWidth / 2, p2Y, { align: 'center' });
-
     // Helper to render a justified line of text segments across contentWidth
     const renderJustifiedLine = (
       segments: { text: string; bold?: boolean }[],
@@ -553,7 +549,13 @@ export const generateCombinedPDF = async (
     };
 
     p2Y += 22;
-    // Justified Paragraph Line 1
+    // Justified Paragraph Line 1 (Address Line - Starts Left, Ends Right)
+    renderJustifiedLine([
+      { text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604.', bold: false }
+    ], p2Y);
+
+    p2Y += 15;
+    // Justified Paragraph Line 2 (Progress report + Student Name & Reg No)
     renderJustifiedLine([
       { text: 'Progress report of my Son / Daughter Name: ', bold: false },
       { text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true },
@@ -561,13 +563,13 @@ export const generateCombinedPDF = async (
     ], p2Y);
 
     p2Y += 15;
-    // Justified Paragraph Line 2
+    // Justified Paragraph Line 3
     renderJustifiedLine([
       { text: 'Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation', bold: false }
     ], p2Y);
 
     p2Y += 15;
-    // Paragraph Line 3 (Last Line - Left Aligned)
+    // Paragraph Line 4 (Last Line - Left Aligned)
     pdf.setFont('times', 'normal');
     pdf.setFontSize(10.5);
     pdf.text('Results have been received.', margin, p2Y);

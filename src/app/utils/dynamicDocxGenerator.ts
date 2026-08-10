@@ -833,16 +833,10 @@ const buildStudentReportChildren = (
 
   children.push(
     new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 40, after: 120 },
-      children: [new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K), Chennai - 631604.', font: 'Times New Roman', size: 20 })],
-    })
-  );
-
-  children.push(
-    new Paragraph({
-      spacing: { before: 60, after: 60 },
+      alignment: AlignmentType.JUSTIFY,
+      spacing: { before: 80, after: 80 },
       children: [
+        new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
         new TextRun({ text: ' for Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation Results have been received.', font: 'Times New Roman', size: 20 }),
