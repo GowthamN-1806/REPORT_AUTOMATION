@@ -592,7 +592,6 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         let extractedDepartment = '';
         let extractedRegulation = '';
         let extractedSemester = '';
-        let extractedAcademicYear = '';
 
         for (let r = 0; r < rawMatrix.length; r++) {
           const rCells = rawMatrix[r] || [];
