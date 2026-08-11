@@ -73,6 +73,36 @@ const cleanSemesterValue = (val: any): string => {
   return str;
 };
 
+// Helper to clean department names and strip redundant prefixes
+const cleanDepartmentName = (rawDept: string): string => {
+  if (!rawDept) return '';
+  let str = rawDept.trim();
+
+  // Strip multiline headers if any
+  if (str.includes('\n')) {
+    const lines = str.split('\n').map((l) => l.trim()).filter(Boolean);
+    const deptLine = lines.find((l) => /department|dept|branch|computer|information|electronics|electrical|mechanical|civil|artificial/i.test(l));
+    if (deptLine) str = deptLine;
+  }
+
+  // Strip leading "DEPARTMENT OF", "DEPT OF", "BRANCH OF", "DEPARTMENT:", "DEPT:", "BRANCH:"
+  str = str.replace(/^(?:department\s+of|dept\s+of|branch\s+of|department|dept|branch)\s*[:.-]?\s*/i, '').trim();
+  str = str.replace(/^of\s+/i, '').trim();
+  str = str.replace(/[:.-]+$/, '').trim();
+
+  const upper = str.toUpperCase();
+  if (upper === 'IT' || upper === 'B.TECH - IT' || upper === 'B.TECH IT' || upper === 'B.TECH. - IT' || upper === 'B.TECH. IT') return 'INFORMATION TECHNOLOGY';
+  if (upper === 'CSE' || upper === 'B.E - CSE' || upper === 'B.E CSE' || upper === 'B.E. - CSE' || upper === 'B.E. CSE') return 'COMPUTER SCIENCE AND ENGINEERING';
+  if (upper === 'ECE' || upper === 'B.E - ECE' || upper === 'B.E. - ECE') return 'ELECTRONICS AND COMMUNICATION ENGINEERING';
+  if (upper === 'EEE' || upper === 'B.E - EEE' || upper === 'B.E. - EEE') return 'ELECTRICAL AND ELECTRONICS ENGINEERING';
+  if (upper === 'MECH' || upper === 'MECHANICAL' || upper === 'B.E - MECH') return 'MECHANICAL ENGINEERING';
+  if (upper === 'AIDS' || upper === 'AI & DS' || upper === 'AI/DS' || upper === 'AI AND DS') return 'ARTIFICIAL INTELLIGENCE AND DATA SCIENCE';
+  if (upper === 'AIML' || upper === 'AI & ML' || upper === 'AI/ML' || upper === 'AI AND ML') return 'ARTIFICIAL INTELLIGENCE AND MACHINE LEARNING';
+  if (upper === 'CIVIL' || upper === 'B.E - CIVIL') return 'CIVIL ENGINEERING';
+
+  return upper;
+};
+
 // Helper to identify placeholder tokens or __EMPTY strings
 const isPlaceholderToken = (str: string): boolean => {
   if (!str) return true;
@@ -510,18 +540,18 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             if (!cellText) continue;
 
             // Pattern 1: Inline "Department: IT" or "Dept: CSE" or "Branch: IT"
-            const inlineMatch = cellText.match(/^(?:department|dept|branch)\s*[:.-]\s*(.+)$/i);
+            const inlineMatch = cellText.match(/(?:department|dept|branch)\s*[:.-]\s*([^\n\r,]+)/i);
             if (inlineMatch && inlineMatch[1] && inlineMatch[1].trim()) {
-              const val = inlineMatch[1].trim();
+              const val = cleanDepartmentName(inlineMatch[1]);
               if (val && !extractedDepartment) {
                 extractedDepartment = val;
               }
             }
 
             // Pattern 2: Inline "DEPARTMENT OF INFORMATION TECHNOLOGY" or "DEPARTMENT OF IT"
-            const deptOfMatch = cellText.match(/^department\s+of\s+(.+)$/i);
+            const deptOfMatch = cellText.match(/department\s+of\s+([^\n\r,]+)/i);
             if (deptOfMatch && deptOfMatch[1] && deptOfMatch[1].trim()) {
-              const val = deptOfMatch[1].trim();
+              const val = cleanDepartmentName(deptOfMatch[1]);
               if (val && !extractedDepartment) {
                 extractedDepartment = val;
               }
@@ -532,12 +562,24 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               if (c + 1 < rCells.length && rCells[c + 1]) {
                 const nextVal = String(rCells[c + 1]).trim();
                 if (nextVal && !extractedDepartment && !/^(of|code|name|sem|no)/i.test(nextVal)) {
-                  extractedDepartment = nextVal;
+                  const cleaned = cleanDepartmentName(nextVal);
+                  if (cleaned) extractedDepartment = cleaned;
                 }
               }
             }
 
-            // Pattern 4: Regulation
+            // Pattern 4: Standalone department header cell (e.g. "INFORMATION TECHNOLOGY", "COMPUTER SCIENCE AND ENGINEERING") in top 10 rows
+            if (!extractedDepartment && r < 10) {
+              const cleaned = cleanDepartmentName(cellText);
+              if (
+                cleaned &&
+                /^(INFORMATION TECHNOLOGY|COMPUTER SCIENCE AND ENGINEERING|ELECTRONICS AND COMMUNICATION ENGINEERING|ELECTRICAL AND ELECTRONICS ENGINEERING|MECHANICAL ENGINEERING|ARTIFICIAL INTELLIGENCE AND DATA SCIENCE|CIVIL ENGINEERING)$/i.test(cleaned)
+              ) {
+                extractedDepartment = cleaned;
+              }
+            }
+
+            // Pattern 5: Regulation
             const reguMatch = cellText.match(/regulation\s*:?\s*(\d{4})/i);
             if (reguMatch && reguMatch[1] && !extractedRegulation) {
               extractedRegulation = reguMatch[1];
@@ -548,7 +590,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
 
-            // Pattern 5: Semester (Inspect inline text or right-side adjacent cells c+1, c+2, c+3)
+            // Pattern 6: Semester (Inspect inline text or right-side adjacent cells c+1, c+2, c+3)
             if (/^(?:semester|sem)\b/i.test(cellText)) {
               // Case A: Inline text in same cell, e.g. "Semester: 05" or "Sem: VI"
               const inlineSemMatch = cellText.match(/(?:semester|sem)\s*[:.-]?\s*([a-z0-9]+)/i);
@@ -631,6 +673,35 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
           }
+        }
+
+        // Fallback 1: Deduce Department from File Name if not found in cells
+        if (!extractedDepartment && file && file.name) {
+          const fn = file.name.toUpperCase();
+          if (/\bIT\b|_IT_|_IT\b|\bINFORMATION\b/i.test(fn)) extractedDepartment = 'INFORMATION TECHNOLOGY';
+          else if (/\bCSE\b|_CSE_|_CSE\b|\bCOMPUTER\b/i.test(fn)) extractedDepartment = 'COMPUTER SCIENCE AND ENGINEERING';
+          else if (/\bECE\b|_ECE_|_ECE\b|\bELECTRONICS\b/i.test(fn)) extractedDepartment = 'ELECTRONICS AND COMMUNICATION ENGINEERING';
+          else if (/\bEEE\b|_EEE_|_EEE\b|\bELECTRICAL\b/i.test(fn)) extractedDepartment = 'ELECTRICAL AND ELECTRONICS ENGINEERING';
+          else if (/\bMECH\b|_MECH_|_MECH\b|\bMECHANICAL\b/i.test(fn)) extractedDepartment = 'MECHANICAL ENGINEERING';
+          else if (/\bAIDS\b|_AIDS_|_AIDS\b|\bAI_DS\b/i.test(fn)) extractedDepartment = 'ARTIFICIAL INTELLIGENCE AND DATA SCIENCE';
+        }
+
+        // Fallback 2: Deduce Department from Subject Codes if not found
+        if (!extractedDepartment) {
+          const allCodes = Array.from(knownSubjectCodes);
+          const hasIT = allCodes.some((c) => c.startsWith('IT'));
+          const hasCS = allCodes.some((c) => c.startsWith('CS'));
+          const hasEC = allCodes.some((c) => c.startsWith('EC'));
+          const hasEE = allCodes.some((c) => c.startsWith('EE'));
+          const hasME = allCodes.some((c) => c.startsWith('ME'));
+          const hasAD = allCodes.some((c) => c.startsWith('AD') || c.startsWith('AI'));
+
+          if (hasIT) extractedDepartment = 'INFORMATION TECHNOLOGY';
+          else if (hasCS) extractedDepartment = 'COMPUTER SCIENCE AND ENGINEERING';
+          else if (hasEC) extractedDepartment = 'ELECTRONICS AND COMMUNICATION ENGINEERING';
+          else if (hasEE) extractedDepartment = 'ELECTRICAL AND ELECTRONICS ENGINEERING';
+          else if (hasME) extractedDepartment = 'MECHANICAL ENGINEERING';
+          else if (hasAD) extractedDepartment = 'ARTIFICIAL INTELLIGENCE AND DATA SCIENCE';
         }
 
         // STEP 2.5: Determine Student Data Start Row
@@ -1098,8 +1169,12 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           ]);
 
           let studentDept = rawDeptVal !== undefined && rawDeptVal !== null && String(rawDeptVal).trim() !== ''
-            ? String(rawDeptVal).trim()
-            : (deptColIndex !== -1 && rowCells[deptColIndex] ? String(rowCells[deptColIndex]).trim() : extractedDepartment);
+            ? cleanDepartmentName(String(rawDeptVal))
+            : (deptColIndex !== -1 && rowCells[deptColIndex] ? cleanDepartmentName(String(rowCells[deptColIndex])) : extractedDepartment);
+
+          if (!studentDept && extractedDepartment) {
+            studentDept = extractedDepartment;
+          }
 
           let studentSem = rawSemVal !== undefined && rawSemVal !== null && String(rawSemVal).trim() !== ''
             ? cleanSemesterValue(rawSemVal)
@@ -1129,7 +1204,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             id: `std-dyn-${r}`,
             regNo: regNoStr,
             name: nameStr.toUpperCase(),
-            department: studentDept.toUpperCase(),
+            department: (studentDept || extractedDepartment).toUpperCase(),
             regulation: extractedRegulation,
             currentSemester: studentSem,
             academicYear: studentAcadYear,

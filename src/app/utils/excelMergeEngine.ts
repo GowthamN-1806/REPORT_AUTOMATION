@@ -117,6 +117,20 @@ export const mergeExcelDatasets = (
   let missingGpaCount = 0;
   let missingSubjectsCount = 0;
 
+  // Helper to extract a valid department string from a student or dataset
+  const getValidDept = (dept?: string): string => {
+    if (!dept) return '';
+    const clean = dept.trim();
+    if (clean === 'N/A' || clean === '-' || clean === 'NONE' || clean === 'UNDEFINED') return '';
+    return clean;
+  };
+
+  const datasetDept =
+    getValidDept(univStudents.find((s) => getValidDept(s.department))?.department) ||
+    getValidDept(cie1Students.find((s) => getValidDept(s.department))?.department) ||
+    getValidDept(cie2Students.find((s) => getValidDept(s.department))?.department) ||
+    getValidDept(modelStudents.find((s) => getValidDept(s.department))?.department);
+
   baseStudents.forEach((s) => {
     const key = normalizeRegNo(s.regNo) || (s.name ? s.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '');
     if (!key) return;
@@ -133,7 +147,7 @@ export const mergeExcelDatasets = (
         id: s.id,
         regNo: s.regNo,
         name: s.name,
-        department: s.department,
+        department: getValidDept(s.department) || datasetDept,
         regulation: s.regulation,
         currentSemester: s.currentSemester,
         academicYear: s.academicYear,
@@ -183,6 +197,11 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (cie1Match) {
+        if (!getValidDept(student.department)) {
+          const d = getValidDept(cie1Match.department);
+          if (d) student.department = d;
+        }
+
         // Collect CIE 1 subjects from either internalEvalResults or universityResults
         const cie1SubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
 
@@ -263,6 +282,11 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (cie2Match) {
+        if (!getValidDept(student.department)) {
+          const d = getValidDept(cie2Match.department);
+          if (d) student.department = d;
+        }
+
         const cie2SubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
         if (cie2Match.internalEvalResults && cie2Match.internalEvalResults.length > 0) {
           cie2Match.internalEvalResults.forEach((ie) => {
@@ -347,6 +371,11 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (modelMatch) {
+        if (!getValidDept(student.department)) {
+          const d = getValidDept(modelMatch.department);
+          if (d) student.department = d;
+        }
+
         const modelSubList: { code: string; title: string; mark: number | string; sem?: string }[] = [];
         if (modelMatch.internalEvalResults && modelMatch.internalEvalResults.length > 0) {
           modelMatch.internalEvalResults.forEach((ie) => {
@@ -429,6 +458,12 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
   }
 
   const mergedStudents = Array.from(mergedStudentsMap.values());
+  mergedStudents.forEach((student) => {
+    if (!getValidDept(student.department) && datasetDept) {
+      student.department = datasetDept;
+    }
+  });
+
   const isReadyForPreview = mergedStudents.length > 0;
 
   return {
