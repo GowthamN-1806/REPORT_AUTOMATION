@@ -308,7 +308,9 @@ export const generateCombinedPDF = async (
       y += 30;
       pdf.setFont('times', 'bold');
       pdf.setFontSize(11);
-      pdf.text(`Academic Year ${student.academicYear || ''}- Even Sem- Continuous Internal Evaluation Results:`, margin, y);
+      const ayStr = student.academicYear || '';
+      const cieHeaderStr = ayStr ? `Academic Year ${ayStr}- Continuous Internal Evaluation Results:` : 'Continuous Internal Evaluation Results:';
+      pdf.text(cieHeaderStr, margin, y);
 
       y += 10;
 
@@ -564,8 +566,9 @@ export const generateCombinedPDF = async (
 
     p2Y += 15;
     // Justified Paragraph Line 3
+    const ayStrAck = student.academicYear ? `${student.academicYear} AY – ` : '';
     renderJustifiedLine([
-      { text: `Nov/Dec 2025 end Semester exam and ${student.academicYear || ''} AY – Even Sem- Continuous Internal Evaluation`, bold: false }
+      { text: `Nov/Dec 2025 end Semester exam and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
     ], p2Y);
 
     p2Y += 15;

@@ -1,6 +1,28 @@
 import * as XLSX from 'xlsx';
 import { StudentRecord, SubjectResult, InternalEvalResult } from '../types';
 
+// Helper to extract strictly 1-year Academic Year (y2 - y1 === 1), ignoring 4-year Batch spans (e.g. 2024-2028)
+const extractAcademicYearFromText = (text: string): string => {
+  if (!text) return '';
+  const cleanText = text.trim();
+
+  const regex = /\b(20\d{2})\s*[-–—/]\s*(20\d{2}|\d{2})\b/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(cleanText)) !== null) {
+    const y1 = parseInt(match[1], 10);
+    let y2 = parseInt(match[2], 10);
+    if (y2 < 100) {
+      y2 = 2000 + y2;
+    }
+
+    if (y2 - y1 === 1) {
+      return `${y1}–${y2}`;
+    }
+  }
+  return '';
+};
+
 // Subject Master Mapping Dictionary (100% dynamically fetched from uploaded Excel files - ZERO hardcoded defaults)
 const knownTitles: Record<string, string> = {};
 
@@ -256,8 +278,47 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         // Read raw 2D matrix (header: 1)
         const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-        if (!rawMatrix || rawMatrix.length === 0) {
-          throw new Error('Excel sheet is empty or invalid.');
+        // STEP 0.1: Extract Academic Year dynamically from Excel sheet (strictly 1-year span, excluding Batch)
+        let extractedAcademicYear = '';
+
+        // Priority 1: Search cells explicitly labeled with "Academic Year" or "AY"
+        for (let r = 0; r < Math.min(rawMatrix.length, 35); r++) {
+          const rowCells = rawMatrix[r] || [];
+          for (let c = 0; c < rowCells.length; c++) {
+            const cellVal = String(rowCells[c] || '').trim();
+            if (!cellVal) continue;
+            const lower = cellVal.toLowerCase();
+
+            if ((lower.includes('academic year') || lower.includes('academic_year') || /\bay\b/i.test(lower)) && !lower.includes('batch')) {
+              const candidate = cellVal + ' ' + (rowCells[c + 1] ? String(rowCells[c + 1]) : '') + ' ' + (rowCells[c + 2] ? String(rowCells[c + 2]) : '');
+              const found = extractAcademicYearFromText(candidate);
+              if (found) {
+                extractedAcademicYear = found;
+                break;
+              }
+            }
+          }
+          if (extractedAcademicYear) break;
+        }
+
+        // Priority 2: Fallback scan for any 1-year span (y2 - y1 === 1) in top rows, avoiding batch-only cells
+        if (!extractedAcademicYear) {
+          for (let r = 0; r < Math.min(rawMatrix.length, 35); r++) {
+            const rowCells = rawMatrix[r] || [];
+            for (let c = 0; c < rowCells.length; c++) {
+              const cellVal = String(rowCells[c] || '').trim();
+              if (!cellVal) continue;
+              const lower = cellVal.toLowerCase();
+              if (lower.includes('batch') && !lower.includes('academic')) continue;
+
+              const found = extractAcademicYearFromText(cellVal);
+              if (found) {
+                extractedAcademicYear = found;
+                break;
+              }
+            }
+            if (extractedAcademicYear) break;
+          }
         }
 
         // STEP 0: Extract Subject Code -> Subject Name dictionary & ordered list from Excel sheet (reference block at bottom)
@@ -1206,6 +1267,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             name: nameStr.toUpperCase(),
             department: (studentDept || extractedDepartment).toUpperCase(),
             regulation: extractedRegulation,
+            academicYear: extractedAcademicYear || '',
             currentSemester: studentSem,
             academicYear: studentAcadYear,
             universityResults,

@@ -192,7 +192,7 @@ export const Dashboard: React.FC = () => {
         setMergedStudents(res.mergedStudents);
 
         const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-        const acadYear = res.mergedStudents[0]?.academicYear || '-';
+        const acadYear = res.mergedStudents[0]?.academicYear || '';
         const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
 
         setSummary({
@@ -276,7 +276,7 @@ export const Dashboard: React.FC = () => {
     setCurrentPageIndex(0);
 
     const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-    const acadYear = res.mergedStudents[0]?.academicYear || '-';
+    const acadYear = res.mergedStudents[0]?.academicYear || '';
     const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
 
     setSummary({

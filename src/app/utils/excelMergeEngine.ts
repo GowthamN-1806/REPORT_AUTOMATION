@@ -149,6 +149,7 @@ export const mergeExcelDatasets = (
         name: s.name,
         department: getValidDept(s.department) || datasetDept,
         regulation: s.regulation,
+        academicYear: s.academicYear || univStudents.find((x) => x.academicYear)?.academicYear || cie1Students.find((x) => x.academicYear)?.academicYear || cie2Students.find((x) => x.academicYear)?.academicYear || modelStudents.find((x) => x.academicYear)?.academicYear || '',
         currentSemester: s.currentSemester,
         academicYear: s.academicYear,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
