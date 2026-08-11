@@ -1266,7 +1266,6 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             name: nameStr.toUpperCase(),
             department: (studentDept || extractedDepartment).toUpperCase(),
             regulation: extractedRegulation,
-            academicYear: extractedAcademicYear || '',
             currentSemester: studentSem,
             academicYear: studentAcadYear,
             universityResults,

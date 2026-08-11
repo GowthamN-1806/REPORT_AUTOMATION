@@ -151,7 +151,6 @@ export const mergeExcelDatasets = (
         regulation: s.regulation,
         academicYear: s.academicYear || univStudents.find((x) => x.academicYear)?.academicYear || cie1Students.find((x) => x.academicYear)?.academicYear || cie2Students.find((x) => x.academicYear)?.academicYear || modelStudents.find((x) => x.academicYear)?.academicYear || '',
         currentSemester: s.currentSemester,
-        academicYear: s.academicYear,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
         internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
         gpa: univCount > 0 ? s.gpa : undefined,
