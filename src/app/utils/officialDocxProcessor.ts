@@ -117,7 +117,7 @@ export async function populateOfficialDocxTemplateWithLogs(
     department: student.department || 'Computer Science and Engineering',
     semester: student.semester || 'VI',
     exam_session: 'Nov/Dec 2025',
-    academic_year: '2025 - 2026',
+    academic_year: student.academicYear || '',
     regulation: regulation || student.regulation || '2021',
     cgpa: student.cgpa || 8.42,
     gpa: student.gpaBySem || {},

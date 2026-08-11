@@ -504,7 +504,7 @@ const buildStudentReportChildren = (
         spacing: { before: 140, after: 40 },
         children: [
           new TextRun({
-            text: 'Academic Year 2025-2026- Even Sem- Continuous Internal Evaluation Results:',
+            text: `Academic Year ${student.academicYear || ''}- Even Sem- Continuous Internal Evaluation Results:`,
             bold: true,
             font: 'Times New Roman',
             size: 21,
@@ -794,7 +794,7 @@ const buildStudentReportChildren = (
         new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ' for Nov/Dec 2025 end Semester exam and 2025-2026 AY – Even Sem- Continuous Internal Evaluation Results have been received.', font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: ` for Nov/Dec 2025 end Semester exam and ${student.academicYear || ''} AY – Even Sem- Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
       ],
     })
   );

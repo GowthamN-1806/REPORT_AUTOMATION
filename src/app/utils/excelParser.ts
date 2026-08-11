@@ -497,10 +497,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         let subjectHeaderRowIndex = bestHeaderRowIndex;
 
-        // Line-by-line scanner across ALL rows of rawMatrix to find exact value next to 'Department' / 'Dept' / 'Branch'
+        // Line-by-line scanner across ALL rows of rawMatrix to find exact value next to 'Department' / 'Dept' / 'Branch' / 'Academic Year'
         let extractedDepartment = '';
         let extractedRegulation = '';
         let extractedSemester = '';
+        let extractedAcademicYear = '';
 
         for (let r = 0; r < rawMatrix.length; r++) {
           const rCells = rawMatrix[r] || [];
@@ -570,6 +571,61 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                         break;
                       }
                     }
+                  }
+                }
+              }
+            }
+
+            // Pattern 6: Academic Year (e.g. "Academic Year : 2026-2027 Even", "Academic Year: 2025-2026", "AY 2024-2025")
+            if (!extractedAcademicYear) {
+              const inlineAyMatch = cellText.match(/(?:academic\s*year|academic_year|academicyear|acad\s*year|\bay\b)\s*[:.-]?\s*(\d{4}\s*[-–/]\s*(?:\d{4}|\d{2}))/i);
+              if (inlineAyMatch && inlineAyMatch[1]) {
+                const rawYearPair = inlineAyMatch[1].replace(/\s+/g, '');
+                const parts = rawYearPair.split(/[-–/]/);
+                if (parts.length === 2) {
+                  const startYr = parts[0];
+                  let endYr = parts[1];
+                  if (endYr.length === 2) endYr = startYr.substring(0, 2) + endYr;
+                  extractedAcademicYear = `${startYr}-${endYr}`;
+                } else {
+                  extractedAcademicYear = rawYearPair;
+                }
+              }
+
+              if (!extractedAcademicYear && /^(academic\s*year|academicyear|academic_year|acad\s*year|ay)\s*:?$/i.test(cellText)) {
+                for (let offset = 1; offset <= 3; offset++) {
+                  if (c + offset < rCells.length && rCells[c + offset] !== undefined && rCells[c + offset] !== null) {
+                    const targetVal = String(rCells[c + offset]).trim();
+                    const yrMatch = targetVal.match(/(\d{4}\s*[-–/]\s*(?:\d{4}|\d{2}))/);
+                    if (yrMatch && yrMatch[1]) {
+                      const rawYearPair = yrMatch[1].replace(/\s+/g, '');
+                      const parts = rawYearPair.split(/[-–/]/);
+                      if (parts.length === 2) {
+                        const startYr = parts[0];
+                        let endYr = parts[1];
+                        if (endYr.length === 2) endYr = startYr.substring(0, 2) + endYr;
+                        extractedAcademicYear = `${startYr}-${endYr}`;
+                      } else {
+                        extractedAcademicYear = rawYearPair;
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (!extractedAcademicYear && /^(academic\s*year|academicyear|academic_year|ay)/i.test(cellText)) {
+                const yrMatch = cellText.match(/(\d{4}\s*[-–/]\s*(?:\d{4}|\d{2}))/);
+                if (yrMatch && yrMatch[1]) {
+                  const rawYearPair = yrMatch[1].replace(/\s+/g, '');
+                  const parts = rawYearPair.split(/[-–/]/);
+                  if (parts.length === 2) {
+                    const startYr = parts[0];
+                    let endYr = parts[1];
+                    if (endYr.length === 2) endYr = startYr.substring(0, 2) + endYr;
+                    extractedAcademicYear = `${startYr}-${endYr}`;
+                  } else {
+                    extractedAcademicYear = rawYearPair;
                   }
                 }
               }
@@ -1037,6 +1093,10 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             'semester', 'sem', 'sem_name', 'sem name', 'current_sem', 'current sem'
           ]);
 
+          const rawAcadVal = findCellValue(rowCells, headerNames, [
+            'academic year', 'academicyear', 'academic_year', 'academic_year:', 'academic year:', 'ay', 'acad year', 'acad_year'
+          ]);
+
           let studentDept = rawDeptVal !== undefined && rawDeptVal !== null && String(rawDeptVal).trim() !== ''
             ? String(rawDeptVal).trim()
             : (deptColIndex !== -1 && rowCells[deptColIndex] ? String(rowCells[deptColIndex]).trim() : extractedDepartment);
@@ -1045,6 +1105,26 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             ? cleanSemesterValue(rawSemVal)
             : extractedSemester;
 
+          let studentAcadYear = rawAcadVal !== undefined && rawAcadVal !== null && String(rawAcadVal).trim() !== ''
+            ? String(rawAcadVal).trim()
+            : extractedAcademicYear;
+
+          if (studentAcadYear) {
+            const yrMatch = studentAcadYear.match(/(\d{4}\s*[-–/]\s*(?:\d{4}|\d{2}))/);
+            if (yrMatch && yrMatch[1]) {
+              const rawYearPair = yrMatch[1].replace(/\s+/g, '');
+              const parts = rawYearPair.split(/[-–/]/);
+              if (parts.length === 2) {
+                const startYr = parts[0];
+                let endYr = parts[1];
+                if (endYr.length === 2) endYr = startYr.substring(0, 2) + endYr;
+                studentAcadYear = `${startYr}-${endYr}`;
+              } else {
+                studentAcadYear = rawYearPair;
+              }
+            }
+          }
+
           parsedStudents.push({
             id: `std-dyn-${r}`,
             regNo: regNoStr,
@@ -1052,6 +1132,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             department: studentDept.toUpperCase(),
             regulation: extractedRegulation,
             currentSemester: studentSem,
+            academicYear: studentAcadYear,
             universityResults,
             gpa: gpaVal,
             cgpa: cgpaVal,
@@ -1065,6 +1146,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
         if (parsedStudents.length === 0) {
           throw new Error('No valid student records found in uploaded Excel file.');
+        }
+
+        const hasAcademicYear = parsedStudents.some((s) => Boolean(s.academicYear)) || Boolean(extractedAcademicYear);
+        if (!hasAcademicYear) {
+          throw new Error('Academic Year missing in uploaded Excel file. Please ensure a cell or column for Academic Year (e.g. "Academic Year", "AY") is included.');
         }
 
         // BROWSER CONSOLE LOGGING AS SPECIFIED BY USER

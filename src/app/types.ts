@@ -37,6 +37,7 @@ export interface StudentRecord {
   cgpaBySem: Record<string, number | string>;
   internalEvalResults: InternalEvalResult[];
   currentSemester?: string;
+  academicYear?: string;
 }
 
 export interface UploadSummary {

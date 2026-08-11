@@ -136,6 +136,7 @@ export const mergeExcelDatasets = (
         department: s.department,
         regulation: s.regulation,
         currentSemester: s.currentSemester,
+        academicYear: s.academicYear,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
         internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
         gpa: univCount > 0 ? s.gpa : undefined,

@@ -39,7 +39,7 @@ const EMPTY_TEMPLATE_STUDENT: StudentRecord = {
   department: 'Computer Science and Engineering',
   semester: '',
   currentSemester: '',
-  academicYear: '2025 - 2026',
+  academicYear: '',
   regulation: '2021',
   universityResults: [
     { sem: '', code: '', title: '', grade: '', passFail: '' },
