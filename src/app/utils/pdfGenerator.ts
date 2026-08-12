@@ -1,6 +1,20 @@
 import { jsPDF } from 'jspdf';
 import { StudentRecord } from '../types';
 
+export const getSemEvenOddLabel = (sem?: string): string => {
+  if (!sem) return 'Even Sem';
+  const str = String(sem).trim().toUpperCase();
+  const clean = str.replace(/^(?:SEMESTER|SEM)\s*[:./-]?\s*/i, '').trim();
+
+  if (/^(II|IV|VI|VIII|0?2|0?4|0?6|0?8)$/i.test(clean) || /\b(II|IV|VI|VIII)\b/i.test(clean)) {
+    return 'Even Sem';
+  }
+  if (/^(I|III|V|VII|0?1|0?3|0?5|0?7)$/i.test(clean) || /\b(I|III|V|VII)\b/i.test(clean)) {
+    return 'Odd Sem';
+  }
+  return 'Even Sem';
+};
+
 const loadImg = (src: string): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -112,7 +126,8 @@ export const generateCombinedPDF = async (
       pdf.setFontSize(10.5);
       pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
       y += 16;
-      pdf.text('This is to inform you that the results of the Semester End Examination held during Nov/Dec 2025 have been released.', margin, y);
+      const sessionStr = student.examSession || 'Nov/Dec 2025';
+      pdf.text(`This is to inform you that the results of the Semester End Examination held during ${sessionStr} have been released.`, margin, y);
     } else {
       pdf.setFont('times', 'normal');
       pdf.setFontSize(10.5);
@@ -307,9 +322,11 @@ export const generateCombinedPDF = async (
     if (cieList.length > 0) {
       y += 30;
       pdf.setFont('times', 'bold');
-      pdf.setFontSize(11);
+      const semText = getSemEvenOddLabel(student.currentSemester);
       const ayStr = student.academicYear || '';
-      const cieHeaderStr = ayStr ? `Academic Year ${ayStr}- Continuous Internal Evaluation Results:` : 'Continuous Internal Evaluation Results:';
+      const cieHeaderStr = ayStr
+        ? `Academic Year ${ayStr} – ${semText} – Continuous Internal Evaluation Results:`
+        : `Academic Year – ${semText} – Continuous Internal Evaluation Results:`;
       pdf.text(cieHeaderStr, margin, y);
 
       y += 10;
@@ -565,10 +582,11 @@ export const generateCombinedPDF = async (
     ], p2Y);
 
     p2Y += 15;
-    // Justified Paragraph Line 3
-    const ayStrAck = student.academicYear ? `${student.academicYear} AY – ` : '';
+    const semText = getSemEvenOddLabel(student.currentSemester);
+    const ayStrAck = student.academicYear ? `${student.academicYear} AY – ${semText} – ` : `${semText} – `;
+    const sessionStrAck = student.examSession || 'Nov/Dec 2025';
     renderJustifiedLine([
-      { text: `Nov/Dec 2025 end Semester exam and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
+      { text: `${sessionStrAck} end Semester exam and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
     ], p2Y);
 
     p2Y += 15;

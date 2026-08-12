@@ -131,6 +131,20 @@ export const mergeExcelDatasets = (
     getValidDept(cie2Students.find((s) => getValidDept(s.department))?.department) ||
     getValidDept(modelStudents.find((s) => getValidDept(s.department))?.department);
 
+  const datasetSem =
+    univStudents.find((s) => s.currentSemester)?.currentSemester ||
+    cie1Students.find((s) => s.currentSemester)?.currentSemester ||
+    cie2Students.find((s) => s.currentSemester)?.currentSemester ||
+    modelStudents.find((s) => s.currentSemester)?.currentSemester ||
+    '';
+
+  const datasetExamSession =
+    univStudents.find((s) => s.examSession)?.examSession ||
+    cie1Students.find((s) => s.examSession)?.examSession ||
+    cie2Students.find((s) => s.examSession)?.examSession ||
+    modelStudents.find((s) => s.examSession)?.examSession ||
+    '';
+
   baseStudents.forEach((s) => {
     const key = normalizeRegNo(s.regNo) || (s.name ? s.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '');
     if (!key) return;
@@ -150,7 +164,8 @@ export const mergeExcelDatasets = (
         department: getValidDept(s.department) || datasetDept,
         regulation: s.regulation,
         academicYear: s.academicYear || univStudents.find((x) => x.academicYear)?.academicYear || cie1Students.find((x) => x.academicYear)?.academicYear || cie2Students.find((x) => x.academicYear)?.academicYear || modelStudents.find((x) => x.academicYear)?.academicYear || '',
-        currentSemester: s.currentSemester,
+        currentSemester: s.currentSemester || datasetSem,
+        examSession: s.examSession || datasetExamSession,
         universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
         internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
         gpa: univCount > 0 ? s.gpa : undefined,

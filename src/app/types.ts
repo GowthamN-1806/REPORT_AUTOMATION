@@ -38,6 +38,7 @@ export interface StudentRecord {
   internalEvalResults: InternalEvalResult[];
   currentSemester?: string;
   academicYear?: string;
+  examSession?: string;
 }
 
 export interface UploadSummary {

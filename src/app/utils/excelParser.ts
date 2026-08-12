@@ -592,6 +592,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         let extractedDepartment = '';
         let extractedRegulation = '';
         let extractedSemester = '';
+        let extractedExamSession = '';
 
         for (let r = 0; r < rawMatrix.length; r++) {
           const rCells = rawMatrix[r] || [];
@@ -730,6 +731,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                     extractedAcademicYear = rawYearPair;
                   }
                 }
+              }
+            }
+
+            if (!extractedExamSession) {
+              const sessionMatch = cellText.match(/\b((?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH)(?:\s*[\/\-&]\s*(?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH))?\s+\d{4}(?:\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION)?)\b/i);
+              if (sessionMatch && sessionMatch[1]) {
+                extractedExamSession = sessionMatch[1].trim();
               }
             }
           }
@@ -1268,6 +1276,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             regulation: extractedRegulation,
             currentSemester: studentSem,
             academicYear: studentAcadYear,
+            examSession: extractedExamSession,
             universityResults,
             gpa: gpaVal,
             cgpa: cgpaVal,

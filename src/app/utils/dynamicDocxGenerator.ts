@@ -16,6 +16,7 @@ import {
   VerticalMergeType,
 } from 'docx';
 import { StudentRecord } from '../types';
+import { getSemEvenOddLabel } from './pdfGenerator';
 
 // Helper to fetch logo images as Uint8Array safely
 const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
@@ -499,8 +500,11 @@ const buildStudentReportChildren = (
   if (cieList.length > 0) {
     const cieRows: TableRow[] = [];
 
+    const semTextDocx = getSemEvenOddLabel(student.currentSemester);
     const ayStrDocx = student.academicYear || '';
-    const cieHeaderStrDocx = ayStrDocx ? `Academic Year ${ayStrDocx}- Continuous Internal Evaluation Results:` : 'Continuous Internal Evaluation Results:';
+    const cieHeaderStrDocx = ayStrDocx
+      ? `Academic Year ${ayStrDocx} – ${semTextDocx} – Continuous Internal Evaluation Results:`
+      : `Academic Year – ${semTextDocx} – Continuous Internal Evaluation Results:`;
 
     children.push(
       new Paragraph({
@@ -789,7 +793,10 @@ const buildStudentReportChildren = (
     })
   );
 
-  const ayStrAckDocx = student.academicYear ? `${student.academicYear} AY – ` : '';
+  const semTextAckDocx = getSemEvenOddLabel(student.currentSemester);
+  const ayStrAckDocx = student.academicYear ? `${student.academicYear} AY – ${semTextAckDocx} – ` : `${semTextAckDocx} – `;
+
+  const sessionStrAckDocx = student.examSession || 'Nov/Dec 2025';
 
   children.push(
     new Paragraph({
@@ -799,7 +806,7 @@ const buildStudentReportChildren = (
         new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ` for Nov/Dec 2025 end Semester exam and ${ayStrAckDocx}Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: ` for ${sessionStrAckDocx} end Semester exam and ${ayStrAckDocx}Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
       ],
     })
   );
