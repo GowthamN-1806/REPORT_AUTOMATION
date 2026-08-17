@@ -735,9 +735,9 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
 
             if (!extractedExamSession) {
-              const sessionMatch = cellText.match(/\b((?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH)(?:\s*[\/\-&]\s*(?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH))?\s+\d{4}(?:\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION)?)\b/i);
+              const sessionMatch = cellText.match(/\b((?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH)(?:\s*[\/\-&]\s*(?:APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JAN|FEB|MAR|APRIL|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JANUARY|FEBRUARY|MARCH))?\s+\d{4})\b/i);
               if (sessionMatch && sessionMatch[1]) {
-                extractedExamSession = sessionMatch[1].trim();
+                extractedExamSession = sessionMatch[1].trim().toUpperCase();
               }
             }
           }

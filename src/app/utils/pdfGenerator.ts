@@ -126,8 +126,9 @@ export const generateCombinedPDF = async (
       pdf.setFontSize(10.5);
       pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
       y += 16;
-      const sessionStr = student.examSession || 'Nov/Dec 2025';
-      pdf.text(`This is to inform you that the results of the Semester End Examination held during ${sessionStr} have been released.`, margin, y);
+      const rawSession = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
+      const sessionText = rawSession ? `held during ${rawSession} ` : '';
+      pdf.text(`This is to inform you that the results of the Semester End Examination ${sessionText}have been released.`, margin, y);
     } else {
       pdf.setFont('times', 'normal');
       pdf.setFontSize(10.5);
@@ -584,9 +585,10 @@ export const generateCombinedPDF = async (
     p2Y += 15;
     const semText = getSemEvenOddLabel(student.currentSemester);
     const ayStrAck = student.academicYear ? `${student.academicYear} AY – ${semText} – ` : `${semText} – `;
-    const sessionStrAck = student.examSession || 'Nov/Dec 2025';
+    const rawSessionAck = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
+    const examTextPrefix = rawSessionAck ? `${rawSessionAck} end Semester exam` : 'end Semester exam';
     renderJustifiedLine([
-      { text: `${sessionStrAck} end Semester exam and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
+      { text: `${examTextPrefix} and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
     ], p2Y);
 
     p2Y += 15;

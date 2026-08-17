@@ -796,7 +796,8 @@ const buildStudentReportChildren = (
   const semTextAckDocx = getSemEvenOddLabel(student.currentSemester);
   const ayStrAckDocx = student.academicYear ? `${student.academicYear} AY – ${semTextAckDocx} – ` : `${semTextAckDocx} – `;
 
-  const sessionStrAckDocx = student.examSession || 'Nov/Dec 2025';
+  const rawSessionDocx = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
+  const sessionStrAckDocx = rawSessionDocx ? `${rawSessionDocx} end Semester exam` : 'end Semester exam';
 
   children.push(
     new Paragraph({
@@ -806,7 +807,7 @@ const buildStudentReportChildren = (
         new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ` for ${sessionStrAckDocx} end Semester exam and ${ayStrAckDocx}Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: ` for ${sessionStrAckDocx} and ${ayStrAckDocx}Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
       ],
     })
   );
