@@ -237,26 +237,18 @@ const buildStudentReportChildren = (
     })
   );
 
+  const rawSessionDocxHeading = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
+
   if (hasUniv) {
+    const sessionTextDocx = rawSessionDocxHeading ? `held during ${rawSessionDocxHeading} ` : '';
     children.push(
       new Paragraph({
         spacing: { before: 0, after: 60 },
         children: [
           new TextRun({
-            text: 'This is to inform you that the results of the Semester End Examination held during ',
+            text: `This is to inform you that the results of the Semester End Examination ${sessionTextDocx}have been released.`,
             font: 'Times New Roman',
             size: 20, // 10pt
-          }),
-          new TextRun({
-            text: 'Nov/Dec',
-            bold: true,
-            font: 'Times New Roman',
-            size: 20,
-          }),
-          new TextRun({
-            text: ' 2025 have been released.',
-            font: 'Times New Roman',
-            size: 20,
           }),
         ],
       })
@@ -350,6 +342,24 @@ const buildStudentReportChildren = (
 
   if (hasUniv) {
     // Table 2: University Results Table
+    const univHeaderTitleDocx = rawSessionDocxHeading
+      ? `${rawSessionDocxHeading} Semester End Examination Results:`
+      : 'Semester End Examination Results:';
+
+    children.push(
+      new Paragraph({
+        spacing: { before: 100, after: 40 },
+        children: [
+          new TextRun({
+            text: univHeaderTitleDocx,
+            bold: true,
+            font: 'Times New Roman',
+            size: 21,
+          }),
+        ],
+      })
+    );
+
     const univList = student.universityResults || [];
     const univRows: TableRow[] = [];
 

@@ -100,40 +100,24 @@ export const generateCombinedPDF = async (
     pdf.setFontSize(8.5);
     pdf.text('( AN AUTONOMOUS INSTITUTION )', pageWidth / 2, 70, { align: 'center' });
 
-    // Greetings Line
     let y = 95;
     pdf.setTextColor(15, 23, 42);
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(11);
-    pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
-
-    y += 14;
-    pdf.text('This is to inform you that the results of the Semester End Examination held during ', margin, y);
-    const textWidth = pdf.getTextWidth('This is to inform you that the results of the Semester End Examination held during ');
     pdf.setFont('times', 'bold');
-    pdf.text('Nov/Dec', margin + textWidth, y);
-    const novWidth = pdf.getTextWidth('Nov/Dec');
-    pdf.setFont('times', 'normal');
-    
-    y += 18;
-    pdf.setFont('times', 'bold');
+    pdf.setFontSize(10.5);
     pdf.text(`Regulation: ${regulation || '2021'}`, pageWidth - margin, y, { align: 'right' });
 
     const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
+    const rawSession = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
 
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(10.5);
+    pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
+
+    y += 16;
     if (hasUniv) {
-      pdf.setFont('times', 'normal');
-      pdf.setFontSize(10.5);
-      pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
-      y += 16;
-      const rawSession = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
       const sessionText = rawSession ? `held during ${rawSession} ` : '';
       pdf.text(`This is to inform you that the results of the Semester End Examination ${sessionText}have been released.`, margin, y);
     } else {
-      pdf.setFont('times', 'normal');
-      pdf.setFontSize(10.5);
-      pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
-      y += 16;
       pdf.setFont('times', 'bold');
       pdf.text('Continuous Internal Evaluation Mark Report', margin, y);
     }
@@ -159,9 +143,14 @@ export const generateCombinedPDF = async (
     pdf.text(student.name || '', margin + 166, y + 14);
 
     if (hasUniv) {
-      // University Results Table
-      y += 32;
+      // University Results Section Heading & Table
+      y += 26;
       pdf.setFont('times', 'bold');
+      pdf.setFontSize(11);
+      const univHeadingText = rawSession ? `${rawSession} Semester End Examination Results:` : 'Semester End Examination Results:';
+      pdf.text(univHeadingText, margin, y);
+
+      y += 14;
       pdf.setFontSize(10.5);
 
       // Header Row
