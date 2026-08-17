@@ -401,20 +401,7 @@ const buildStudentReportChildren = (
 
     children.push(new Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
 
-    // Headers for Matrix Table
-    children.push(
-      new Paragraph({
-        spacing: { before: 80, after: 40 },
-        children: [
-          new TextRun({
-            text: 'Nov/Dec 2025 University Results:-',
-            bold: true,
-            font: 'Times New Roman',
-            size: 21,
-          }),
-        ],
-      })
-    );
+
 
     children.push(
       new Paragraph({

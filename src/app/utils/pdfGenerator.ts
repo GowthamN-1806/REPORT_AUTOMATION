@@ -194,13 +194,10 @@ export const generateCombinedPDF = async (
         y += 18;
       }
 
-      // Nov/Dec 2025 University Results Header
-      y += 12;
+      // GPA/CGPA Header
+      y += 18;
       pdf.setFont('times', 'bold');
       pdf.setFontSize(11);
-      pdf.text('Nov/Dec 2025 University Results:-', margin, y);
-
-      y += 18;
       pdf.text('GPA/CGPA:-', margin, y);
 
       // Matrix Table (SEMESTER, ARREARS, GPA, CGPA, CLASS OBTAINED)
