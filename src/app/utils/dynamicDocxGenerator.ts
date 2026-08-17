@@ -348,7 +348,8 @@ const buildStudentReportChildren = (
 
     children.push(
       new Paragraph({
-        spacing: { before: 100, after: 40 },
+        alignment: AlignmentType.LEFT,
+        spacing: { before: 140, after: 60 },
         children: [
           new TextRun({
             text: univHeaderTitleDocx,

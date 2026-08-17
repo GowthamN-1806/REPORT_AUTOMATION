@@ -144,9 +144,10 @@ export const generateCombinedPDF = async (
 
     if (hasUniv) {
       // University Results Section Heading & Table
-      y += 26;
+      y += 36;
       pdf.setFont('times', 'bold');
-      pdf.setFontSize(11);
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(15, 23, 42);
       const univHeadingText = rawSession ? `${rawSession} Semester End Examination Results:` : 'Semester End Examination Results:';
       pdf.text(univHeadingText, margin, y);
 
