@@ -16,7 +16,7 @@ import {
   VerticalMergeType,
 } from 'docx';
 import { StudentRecord } from '../types';
-import { getSemEvenOddLabel } from './pdfGenerator';
+import { getSemEvenOddLabel, getEffectivePassFail } from './pdfGenerator';
 
 // Helper to fetch logo images as Uint8Array safely
 const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
@@ -385,7 +385,7 @@ const buildStudentReportChildren = (
             new TableCell({ width: { size: 1800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.code || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
             new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: item.title || '', font: 'Times New Roman', size: 19 })] })] }),
             new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.grade || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
-            new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.passFail || '', bold: true, font: 'Times New Roman', size: 19 })] })] }),
+            new TableCell({ width: { size: 1200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: getEffectivePassFail(item.passFail, item.grade), bold: true, font: 'Times New Roman', size: 19 })] })] }),
           ],
         })
       );

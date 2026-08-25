@@ -204,24 +204,35 @@ const isNonStudentRow = (regNo: string, name: string, knownSubjectCodes?: Set<st
   return false;
 };
 
-// Evaluate Pass/Fail dynamically without forcing defaults
-const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' | '' => {
+// Evaluate Pass/Fail dynamically from Grade (U, RA, AB, F -> FAIL; S, O, A+, A, B+, B, C, D, P -> PASS)
+export const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL' | '' => {
   const str = String(value || '').trim().toUpperCase();
   const g = String(gradeStr || '').trim().toUpperCase();
 
   if (!str && !g) return '';
 
-  if (str === 'FAIL' || str === 'F' || str === 'RA' || str === 'U' || str === 'AB' || str === 'ABSENT' ||
-      g === 'RA' || g === 'U' || g === 'F' || g === 'AB' || g === 'FAIL' || g === 'ABSENT') {
-    return 'FAIL';
-  }
-  if (str === 'PASS' || str === 'P' || g === 'O' || g === 'A+' || g === 'A' || g === 'B+' || g === 'B' || g === 'C' || g === 'D' || g === 'P') {
+  // Primary rule: If grade is present, U / RA / F / AB / ABSENT -> FAIL, all other valid non-empty grades -> PASS
+  if (g) {
+    if (/^(U|RA|F|FAIL|AB|ABSENT|UA|WH|W)$/i.test(g)) {
+      return 'FAIL';
+    }
     return 'PASS';
   }
-  const num = Number(str);
-  if (!isNaN(num)) {
-    return num >= 50 ? 'PASS' : 'FAIL';
+
+  if (str) {
+    if (/^(U|RA|F|FAIL|AB|ABSENT|UA|WH|W)$/i.test(str)) {
+      return 'FAIL';
+    }
+    if (/^(PASS|P|O|S|A\+|A|B\+|B|C\+|C|D\+|D)$/i.test(str)) {
+      return 'PASS';
+    }
+    const num = Number(str);
+    if (!isNaN(num)) {
+      return num >= 50 ? 'PASS' : 'FAIL';
+    }
+    return 'PASS';
   }
+
   return '';
 };
 

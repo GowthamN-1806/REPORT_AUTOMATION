@@ -1,4 +1,5 @@
 import { StudentRecord, ResultPattern, InternalEvalResult } from '../types';
+import { evaluatePassFail } from './excelParser';
 
 export interface UploadedFileSlot {
   key: 'univ' | 'cie1' | 'cie2' | 'model';
@@ -166,7 +167,10 @@ export const mergeExcelDatasets = (
         academicYear: s.academicYear || univStudents.find((x) => x.academicYear)?.academicYear || cie1Students.find((x) => x.academicYear)?.academicYear || cie2Students.find((x) => x.academicYear)?.academicYear || modelStudents.find((x) => x.academicYear)?.academicYear || '',
         currentSemester: s.currentSemester || datasetSem,
         examSession: s.examSession || datasetExamSession,
-        universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({ ...ur })) : [],
+        universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({
+          ...ur,
+          passFail: evaluatePassFail(ur.passFail, ur.grade) || ur.passFail,
+        })) : [],
         internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
         gpa: univCount > 0 ? s.gpa : undefined,
         cgpa: univCount > 0 ? s.cgpa : undefined,

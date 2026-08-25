@@ -15,6 +15,22 @@ export const getSemEvenOddLabel = (sem?: string): string => {
   return 'Even Sem';
 };
 
+export const getEffectivePassFail = (passFail?: string, grade?: string): string => {
+  const pf = String(passFail || '').trim().toUpperCase();
+  const g = String(grade || '').trim().toUpperCase();
+
+  if (g) {
+    if (/^(U|RA|F|FAIL|AB|ABSENT|UA|WH|W)$/i.test(g)) {
+      return 'FAIL';
+    }
+    return 'PASS';
+  }
+
+  if (pf === 'PASS' || pf === 'FAIL') return pf;
+
+  return pf;
+};
+
 const loadImg = (src: string): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -188,7 +204,8 @@ export const generateCombinedPDF = async (
           pdf.text((item.title || '').substring(0, 48), cx + 6, y + 12); cx += colW1[2];
           pdf.setFont('times', 'bold');
           pdf.text(item.grade || '', cx + colW1[3] / 2, y + 12, { align: 'center' }); cx += colW1[3];
-          pdf.text(item.passFail || '', cx + colW1[4] / 2, y + 12, { align: 'center' });
+          const pfVal = getEffectivePassFail(item.passFail, item.grade);
+          pdf.text(pfVal, cx + colW1[4] / 2, y + 12, { align: 'center' });
         }
 
         y += 18;
