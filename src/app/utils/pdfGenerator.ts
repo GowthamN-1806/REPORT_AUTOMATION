@@ -1,18 +1,80 @@
 import { jsPDF } from 'jspdf';
 import { StudentRecord } from '../types';
 
-export const getSemEvenOddLabel = (sem?: string): string => {
-  if (!sem) return 'Even Sem';
-  const str = String(sem).trim().toUpperCase();
-  const clean = str.replace(/^(?:SEMESTER|SEM)\s*[:./-]?\s*/i, '').trim();
+export const deriveExamSessionFromAyAndSem = (ay?: string, sem?: string): string => {
+  const semLabel = getSemEvenOddLabel(sem);
+  const isOdd = semLabel === 'Odd Sem';
+  
+  if (!ay) {
+    return isOdd ? 'NOV/DEC' : 'APR/MAY';
+  }
 
-  if (/^(II|IV|VI|VIII|0?2|0?4|0?6|0?8)$/i.test(clean) || /\b(II|IV|VI|VIII)\b/i.test(clean)) {
-    return 'Even Sem';
+  const yearMatch = ay.match(/(\d{4})\s*[-–/]\s*(\d{4}|\d{2})/);
+  if (yearMatch) {
+    const y1 = yearMatch[1];
+    let y2 = yearMatch[2];
+    if (y2.length === 2) {
+      y2 = y1.substring(0, 2) + y2;
+    }
+    return isOdd ? `NOV/DEC ${y1}` : `APR/MAY ${y2}`;
   }
-  if (/^(I|III|V|VII|0?1|0?3|0?5|0?7)$/i.test(clean) || /\b(I|III|V|VII)\b/i.test(clean)) {
-    return 'Odd Sem';
+
+  const singleYr = ay.match(/\b(20\d{2})\b/);
+  if (singleYr) {
+    const yr = parseInt(singleYr[1], 10);
+    return isOdd ? `NOV/DEC ${yr}` : `APR/MAY ${yr + 1}`;
   }
-  return 'Even Sem';
+
+  return isOdd ? 'NOV/DEC' : 'APR/MAY';
+};
+
+export const getSemEvenOddLabel = (sem?: string): string => {
+  if (!sem) return 'Odd Sem';
+  const str = String(sem).trim().toUpperCase();
+
+  if (/\bEVEN\b/i.test(str)) return 'Even Sem';
+  if (/\bODD\b/i.test(str)) return 'Odd Sem';
+
+  let targetStr = str;
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length >= 2) {
+      targetStr = parts[parts.length - 1].trim();
+    }
+  }
+
+  const clean = targetStr.replace(/^(?:year\s*[\/\-]\s*sem|semester|sem)\s*[:./-]?\s*/i, '').trim();
+
+  if (/\bEVEN\b/i.test(clean)) return 'Even Sem';
+  if (/\bODD\b/i.test(clean)) return 'Odd Sem';
+
+  let num = 0;
+  if (/^(VIII|8|08)$/i.test(clean)) num = 8;
+  else if (/^(VII|7|07)$/i.test(clean)) num = 7;
+  else if (/^(VI|6|06)$/i.test(clean)) num = 6;
+  else if (/^(V|5|05)$/i.test(clean)) num = 5;
+  else if (/^(IV|4|04)$/i.test(clean)) num = 4;
+  else if (/^(III|3|03)$/i.test(clean)) num = 3;
+  else if (/^(II|2|02)$/i.test(clean)) num = 2;
+  else if (/^(I|1|01)$/i.test(clean)) num = 1;
+  else {
+    const semMatch = clean.match(/(?:sem|semester)\s*[:./-]?\s*0*([1-8])\b/i) || clean.match(/\/\s*0*([1-8])\b/);
+    if (semMatch) {
+      num = parseInt(semMatch[1], 10);
+    } else {
+      const match = clean.match(/\b0*([1-8])\b/);
+      if (match) num = parseInt(match[1], 10);
+    }
+  }
+
+  if (num > 0) {
+    return num % 2 === 1 ? 'Odd Sem' : 'Even Sem';
+  }
+
+  if (/\b(VIII|VI|IV|II)\b/i.test(clean)) return 'Even Sem';
+  if (/\b(VII|V|III|I)\b/i.test(clean)) return 'Odd Sem';
+
+  return 'Odd Sem';
 };
 
 export const getEffectivePassFail = (passFail?: string, grade?: string): string => {
@@ -125,17 +187,29 @@ export const generateCombinedPDF = async (
     const hasUniv = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
     const rawSession = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
 
+    const targetCieSemForAck =
+      (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+      (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+      (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+      (student.cieSemester && student.cieSemester.trim()) ||
+      '';
+
+    const effectiveAy = (hasUniv ? student.univMetadata?.academicYear : (student.cie1Metadata?.academicYear || student.cie2Metadata?.academicYear || student.modelMetadata?.academicYear || student.cieAcademicYear)) || student.academicYear || '';
+    const effectiveSem = (hasUniv ? student.univMetadata?.semester : targetCieSemForAck) || student.currentSemester || '';
+    const effectiveSession = rawSession || deriveExamSessionFromAyAndSem(effectiveAy, effectiveSem);
+
     pdf.setFont('times', 'normal');
     pdf.setFontSize(10.5);
     pdf.text('Greetings from Jeppiaar Institute of Technology,', margin, y);
 
     y += 16;
     if (hasUniv) {
-      const sessionText = rawSession ? `held during ${rawSession} ` : '';
+      const sessionText = effectiveSession ? `held during ${effectiveSession} ` : '';
       pdf.text(`This is to inform you that the results of the Semester End Examination ${sessionText}have been released.`, margin, y);
     } else {
-      pdf.setFont('times', 'bold');
-      pdf.text('Continuous Internal Evaluation Mark Report', margin, y);
+      const semLabel = getSemEvenOddLabel(targetCieSemForAck);
+      const ayText = effectiveAy ? `for Academic Year ${effectiveAy} (${semLabel}) ` : '';
+      pdf.text(`This is to inform you that the Continuous Internal Evaluation marks ${ayText}have been released.`, margin, y);
     }
 
     // Student Details Box Table (Register Number & Name of Student)
@@ -255,20 +329,23 @@ export const generateCombinedPDF = async (
       const getSemesterNumber = (semVal: any): number => {
         if (!semVal) return 0;
         const s = String(semVal).trim().toUpperCase();
-        if (/^(iv|4|04)$/i.test(s)) return 4;
-        if (/^(v|5|05)$/i.test(s)) return 5;
-        if (/^(vi|6|06)$/i.test(s)) return 6;
-        if (/^(vii|7|07)$/i.test(s)) return 7;
-        if (/^(iii|3|03)$/i.test(s)) return 3;
-        if (/^(ii|2|02)$/i.test(s)) return 2;
-        if (/^(i|1|01)$/i.test(s)) return 1;
-        const m = s.match(/([1-7])/);
+        if (/\b(VIII|8|08)\b/i.test(s)) return 8;
+        if (/\b(VII|7|07)\b/i.test(s)) return 7;
+        if (/\b(VI|6|06)\b/i.test(s)) return 6;
+        if (/\b(V|5|05)\b/i.test(s)) return 5;
+        if (/\b(IV|4|04)\b/i.test(s)) return 4;
+        if (/\b(III|3|03)\b/i.test(s)) return 3;
+        if (/\b(II|2|02)\b/i.test(s)) return 2;
+        if (/\b(I|1|01)\b/i.test(s)) return 1;
+        const m = s.match(/0*([1-7])/);
         return m ? parseInt(m[1], 10) : 0;
       };
 
-      const activeSemNum = getSemesterNumber(student.semester) ||
-                         getSemesterNumber(student.universityResults?.[0]?.sem) ||
-                         4;
+      const activeSemNum =
+        getSemesterNumber(student.univMetadata?.semester) ||
+        getSemesterNumber(student.currentSemester) ||
+        getSemesterNumber(student.universityResults?.find((r) => r && r.sem)?.sem) ||
+        4;
 
       // Row: GPA
       y += 18;
@@ -283,7 +360,8 @@ export const generateCombinedPDF = async (
       pdf.setFont('times', 'normal');
       for (let c = 1; c <= 7; c++) {
         const semKey = `0${c}`;
-        const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
+        const fallback = (c === activeSemNum) && student.gpa !== undefined && student.gpa !== null ? String(student.gpa) : '';
+        const gpaVal = getSemValue(student.gpaBySem, semKey, fallback);
         pdf.text(String(gpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
         mX += matrixCols[c];
       }
@@ -301,7 +379,8 @@ export const generateCombinedPDF = async (
       pdf.setFont('times', 'normal');
       for (let c = 1; c <= 7; c++) {
         const semKey = `0${c}`;
-        const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
+        const fallback = (c === activeSemNum) && student.cgpa !== undefined && student.cgpa !== null ? String(student.cgpa) : '';
+        const cgpaVal = getSemValue(student.cgpaBySem, semKey, fallback);
         pdf.text(String(cgpaVal), mX + matrixCols[c] / 2, y + 12, { align: 'center' });
         mX += matrixCols[c];
       }
@@ -327,8 +406,20 @@ export const generateCombinedPDF = async (
     if (cieList.length > 0) {
       y += 30;
       pdf.setFont('times', 'bold');
-      const semText = getSemEvenOddLabel(student.currentSemester);
-      const ayStr = student.academicYear || '';
+      const targetCieSem =
+        (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+        (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+        (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+        (student.cieSemester && student.cieSemester.trim()) ||
+        '';
+      const semText = getSemEvenOddLabel(targetCieSem);
+      const ayStr =
+        (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
+        (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
+        (student.modelMetadata?.academicYear && student.modelMetadata.academicYear.trim()) ||
+        (student.cieAcademicYear && student.cieAcademicYear.trim()) ||
+        student.academicYear ||
+        '';
       const cieHeaderStr = ayStr
         ? `Academic Year ${ayStr} – ${semText} – Continuous Internal Evaluation Results:`
         : `Academic Year – ${semText} – Continuous Internal Evaluation Results:`;
@@ -534,72 +625,111 @@ export const generateCombinedPDF = async (
     const deptStr = student.department && student.department.trim() ? student.department.trim() : '';
     pdf.text(`The Class Counsellor, Department of ${deptStr},`, margin, p2Y);
 
-    // Helper to render a justified line of text segments across contentWidth
-    const renderJustifiedLine = (
+    // Helper to render a multi-line paragraph with justified full lines and left-aligned last line
+    const renderJustifiedParagraph = (
       segments: { text: string; bold?: boolean }[],
-      startY: number
-    ) => {
+      startY: number,
+      lineHeight: number = 15
+    ): number => {
       pdf.setFontSize(10.5);
       const words: { text: string; bold: boolean; width: number }[] = [];
       segments.forEach((seg) => {
         pdf.setFont('times', seg.bold ? 'bold' : 'normal');
         const segWords = seg.text.split(' ');
-        segWords.forEach((w, wIdx) => {
-          if (w === '' && wIdx > 0) return;
-          const wordText = w;
-          const wWidth = pdf.getTextWidth(wordText);
-          words.push({ text: wordText, bold: !!seg.bold, width: wWidth });
+        segWords.forEach((w) => {
+          if (!w) return;
+          const wWidth = pdf.getTextWidth(w);
+          words.push({ text: w, bold: !!seg.bold, width: wWidth });
         });
       });
 
-      if (words.length === 0) return;
+      if (words.length === 0) return startY;
 
       pdf.setFont('times', 'normal');
       const normalSpaceWidth = pdf.getTextWidth(' ');
 
-      const totalWordsWidth = words.reduce((acc, w) => acc + w.width, 0);
-      const totalNormalSpaces = (words.length - 1) * normalSpaceWidth;
-      const totalNaturalWidth = totalWordsWidth + totalNormalSpaces;
+      const lines: { text: string; bold: boolean; width: number }[][] = [];
+      let currentLine: { text: string; bold: boolean; width: number }[] = [];
+      let currentLineWidth = 0;
 
-      const extraSpaceTotal = Math.max(0, contentWidth - totalNaturalWidth);
-      const extraPerSpace = words.length > 1 ? extraSpaceTotal / (words.length - 1) : 0;
-
-      let currentX = margin;
-      words.forEach((w, idx) => {
-        pdf.setFont('times', w.bold ? 'bold' : 'normal');
-        pdf.text(w.text, currentX, startY);
-        currentX += w.width + normalSpaceWidth + extraPerSpace;
+      words.forEach((word) => {
+        const spaceToAdd = currentLine.length > 0 ? normalSpaceWidth : 0;
+        if (currentLine.length > 0 && currentLineWidth + spaceToAdd + word.width > contentWidth) {
+          lines.push(currentLine);
+          currentLine = [word];
+          currentLineWidth = word.width;
+        } else {
+          currentLine.push(word);
+          currentLineWidth += spaceToAdd + word.width;
+        }
       });
+      if (currentLine.length > 0) {
+        lines.push(currentLine);
+      }
+
+      let currentY = startY;
+      lines.forEach((lineWords, lineIdx) => {
+        const isLastLine = lineIdx === lines.length - 1;
+        const totalWordsWidth = lineWords.reduce((acc, w) => acc + w.width, 0);
+        const totalNormalSpaces = (lineWords.length - 1) * normalSpaceWidth;
+        const totalNaturalWidth = totalWordsWidth + totalNormalSpaces;
+
+        const extraSpaceTotal = (!isLastLine && lineWords.length > 1) ? Math.max(0, contentWidth - totalNaturalWidth) : 0;
+        const extraPerSpace = (!isLastLine && lineWords.length > 1) ? extraSpaceTotal / (lineWords.length - 1) : 0;
+
+        let currentX = margin;
+        lineWords.forEach((w) => {
+          pdf.setFont('times', w.bold ? 'bold' : 'normal');
+          pdf.text(w.text, currentX, currentY);
+          currentX += w.width + normalSpaceWidth + extraPerSpace;
+        });
+
+        if (lineIdx < lines.length - 1) {
+          currentY += lineHeight;
+        }
+      });
+
+      return currentY;
     };
 
+    const univSessionAck = (student.examSession || student.univMetadata?.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
+
+    const cieMetaAck = student.cie1Metadata || student.cie2Metadata || student.modelMetadata;
+    const targetCieSemAck =
+      (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+      (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+      (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+      (student.cieSemester && student.cieSemester.trim()) ||
+      '';
+    const semTextAck = getSemEvenOddLabel(targetCieSemAck);
+    const targetCieAyAck =
+      (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
+      (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
+      (student.modelMetadata?.academicYear && student.modelMetadata.academicYear.trim()) ||
+      (student.cieAcademicYear && student.cieAcademicYear.trim()) ||
+      student.academicYear ||
+      '';
+
+    const hasUnivAck = (student.universityResults && student.universityResults.length > 0) || Boolean(student.gpa || student.cgpa);
+    const hasCieAck = cieList.length > 0;
+
+    let ackReportText = '';
+    if (hasUnivAck && hasCieAck) {
+      const uStr = univSessionAck ? `${univSessionAck} end Semester exam` : 'Semester End Examination';
+      const cStr = targetCieAyAck ? `${targetCieAyAck} AY – ${semTextAck} – Continuous Internal Evaluation` : `${semTextAck} – Continuous Internal Evaluation`;
+      ackReportText = `${uStr} and ${cStr}`;
+    } else if (hasUnivAck) {
+      ackReportText = univSessionAck ? `${univSessionAck} end Semester exam` : 'Semester End Examination';
+    } else {
+      ackReportText = targetCieAyAck ? `${targetCieAyAck} AY – ${semTextAck} – Continuous Internal Evaluation` : `${semTextAck} – Continuous Internal Evaluation`;
+    }
+
     p2Y += 22;
-    // Justified Paragraph Line 1 (Address Line - Starts Left, Ends Right)
-    renderJustifiedLine([
-      { text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604.', bold: false }
-    ], p2Y);
-
-    p2Y += 15;
-    // Justified Paragraph Line 2 (Progress report + Student Name & Reg No)
-    renderJustifiedLine([
-      { text: 'Progress report of my Son / Daughter Name: ', bold: false },
+    p2Y = renderJustifiedParagraph([
+      { text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. Progress report of my Son / Daughter Name: ', bold: false },
       { text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true },
-      { text: ' for', bold: false }
-    ], p2Y);
-
-    p2Y += 15;
-    const semText = getSemEvenOddLabel(student.currentSemester);
-    const ayStrAck = student.academicYear ? `${student.academicYear} AY – ${semText} – ` : `${semText} – `;
-    const rawSessionAck = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
-    const examTextPrefix = rawSessionAck ? `${rawSessionAck} end Semester exam` : 'end Semester exam';
-    renderJustifiedLine([
-      { text: `${examTextPrefix} and ${ayStrAck}Continuous Internal Evaluation`, bold: false }
-    ], p2Y);
-
-    p2Y += 15;
-    // Paragraph Line 4 (Last Line - Left Aligned)
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(10.5);
-    pdf.text('Results have been received.', margin, p2Y);
+      { text: ` for ${ackReportText} Results have been received.`, bold: false }
+    ], p2Y, 15);
 
     p2Y += 34;
     pdf.setFont('times', 'bold');

@@ -73,16 +73,37 @@ const cleanSemesterValue = (val: any): string => {
   let str = String(val).trim().toUpperCase();
   if (!str) return '';
 
+  if (/\bEVEN\b/i.test(str)) return 'Even Sem';
+  if (/\bODD\b/i.test(str)) return 'Odd Sem';
+
+  const romanMap: Record<number, string> = {
+    1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII'
+  };
+
+  // If compound format like "Year / Sem : III / 05" or "Year/Sem: III/VI" or "3/5" or "III/5"
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length >= 2) {
+      const targetPart = parts[parts.length - 1].trim();
+      const numM = targetPart.match(/\b0*([1-8])\b/);
+      if (numM) {
+        const num = parseInt(numM[1], 10);
+        if (romanMap[num]) return romanMap[num];
+      }
+      const romanM = targetPart.match(/\b(VIII|VII|VI|IV|V|III|II|I)\b/i);
+      if (romanM) {
+        return romanM[1].toUpperCase();
+      }
+    }
+  }
+
   // Strip prefix labels
-  str = str.replace(/^(?:semester|sem)\s*[:./-]?\s*/i, '').trim();
+  str = str.replace(/^(?:year\s*[\/\-]\s*sem|semester|sem)\s*[:./-]?\s*/i, '').trim();
 
   // If number 1..8, map to Roman numerals
   const numMatch = str.match(/^0*([1-8])(?:st|nd|rd|th)?$/i) || str.match(/\b0*([1-8])\b/);
   if (numMatch) {
     const num = parseInt(numMatch[1], 10);
-    const romanMap: Record<number, string> = {
-      1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII'
-    };
     if (romanMap[num]) return romanMap[num];
   }
 
@@ -93,6 +114,23 @@ const cleanSemesterValue = (val: any): string => {
   }
 
   return str;
+};
+
+export const semesterNumber = (value: any): number | undefined => {
+  const normalized = cleanSemesterValue(value);
+  const numbers: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8 };
+  return numbers[normalized];
+};
+
+export const findUniversitySemesterMetricValue = (
+  rowCells: any[], headers: string[], metric: 'gpa' | 'cgpa', semester: number | undefined,
+): any => {
+  if (!semester) return undefined;
+  const metricPattern = new RegExp(`(?:^|[^a-z])${metric}(?:$|[^a-z])`, 'i');
+  const column = headers.findIndex((header) => metricPattern.test(String(header || '')) && semesterNumber(header) === semester);
+  console.log('University semester metric match', { metric, semester, headers, column });
+  const value = column === -1 ? undefined : rowCells[column];
+  return value !== undefined && value !== null && String(value).trim() !== '' ? value : undefined;
 };
 
 // Helper to clean department names and strip redundant prefixes
@@ -240,10 +278,10 @@ export const evaluatePassFail = (value: any, gradeStr?: string): 'PASS' | 'FAIL'
 const findCellValue = (rowCells: any[], headers: string[], keyCandidates: (string | RegExp)[]): any => {
   for (const candidate of keyCandidates) {
     for (let c = 0; c < headers.length; c++) {
-      const headerName = headers[c] || '';
-      const cleanH = headerName.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+      const headerName = String(headers[c] || '');
+      const cleanH = headerName.trim().toLowerCase();
       if (typeof candidate === 'string') {
-        const cleanCand = candidate.trim().toLowerCase().replace(/[\s_.-]+/g, '');
+        const cleanCand = candidate.trim().toLowerCase();
         if (cleanH === cleanCand) {
           const val = rowCells[c];
           if (val !== undefined && val !== null && String(val).trim() !== '') {
@@ -251,7 +289,7 @@ const findCellValue = (rowCells: any[], headers: string[], keyCandidates: (strin
           }
         }
       } else if (candidate instanceof RegExp) {
-        if (candidate.test(headerName) || candidate.test(cleanH)) {
+        if (candidate.test(headerName)) {
           const val = rowCells[c];
           if (val !== undefined && val !== null && String(val).trim() !== '') {
             return val;
@@ -663,31 +701,33 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
 
             // Pattern 6: Semester (Inspect inline text or right-side adjacent cells c+1, c+2, c+3)
-            if (/^(?:semester|sem)\b/i.test(cellText)) {
-              // Case A: Inline text in same cell, e.g. "Semester: 05" or "Sem: VI"
+            if (/^(?:semester|sem)\b/i.test(cellText) || /(?:semester|sem)\s*[:.-]/i.test(cellText)) {
+              // Case A: Inline text in same cell, e.g. "Semester: 05" or "Sem: VI" or "Sem : 06"
               const inlineSemMatch = cellText.match(/(?:semester|sem)\s*[:.-]?\s*([a-z0-9]+)/i);
               if (inlineSemMatch && inlineSemMatch[1] && !/^(no|name|code|register|roll)/i.test(inlineSemMatch[1])) {
                 const cleaned = cleanSemesterValue(inlineSemMatch[1]);
-                if (cleaned && !extractedSemester) {
+                if (cleaned) {
                   extractedSemester = cleaned;
                 }
               }
 
               // Case B: Cell has label ("Semester:", "Sem:", "Semester", "Sem", "Sem/Year"), value is in right-side cell c+1, c+2, or c+3
-              if (!extractedSemester) {
-                for (let offset = 1; offset <= 3; offset++) {
-                  if (c + offset < rCells.length && rCells[c + offset] !== undefined && rCells[c + offset] !== null) {
-                    const targetVal = String(rCells[c + offset]).trim();
-                    if (targetVal && !/^(of|code|name|no|register|roll)/i.test(targetVal)) {
-                      const cleaned = cleanSemesterValue(targetVal);
-                      if (cleaned) {
-                        extractedSemester = cleaned;
-                        break;
-                      }
+              for (let offset = 1; offset <= 3; offset++) {
+                if (c + offset < rCells.length && rCells[c + offset] !== undefined && rCells[c + offset] !== null) {
+                  const targetVal = String(rCells[c + offset]).trim();
+                  if (targetVal && !/^(of|code|name|no|register|roll)/i.test(targetVal)) {
+                    const cleaned = cleanSemesterValue(targetVal);
+                    if (cleaned) {
+                      extractedSemester = cleaned;
+                      break;
                     }
                   }
                 }
               }
+            }
+
+            if (!extractedSemester && /\b(even|odd)\b/i.test(cellText)) {
+              extractedSemester = /even/i.test(cellText) ? 'Even Sem' : 'Odd Sem';
             }
 
             // Pattern 6: Academic Year (e.g. "Academic Year : 2026-2027 Even", "Academic Year: 2025-2026", "AY 2024-2025")
@@ -1070,8 +1110,18 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           }
 
           // Read GPA / CGPA / Class Obtained strictly from Excel
-          const rawGPA = findCellValue(rowCells, headerNames, ['gpa', 'gpa_05', 'gpa 5', 'gpa_5', 'sem 5 gpa', 'gpa5']);
-          const rawCGPA = findCellValue(rowCells, headerNames, ['cgpa', 'cgpa_05', 'cgpa 5', 'cgpa_5', 'sem 5 cgpa', 'cgpa5']);
+          const rawGPA = findCellValue(rowCells, headerNames, [
+            'gpa', 'sgpa', 'gpasem', 'semgpa', 'gpacgpa', 'gpa/cgpa',
+            'gpa01', 'gpa02', 'gpa03', 'gpa04', 'gpa05', 'gpa06', 'gpa07', 'gpa08',
+            'gpa1', 'gpa2', 'gpa3', 'gpa4', 'gpa5', 'gpa6', 'gpa7', 'gpa8'
+          ]);
+
+          const rawCGPA = findCellValue(rowCells, headerNames, [
+            'cgpa', 'cgpasem', 'semcgpa', 'cgpagpa',
+            'cgpa01', 'cgpa02', 'cgpa03', 'cgpa04', 'cgpa05', 'cgpa06', 'cgpa07', 'cgpa08',
+            'cgpa1', 'cgpa2', 'cgpa3', 'cgpa4', 'cgpa5', 'cgpa6', 'cgpa7', 'cgpa8'
+          ]);
+
           const rawClass = findCellValue(rowCells, headerNames, ['class_obtained', 'class obtained', 'class']);
 
           const gpaVal = rawGPA !== undefined && rawGPA !== null && String(rawGPA).trim() !== '' ? (isNaN(Number(rawGPA)) ? String(rawGPA) : Number(rawGPA)) : undefined;
@@ -1083,27 +1133,50 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const cgpaBySem: Record<string, number | string> = {};
           const arrearsMap: Record<string, number | string> = {};
 
+          const activeSemStr = cleanSemesterValue(extractedSemester) || cleanSemesterValue(studentSem);
+          let targetSemNum = 0;
+          if (/\b(vii|7|07)\b/i.test(activeSemStr)) targetSemNum = 7;
+          else if (/\b(vi|6|06)\b/i.test(activeSemStr)) targetSemNum = 6;
+          else if (/\b(v|5|05)\b/i.test(activeSemStr)) targetSemNum = 5;
+          else if (/\b(iv|4|04)\b/i.test(activeSemStr)) targetSemNum = 4;
+          else if (/\b(iii|3|03)\b/i.test(activeSemStr)) targetSemNum = 3;
+          else if (/\b(ii|2|02)\b/i.test(activeSemStr)) targetSemNum = 2;
+          else if (/\b(i|1|01)\b/i.test(activeSemStr)) targetSemNum = 1;
+          else {
+            const m = String(extractedSemester || studentSem || '').match(/0*([1-7])/);
+            if (m) targetSemNum = parseInt(m[1], 10);
+            else targetSemNum = 6;
+          }
+
           for (let s = 1; s <= 7; s++) {
             const semKey = `0${s}`;
             const sNum = String(s);
 
             const valG = findCellValue(rowCells, headerNames, [
               `gpa0${s}`, `gpa 0${s}`, `gpa ${s}`, `gpa_0${s}`, `gpa_${s}`, `gpa${s}`,
-              `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`
+              `sem ${s} gpa`, `sem 0${s} gpa`, `sem_${s}_gpa`, `s${s}_gpa`, `gpasem${s}`, `gpasem0${s}`
             ]);
 
             const valC = findCellValue(rowCells, headerNames, [
               `cgpa0${s}`, `cgpa 0${s}`, `cgpa ${s}`, `cgpa_0${s}`, `cgpa_${s}`, `cgpa${s}`,
-              `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`
+              `sem ${s} cgpa`, `sem 0${s} cgpa`, `sem_${s}_cgpa`, `s${s}_cgpa`, `cgpasem${s}`, `cgpasem0${s}`
             ]);
 
             const valA = findCellValue(rowCells, headerNames, [
               `arrears0${s}`, `arrears 0${s}`, `arrears ${s}`, `arrears_0${s}`, `arrears_${s}`, `arrears${s}`,
-              `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`
+              `arr 0${s}`, `arr ${s}`, `sem ${s} arrears`, `s${s}_arrears`, `arr0${s}`, `arr${s}`
             ]);
 
-            gpaBySem[semKey] = valG !== undefined && valG !== null && String(valG).trim() !== '' ? String(valG) : '';
-            cgpaBySem[semKey] = valC !== undefined && valC !== null && String(valC).trim() !== '' ? String(valC) : '';
+            const finalG = valG !== undefined && valG !== null && String(valG).trim() !== ''
+              ? String(valG)
+              : (s === targetSemNum && gpaVal !== undefined && gpaVal !== null ? String(gpaVal) : '');
+
+            const finalC = valC !== undefined && valC !== null && String(valC).trim() !== ''
+              ? String(valC)
+              : (s === targetSemNum && cgpaVal !== undefined && cgpaVal !== null ? String(cgpaVal) : '');
+
+            gpaBySem[semKey] = finalG;
+            cgpaBySem[semKey] = finalC;
             arrearsMap[semKey] = valA !== undefined && valA !== null && String(valA).trim() !== '' ? (isNaN(Number(valA)) ? String(valA) : Number(valA)) : '';
 
             gpaBySem[sNum] = gpaBySem[semKey];
@@ -1279,6 +1352,13 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             }
           }
 
+          const slotMeta = {
+            academicYear: studentAcadYear || '',
+            semester: studentSem || '',
+            examSession: extractedExamSession || '',
+            department: (studentDept || extractedDepartment || '').toUpperCase(),
+          };
+
           parsedStudents.push({
             id: `std-dyn-${r}`,
             regNo: regNoStr,
@@ -1287,6 +1367,12 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             regulation: extractedRegulation,
             currentSemester: studentSem,
             academicYear: studentAcadYear,
+            cieSemester: studentSem,
+            cieAcademicYear: studentAcadYear,
+            univMetadata: slotMeta,
+            cie1Metadata: undefined,
+            cie2Metadata: undefined,
+            modelMetadata: undefined,
             examSession: extractedExamSession,
             universityResults,
             gpa: gpaVal,

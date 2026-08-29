@@ -1,5 +1,6 @@
 import { StudentRecord, ResultPattern, InternalEvalResult } from '../types';
 import { evaluatePassFail } from './excelParser';
+import { deriveExamSessionFromAyAndSem } from './pdfGenerator';
 
 export interface UploadedFileSlot {
   key: 'univ' | 'cie1' | 'cie2' | 'model';
@@ -132,18 +133,48 @@ export const mergeExcelDatasets = (
     getValidDept(cie2Students.find((s) => getValidDept(s.department))?.department) ||
     getValidDept(modelStudents.find((s) => getValidDept(s.department))?.department);
 
+  const extractSlotMeta = (list: StudentRecord[]) => {
+    if (!list || list.length === 0) return undefined;
+    const sample = list.find((s) => s.academicYear || s.currentSemester || s.cieAcademicYear || s.cieSemester);
+    if (!sample) return undefined;
+    const ay = sample.cieAcademicYear || sample.academicYear || '';
+    const sem = sample.cieSemester || sample.currentSemester || '';
+    const session = (sample.examSession && !/nov\/dec 2025/i.test(sample.examSession)) ? sample.examSession : deriveExamSessionFromAyAndSem(ay, sem);
+    return {
+      academicYear: ay,
+      semester: sem,
+      examSession: session,
+      department: getValidDept(sample.department),
+    };
+  };
+
+  const univMeta = extractSlotMeta(univStudents);
+  const cie1Meta = extractSlotMeta(cie1Students);
+  const cie2Meta = extractSlotMeta(cie2Students);
+  const modelMeta = extractSlotMeta(modelStudents);
+
+  const cieDatasetSem =
+    cie1Meta?.semester ||
+    cie2Meta?.semester ||
+    modelMeta?.semester ||
+    '';
+
+  const cieDatasetAcademicYear =
+    cie1Meta?.academicYear ||
+    cie2Meta?.academicYear ||
+    modelMeta?.academicYear ||
+    '';
+
   const datasetSem =
-    univStudents.find((s) => s.currentSemester)?.currentSemester ||
-    cie1Students.find((s) => s.currentSemester)?.currentSemester ||
-    cie2Students.find((s) => s.currentSemester)?.currentSemester ||
-    modelStudents.find((s) => s.currentSemester)?.currentSemester ||
+    univMeta?.semester ||
+    cieDatasetSem ||
     '';
 
   const datasetExamSession =
-    univStudents.find((s) => s.examSession)?.examSession ||
-    cie1Students.find((s) => s.examSession)?.examSession ||
-    cie2Students.find((s) => s.examSession)?.examSession ||
-    modelStudents.find((s) => s.examSession)?.examSession ||
+    univMeta?.examSession ||
+    cie1Meta?.examSession ||
+    cie2Meta?.examSession ||
+    modelMeta?.examSession ||
     '';
 
   baseStudents.forEach((s) => {
@@ -158,26 +189,37 @@ export const mergeExcelDatasets = (
         missingGpaCount++;
       }
 
+      const univMatch = univCount > 0 ? univStudents.find((us) => normalizeRegNo(us.regNo) === key) : undefined;
+      const cie1Match = cie1Count > 0 ? cie1Students.find((c1) => normalizeRegNo(c1.regNo) === key) : undefined;
+      const cie2Match = cie2Count > 0 ? cie2Students.find((c2) => normalizeRegNo(c2.regNo) === key) : undefined;
+      const modelMatch = modelCount > 0 ? modelStudents.find((m) => normalizeRegNo(m.regNo) === key) : undefined;
+
       mergedStudentsMap.set(key, {
         id: s.id,
         regNo: s.regNo,
         name: s.name,
         department: getValidDept(s.department) || datasetDept,
         regulation: s.regulation,
-        academicYear: s.academicYear || univStudents.find((x) => x.academicYear)?.academicYear || cie1Students.find((x) => x.academicYear)?.academicYear || cie2Students.find((x) => x.academicYear)?.academicYear || modelStudents.find((x) => x.academicYear)?.academicYear || '',
-        currentSemester: s.currentSemester || datasetSem,
-        examSession: s.examSession || datasetExamSession,
-        universityResults: univCount > 0 ? (s.universityResults || []).map((ur) => ({
+        univMetadata: univCount > 0 ? (univMatch?.univMetadata || univMeta) : undefined,
+        cie1Metadata: cie1Count > 0 ? (cie1Match?.cie1Metadata || cie1Match?.univMetadata || cie1Meta) : undefined,
+        cie2Metadata: cie2Count > 0 ? (cie2Match?.cie2Metadata || cie2Match?.univMetadata || cie2Meta) : undefined,
+        modelMetadata: modelCount > 0 ? (modelMatch?.modelMetadata || modelMatch?.univMetadata || modelMeta) : undefined,
+        academicYear: univMeta?.academicYear || '',
+        currentSemester: univMeta?.semester || '',
+        cieSemester: cieDatasetSem,
+        cieAcademicYear: cieDatasetAcademicYear,
+        examSession: univMeta?.examSession || datasetExamSession,
+        universityResults: univCount > 0 ? ((univMatch?.universityResults || (s.universityResults && s.universityResults.length > 0 ? s.universityResults : []))).map((ur) => ({
           ...ur,
           passFail: evaluatePassFail(ur.passFail, ur.grade) || ur.passFail,
         })) : [],
         internalEvalResults: (s.internalEvalResults || []).map((ie) => ({ ...ie })),
-        gpa: univCount > 0 ? s.gpa : undefined,
-        cgpa: univCount > 0 ? s.cgpa : undefined,
-        classObtained: univCount > 0 ? s.classObtained : '',
-        arrears: univCount > 0 ? (s.arrears || {}) : {},
-        gpaBySem: univCount > 0 ? (s.gpaBySem || {}) : {},
-        cgpaBySem: univCount > 0 ? (s.cgpaBySem || {}) : {},
+        gpa: univCount > 0 ? (univMatch?.gpa !== undefined ? univMatch.gpa : s.gpa) : undefined,
+        cgpa: univCount > 0 ? (univMatch?.cgpa !== undefined ? univMatch.cgpa : s.cgpa) : undefined,
+        classObtained: univCount > 0 ? (univMatch?.classObtained || s.classObtained || '') : '',
+        arrears: univCount > 0 ? (univMatch?.arrears && Object.keys(univMatch.arrears).length > 0 ? univMatch.arrears : (s.arrears || {})) : {},
+        gpaBySem: univCount > 0 ? (univMatch?.gpaBySem && Object.keys(univMatch.gpaBySem).length > 0 ? univMatch.gpaBySem : (s.gpaBySem || {})) : {},
+        cgpaBySem: univCount > 0 ? (univMatch?.cgpaBySem && Object.keys(univMatch.cgpaBySem).length > 0 ? univMatch.cgpaBySem : (s.cgpaBySem || {})) : {},
       });
     }
   });
@@ -216,6 +258,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (cie1Match) {
+        student.cie1Metadata = cie1Match.cie1Metadata || cie1Match.univMetadata || extractSlotMeta([cie1Match]) || cie1Meta;
         if (!getValidDept(student.department)) {
           const d = getValidDept(cie1Match.department);
           if (d) student.department = d;
@@ -244,7 +287,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
           });
         }
 
-        const cie1Sem = cie1Match.currentSemester || (cie1SubList.find(c => c.sem)?.sem) || 'VI';
+        const cie1Sem = cie1Match.cie1Metadata?.semester || cie1Match.univMetadata?.semester || (cie1SubList.find(c => c.sem)?.sem) || cie1Meta?.semester || '';
 
         if (student.internalEvalResults.length === 0) {
           // Build internalEvalResults directly from uploaded CIE 1 Excel!
@@ -267,7 +310,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
             );
             const mark = matchSub ? matchSub.mark : ie.cie1Marks;
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie1Sem || ie.sem || 'VI');
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie1Sem || ie.sem || cieDatasetSem);
             const pf = evaluateCiePassFail(mark);
             return {
               ...ie,
@@ -301,6 +344,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (cie2Match) {
+        student.cie2Metadata = cie2Match.cie2Metadata || cie2Match.univMetadata || extractSlotMeta([cie2Match]) || cie2Meta;
         if (!getValidDept(student.department)) {
           const d = getValidDept(cie2Match.department);
           if (d) student.department = d;
@@ -327,7 +371,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
           });
         }
 
-        const cie2Sem = cie2Match.currentSemester || (cie2SubList.find(c => c.sem)?.sem) || 'VI';
+        const cie2Sem = cie2Match.cie2Metadata?.semester || cie2Match.univMetadata?.semester || (cie2SubList.find(c => c.sem)?.sem) || cie2Meta?.semester || '';
 
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = cie2SubList.map((cs) => ({
@@ -357,7 +401,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               matchSub = cie2SubList[ieIdx];
             }
 
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie2Sem || ie.sem || 'VI');
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie2Sem || ie.sem || cieDatasetSem);
             const mark = matchSub ? matchSub.mark : ie.cie2Marks;
             const pf = evaluateCiePassFail(mark);
 
@@ -390,6 +434,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
       }
 
       if (modelMatch) {
+        student.modelMetadata = modelMatch.modelMetadata || modelMatch.univMetadata || extractSlotMeta([modelMatch]) || modelMeta;
         if (!getValidDept(student.department)) {
           const d = getValidDept(modelMatch.department);
           if (d) student.department = d;
@@ -424,7 +469,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
           });
         }
 
-        const modelSem = modelMatch.currentSemester || (modelSubList.find(m => m.sem)?.sem) || 'VI';
+        const modelSem = modelMatch.modelMetadata?.semester || modelMatch.univMetadata?.semester || (modelSubList.find(m => m.sem)?.sem) || modelMeta?.semester || '';
 
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = modelSubList.map((ms) => ({
@@ -457,7 +502,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               matchSub = modelSubList[ieIdx];
             }
 
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (modelSem || ie.sem || 'VI');
+            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (modelSem || ie.sem || cieDatasetSem);
             const modelVal = matchSub && matchSub.mark !== undefined && matchSub.mark !== null && String(matchSub.mark).trim() !== ''
               ? String(matchSub.mark).trim()
               : ie.modelMarks;

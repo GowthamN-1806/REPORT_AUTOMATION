@@ -22,6 +22,13 @@ export interface InternalEvalResult {
   passFail?: 'PASS' | 'FAIL' | '';
 }
 
+export interface ExcelDatasetMetadata {
+  academicYear: string;
+  semester: string;
+  examSession?: string;
+  department?: string;
+}
+
 export interface StudentRecord {
   id: string;
   regNo: string;
@@ -36,8 +43,14 @@ export interface StudentRecord {
   gpaBySem: Record<string, number | string>;
   cgpaBySem: Record<string, number | string>;
   internalEvalResults: InternalEvalResult[];
+  univMetadata?: ExcelDatasetMetadata;
+  cie1Metadata?: ExcelDatasetMetadata;
+  cie2Metadata?: ExcelDatasetMetadata;
+  modelMetadata?: ExcelDatasetMetadata;
   currentSemester?: string;
   academicYear?: string;
+  cieSemester?: string;
+  cieAcademicYear?: string;
   examSession?: string;
 }
 

@@ -16,7 +16,7 @@ import {
   VerticalMergeType,
 } from 'docx';
 import { StudentRecord } from '../types';
-import { getSemEvenOddLabel, getEffectivePassFail } from './pdfGenerator';
+import { getSemEvenOddLabel, getEffectivePassFail, deriveExamSessionFromAyAndSem } from './pdfGenerator';
 
 // Helper to fetch logo images as Uint8Array safely
 const fetchLogoBuffer = async (url: string): Promise<Uint8Array | null> => {
@@ -239,8 +239,19 @@ const buildStudentReportChildren = (
 
   const rawSessionDocxHeading = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
 
+  const targetCieSemForAckDocx =
+    (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+    (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+    (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+    (student.cieSemester && student.cieSemester.trim()) ||
+    '';
+
+  const effectiveAyDocx = (hasUniv ? student.univMetadata?.academicYear : (student.cie1Metadata?.academicYear || student.cie2Metadata?.academicYear || student.modelMetadata?.academicYear || student.cieAcademicYear)) || student.academicYear || '';
+  const effectiveSemDocx = (hasUniv ? student.univMetadata?.semester : targetCieSemForAckDocx) || student.currentSemester || '';
+  const effectiveSessionDocx = rawSessionDocxHeading || deriveExamSessionFromAyAndSem(effectiveAyDocx, effectiveSemDocx);
+
   if (hasUniv) {
-    const sessionTextDocx = rawSessionDocxHeading ? `held during ${rawSessionDocxHeading} ` : '';
+    const sessionTextDocx = effectiveSessionDocx ? `held during ${effectiveSessionDocx} ` : '';
     children.push(
       new Paragraph({
         spacing: { before: 0, after: 60 },
@@ -254,13 +265,14 @@ const buildStudentReportChildren = (
       })
     );
   } else {
+    const semLabelDocx = getSemEvenOddLabel(targetCieSemForAckDocx);
+    const ayTextDocx = effectiveAyDocx ? `for Academic Year ${effectiveAyDocx} (${semLabelDocx}) ` : '';
     children.push(
       new Paragraph({
         spacing: { before: 0, after: 60 },
         children: [
           new TextRun({
-            text: 'Continuous Internal Evaluation Mark Report',
-            bold: true,
+            text: `This is to inform you that the Continuous Internal Evaluation marks ${ayTextDocx}have been released.`,
             font: 'Times New Roman',
             size: 20,
           }),
@@ -440,9 +452,11 @@ const buildStudentReportChildren = (
       );
     }
 
-    const activeSemNum = getSemesterNumber(student.semester) ||
-                         getSemesterNumber(student.universityResults?.[0]?.sem) ||
-                         4;
+    const activeSemNum =
+      getSemesterNumber(student.univMetadata?.semester) ||
+      getSemesterNumber(student.currentSemester) ||
+      getSemesterNumber(student.universityResults?.find((r) => r && r.sem)?.sem) ||
+      4;
 
     // Row 2: GPA
     const gpaCells: TableCell[] = [
@@ -450,7 +464,8 @@ const buildStudentReportChildren = (
     ];
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const gpaVal = getSemValue(student.gpaBySem, semKey, c === activeSemNum && student.gpa !== undefined ? String(student.gpa) : '');
+      const fallback = (c === activeSemNum) && student.gpa !== undefined && student.gpa !== null ? String(student.gpa) : '';
+      const gpaVal = getSemValue(student.gpaBySem, semKey, fallback);
       gpaCells.push(
         new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(gpaVal), font: 'Times New Roman', size: 18 })] })] })
       );
@@ -462,7 +477,8 @@ const buildStudentReportChildren = (
     ];
     for (let c = 1; c <= 7; c++) {
       const semKey = `0${c}`;
-      const cgpaVal = getSemValue(student.cgpaBySem, semKey, c === activeSemNum && student.cgpa !== undefined ? String(student.cgpa) : '');
+      const fallback = (c === activeSemNum) && student.cgpa !== undefined && student.cgpa !== null ? String(student.cgpa) : '';
+      const cgpaVal = getSemValue(student.cgpaBySem, semKey, fallback);
       cgpaCells.push(
         new TableCell({ width: { size: 1000, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(cgpaVal), font: 'Times New Roman', size: 18 })] })] })
       );
@@ -498,8 +514,20 @@ const buildStudentReportChildren = (
   if (cieList.length > 0) {
     const cieRows: TableRow[] = [];
 
-    const semTextDocx = getSemEvenOddLabel(student.currentSemester);
-    const ayStrDocx = student.academicYear || '';
+    const targetCieSemDocx =
+      (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+      (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+      (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+      (student.cieSemester && student.cieSemester.trim()) ||
+      '';
+    const semTextDocx = getSemEvenOddLabel(targetCieSemDocx);
+    const ayStrDocx =
+      (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
+      (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
+      (student.modelMetadata?.academicYear && student.modelMetadata.academicYear.trim()) ||
+      (student.cieAcademicYear && student.cieAcademicYear.trim()) ||
+      student.academicYear ||
+      '';
     const cieHeaderStrDocx = ayStrDocx
       ? `Academic Year ${ayStrDocx} – ${semTextDocx} – Continuous Internal Evaluation Results:`
       : `Academic Year – ${semTextDocx} – Continuous Internal Evaluation Results:`;
@@ -791,11 +819,33 @@ const buildStudentReportChildren = (
     })
   );
 
-  const semTextAckDocx = getSemEvenOddLabel(student.currentSemester);
-  const ayStrAckDocx = student.academicYear ? `${student.academicYear} AY – ${semTextAckDocx} – ` : `${semTextAckDocx} – `;
+  const rawSessionDocxAck = (student.examSession || student.univMetadata?.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim().toUpperCase();
 
-  const rawSessionDocx = (student.examSession || '').replace(/\s*[\-\–:]?\s*(?:BEFORE|AFTER)?\s*REVALUATION.*/i, '').trim();
-  const sessionStrAckDocx = rawSessionDocx ? `${rawSessionDocx} end Semester exam` : 'end Semester exam';
+  const targetCieSemAckDocx =
+    (student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+    (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+    (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+    (student.cieSemester && student.cieSemester.trim()) ||
+    '';
+  const semTextAckDocx = getSemEvenOddLabel(targetCieSemAckDocx);
+  const targetCieAyAckDocx =
+    (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
+    (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
+    (student.modelMetadata?.academicYear && student.modelMetadata.academicYear.trim()) ||
+    (student.cieAcademicYear && student.cieAcademicYear.trim()) ||
+    student.academicYear ||
+    '';
+
+  let ackReportTextDocx = '';
+  if (hasUniv && cieList.length > 0) {
+    const uStr = rawSessionDocxAck ? `${rawSessionDocxAck} end Semester exam` : 'Semester End Examination';
+    const cStr = targetCieAyAckDocx ? `${targetCieAyAckDocx} AY – ${semTextAckDocx} – Continuous Internal Evaluation` : `${semTextAckDocx} – Continuous Internal Evaluation`;
+    ackReportTextDocx = `${uStr} and ${cStr}`;
+  } else if (hasUniv) {
+    ackReportTextDocx = rawSessionDocxAck ? `${rawSessionDocxAck} end Semester exam` : 'Semester End Examination';
+  } else {
+    ackReportTextDocx = targetCieAyAckDocx ? `${targetCieAyAckDocx} AY – ${semTextAckDocx} – Continuous Internal Evaluation` : `${semTextAckDocx} – Continuous Internal Evaluation`;
+  }
 
   children.push(
     new Paragraph({
@@ -805,7 +855,7 @@ const buildStudentReportChildren = (
         new TextRun({ text: 'Jeppiaar Institute of Technology, Kunnam, Sunguvarchatram, Sriperumbudur (T.K.), Chennai - 631604. ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: 'Progress report of my Son / Daughter Name: ', font: 'Times New Roman', size: 20 }),
         new TextRun({ text: `${student.name || ''} – Reg. ${student.regNo || ''}`, bold: true, font: 'Times New Roman', size: 20 }),
-        new TextRun({ text: ` for ${sessionStrAckDocx} and ${ayStrAckDocx}Continuous Internal Evaluation Results have been received.`, font: 'Times New Roman', size: 20 }),
+        new TextRun({ text: ` for ${ackReportTextDocx} Results have been received.`, font: 'Times New Roman', size: 20 }),
       ],
     })
   );

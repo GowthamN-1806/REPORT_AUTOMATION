@@ -110,14 +110,32 @@ export async function populateOfficialDocxTemplateWithLogs(
     throw new Error('No data was bound to the template. Check placeholder mapping.');
   }
 
+  const isCieTemplate = /cie|model/i.test(templateFileName);
+  const univMeta = student.univMetadata;
+
+  const targetSem = isCieTemplate
+    ? ((student.cie1Metadata?.semester && student.cie1Metadata.semester.trim()) ||
+       (student.cie2Metadata?.semester && student.cie2Metadata.semester.trim()) ||
+       (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
+       (student.cieSemester && student.cieSemester.trim()) || '')
+    : (univMeta?.semester || student.currentSemester || '');
+
+  const targetAy = isCieTemplate
+    ? ((student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
+       (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
+       (student.modelMetadata?.academicYear && student.modelMetadata.academicYear.trim()) ||
+       (student.cieAcademicYear && student.cieAcademicYear.trim()) ||
+       student.academicYear || '')
+    : (univMeta?.academicYear !== undefined ? univMeta.academicYear : (student.academicYear || ''));
+
   // Construct structured Student Data Object for logging & binding
   const studentData = {
     register_number: student.regNo || '',
     student_name: student.name || '',
     department: student.department || 'Computer Science and Engineering',
-    semester: student.semester || 'VI',
-    exam_session: 'Nov/Dec 2025',
-    academic_year: student.academicYear || '',
+    semester: targetSem,
+    exam_session: (isCieTemplate ? cieMeta?.examSession : univMeta?.examSession) || student.examSession || '',
+    academic_year: targetAy,
     regulation: regulation || student.regulation || '2021',
     cgpa: student.cgpa || 8.42,
     gpa: student.gpaBySem || {},

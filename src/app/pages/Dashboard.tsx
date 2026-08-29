@@ -121,24 +121,6 @@ export const Dashboard: React.FC = () => {
         };
 
         setFileSlots(updatedSlots);
-
-        if (mergedStudents.length > 0) {
-          // If Preview is ALREADY active, re-merge dataset to update Preview with new file
-          const univList = updatedSlots.univ.students;
-          const cie1List = updatedSlots.cie1.students;
-          const cie2List = updatedSlots.cie2.students;
-          const modelList = updatedSlots.model.students;
-
-          const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-          setMergeResult(res);
-          setMergedStudents(res.mergedStudents);
-
-          // Synchronously update the PDF preview
-          const updatedPdfUrl = await generateCombinedPDF(res.mergedStudents, null, undefined, regulation, true);
-          if (typeof updatedPdfUrl === 'string') {
-            setPreviewPdfUrl(updatedPdfUrl);
-          }
-        }
       }
     } catch (err: any) {
       console.error('File upload parsing error:', err);
@@ -179,50 +161,6 @@ export const Dashboard: React.FC = () => {
         academicYear: '-',
         uploadStatus: 'Awaiting Upload',
       });
-    } else {
-      // If at least one file remains and preview is active, re-merge remaining files dynamically
-      if (mergedStudents.length > 0) {
-        const univList = updatedSlots.univ.students;
-        const cie1List = updatedSlots.cie1.students;
-        const cie2List = updatedSlots.cie2.students;
-        const modelList = updatedSlots.model.students;
-
-        const res = mergeExcelDatasets(selectedPattern, univList, cie1List, cie2List, modelList);
-        setMergeResult(res);
-        setMergedStudents(res.mergedStudents);
-
-        const deptName = res.mergedStudents[0]?.department || 'Computer Science & Engg.';
-        const acadYear = res.mergedStudents[0]?.academicYear || '';
-        const subCount = (res.mergedStudents[0]?.universityResults?.length || 0) + (res.mergedStudents[0]?.internalEvalResults?.length || 0);
-
-        setSummary({
-          fileName: updatedSlots.univ.name || updatedSlots.cie1.name || updatedSlots.cie2.name || updatedSlots.model.name || 'Merged_Results.xlsx',
-          fileSize: updatedSlots.univ.size || updatedSlots.cie1.size || updatedSlots.cie2.size || updatedSlots.model.size || '120 KB',
-          department: deptName,
-          academicYear: acadYear,
-          totalStudents: res.mergedStudents.length,
-          subjectsPerStudent: subCount,
-          reportsCount: res.mergedStudents.length,
-          templateUsed: res.templateFile,
-          uploadedDate: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-          status: 'Ready for Download',
-        });
-
-        setStats({
-          totalStudents: res.mergedStudents.length,
-          reportsGenerated: res.mergedStudents.length,
-          pdfPages: res.mergedStudents.length * 2,
-          department: deptName,
-          academicYear: acadYear,
-          uploadStatus: 'Success',
-        });
-
-        generateCombinedPDF(res.mergedStudents, null, undefined, regulation, true).then((url) => {
-          if (typeof url === 'string') {
-            setPreviewPdfUrl(url);
-          }
-        });
-      }
     }
   };
 
