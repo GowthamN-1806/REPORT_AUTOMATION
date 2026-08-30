@@ -1282,6 +1282,7 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
           // Process Subject Rows (University Top Table & CIE Bottom Table - SEPARATE MAPPINGS)
           const universityResults: SubjectResult[] = [];
           const internalEvalResults: InternalEvalResult[] = [];
+          let universityMinorRowIndex = -1;
 
           const isMinorSubject = (colIdx: number, code: string = '', title: string = ''): boolean => {
             const header = colIdx !== -1 ? String(headerNames[colIdx] || '').toLowerCase() : '';
@@ -1340,6 +1341,7 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
             const minorMark = resolvedMinorMarkColIdx !== -1 ? String(rowCells[resolvedMinorMarkColIdx] ?? '').trim() : '';
 
             if (minorCode || minorTitle || minorMark) {
+              universityMinorRowIndex = universityResults.length;
               universityResults.push({
                 sem: extractedSemester || 'V',
                 code: minorCode,
@@ -1473,6 +1475,13 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
                 mark: markNum,
               });
             });
+          }
+
+          // Keep the existing student-specific Minor Degree entry as the final
+          // University Results row, after every normal University subject.
+          if (universityMinorRowIndex !== -1 && universityMinorRowIndex < universityResults.length - 1) {
+            const [universityMinorRow] = universityResults.splice(universityMinorRowIndex, 1);
+            universityResults.push(universityMinorRow);
           }
 
           const rawDeptVal = findCellValue(rowCells, headerNames, [
