@@ -193,6 +193,7 @@ export const generateCombinedPDF = async (
       (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
       (student.cieSemester && student.cieSemester.trim()) ||
       '';
+    const targetCieTermForAck = student.cie1Metadata?.term || student.cie2Metadata?.term || student.modelMetadata?.term;
 
     const effectiveAy = (hasUniv ? student.univMetadata?.academicYear : (student.cie1Metadata?.academicYear || student.cie2Metadata?.academicYear || student.modelMetadata?.academicYear || student.cieAcademicYear)) || student.academicYear || '';
     const effectiveSem = (hasUniv ? student.univMetadata?.semester : targetCieSemForAck) || student.currentSemester || '';
@@ -207,7 +208,7 @@ export const generateCombinedPDF = async (
       const sessionText = effectiveSession ? `held during ${effectiveSession} ` : '';
       pdf.text(`This is to inform you that the results of the Semester End Examination ${sessionText}have been released.`, margin, y);
     } else {
-      const semLabel = getSemEvenOddLabel(targetCieSemForAck);
+      const semLabel = targetCieTermForAck || getSemEvenOddLabel(targetCieSemForAck);
       const ayText = effectiveAy ? `for Academic Year ${effectiveAy} (${semLabel}) ` : '';
       pdf.text(`This is to inform you that the Continuous Internal Evaluation marks ${ayText}have been released.`, margin, y);
     }
@@ -412,7 +413,7 @@ export const generateCombinedPDF = async (
         (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
         (student.cieSemester && student.cieSemester.trim()) ||
         '';
-      const semText = getSemEvenOddLabel(targetCieSem);
+      const semText = student.cie1Metadata?.term || student.cie2Metadata?.term || student.modelMetadata?.term || getSemEvenOddLabel(targetCieSem);
       const ayStr =
         (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
         (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||
@@ -701,7 +702,7 @@ export const generateCombinedPDF = async (
       (student.modelMetadata?.semester && student.modelMetadata.semester.trim()) ||
       (student.cieSemester && student.cieSemester.trim()) ||
       '';
-    const semTextAck = getSemEvenOddLabel(targetCieSemAck);
+    const semTextAck = student.cie1Metadata?.term || student.cie2Metadata?.term || student.modelMetadata?.term || getSemEvenOddLabel(targetCieSemAck);
     const targetCieAyAck =
       (student.cie1Metadata?.academicYear && student.cie1Metadata.academicYear.trim()) ||
       (student.cie2Metadata?.academicYear && student.cie2Metadata.academicYear.trim()) ||

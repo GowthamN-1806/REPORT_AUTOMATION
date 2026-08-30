@@ -100,7 +100,7 @@ export const Dashboard: React.FC = () => {
   // Upload File to Specific Slot
   const handleSlotFileUpload = async (slotKey: 'univ' | 'cie1' | 'cie2' | 'model', file: File) => {
     try {
-      const parsed = await parseExcelFile(file);
+      const parsed = await parseExcelFile(file, slotKey);
 
       if (parsed && parsed.length > 0) {
         const sizeStr = `${(file.size / 1024).toFixed(0)} KB`;

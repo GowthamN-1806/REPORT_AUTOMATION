@@ -25,6 +25,7 @@ export interface InternalEvalResult {
 export interface ExcelDatasetMetadata {
   academicYear: string;
   semester: string;
+  term?: 'Odd Sem' | 'Even Sem';
   examSession?: string;
   department?: string;
 }

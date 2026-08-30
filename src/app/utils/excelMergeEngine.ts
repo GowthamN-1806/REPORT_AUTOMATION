@@ -143,6 +143,7 @@ export const mergeExcelDatasets = (
     return {
       academicYear: ay,
       semester: sem,
+      term: sample.cie1Metadata?.term || sample.cie2Metadata?.term || sample.modelMetadata?.term || sample.univMetadata?.term,
       examSession: session,
       department: getValidDept(sample.department),
     };
@@ -292,7 +293,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
         if (student.internalEvalResults.length === 0) {
           // Build internalEvalResults directly from uploaded CIE 1 Excel!
           student.internalEvalResults = cie1SubList.map((cs) => ({
-            sem: cs.sem || cie1Sem,
+            sem: cie1Sem || cs.sem,
             code: cs.code,
             title: cs.title,
             cie1Marks: cs.mark,
@@ -310,7 +311,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               (cSub) => normalizeRegNo(cSub.code) === normalizeRegNo(ie.code)
             );
             const mark = matchSub ? matchSub.mark : ie.cie1Marks;
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie1Sem || ie.sem || cieDatasetSem);
+            const itemSem = cie1Sem || (matchSub && matchSub.sem) || ie.sem || cieDatasetSem;
             const pf = evaluateCiePassFail(mark);
             return {
               ...ie,
@@ -375,7 +376,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
 
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = cie2SubList.map((cs) => ({
-            sem: cs.sem || cie2Sem,
+            sem: cie2Sem || cs.sem,
             code: cs.code,
             title: cs.title,
             cie1Marks: '',
@@ -401,7 +402,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               matchSub = cie2SubList[ieIdx];
             }
 
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (cie2Sem || ie.sem || cieDatasetSem);
+            const itemSem = student.cie1Metadata?.semester || cie2Sem || (matchSub && matchSub.sem) || ie.sem || cieDatasetSem;
             const mark = matchSub ? matchSub.mark : ie.cie2Marks;
             const pf = evaluateCiePassFail(mark);
 
@@ -473,7 +474,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
 
         if (student.internalEvalResults.length === 0) {
           student.internalEvalResults = modelSubList.map((ms) => ({
-            sem: ms.sem || modelSem,
+            sem: modelSem || ms.sem,
             code: ms.code,
             title: ms.title,
             cie1Marks: '',
@@ -502,7 +503,7 @@ const evaluateCiePassFail = (markVal: any): 'PASS' | 'FAIL' | '' => {
               matchSub = modelSubList[ieIdx];
             }
 
-            const itemSem = (matchSub && matchSub.sem) ? matchSub.sem : (modelSem || ie.sem || cieDatasetSem);
+            const itemSem = student.cie1Metadata?.semester || student.cie2Metadata?.semester || modelSem || (matchSub && matchSub.sem) || ie.sem || cieDatasetSem;
             const modelVal = matchSub && matchSub.mark !== undefined && matchSub.mark !== null && String(matchSub.mark).trim() !== ''
               ? String(matchSub.mark).trim()
               : ie.modelMarks;

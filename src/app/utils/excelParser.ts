@@ -312,7 +312,7 @@ const findColIndex = (headers: string[], candidates: string[]): number => {
   return -1;
 };
 
-export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
+export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2' | 'model'): Promise<StudentRecord[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -641,6 +641,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         let extractedDepartment = '';
         let extractedRegulation = '';
         let extractedSemester = '';
+        let extractedCieTerm: 'Odd Sem' | 'Even Sem' | undefined;
         let extractedExamSession = '';
 
         for (let r = 0; r < rawMatrix.length; r++) {
@@ -700,10 +701,15 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               }
             }
 
+            if (!extractedCieTerm && /(?:academic\s*year|academic_year|academicyear|acad\s*year|\bay\b)/i.test(cellText)) {
+              if (/\bodd\b/i.test(cellText)) extractedCieTerm = 'Odd Sem';
+              else if (/\beven\b/i.test(cellText)) extractedCieTerm = 'Even Sem';
+            }
+
             // Pattern 6: Semester (Inspect inline text or right-side adjacent cells c+1, c+2, c+3)
             if (/^(?:semester|sem)\b/i.test(cellText) || /(?:semester|sem)\s*[:.-]/i.test(cellText)) {
-              // Case A: Inline text in same cell, e.g. "Semester: 05" or "Sem: VI" or "Sem : 06"
-              const inlineSemMatch = cellText.match(/(?:semester|sem)\s*[:.-]?\s*([a-z0-9]+)/i);
+              // Case A: Inline text in same cell, e.g. "Semester: 05", "Sem: VI", or "Semester: SEM IV"
+              const inlineSemMatch = cellText.match(/(?:semester|sem)\s*[:.-]?\s*(.+)$/i);
               if (inlineSemMatch && inlineSemMatch[1] && !/^(no|name|code|register|roll)/i.test(inlineSemMatch[1])) {
                 const cleaned = cleanSemesterValue(inlineSemMatch[1]);
                 if (cleaned) {
@@ -1023,15 +1029,37 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         const sortedCieSpecs = Array.from(cieGroupsMap.values()).sort((a, b) => a.groupNum - b.groupNum);
 
         // Fallback: Direct Subject Column parsing if no suffixes detected
-        const directSubjectCols: { colIndex: number; code: string; title: string }[] = [];
+        const directSubjectCols: { colIndex: number; code: string; title: string; header: string }[] = [];
 
         if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
           const candidateCols: number[] = [];
+          const subjectHeadersByColumn = new Map<number, string>();
+
+          const getSubjectHeader = (columnIndex: number): string => {
+            const headerCandidates: string[] = [];
+
+            for (let r = bestHeaderRowIndex - 1; r >= 0; r--) {
+              headerCandidates.push(String((rawMatrix[r] || [])[columnIndex] || '').trim());
+            }
+
+            headerCandidates.push(String(headerNames[columnIndex] || '').trim());
+
+            return headerCandidates.find((header) => (
+              header &&
+              !isDateCell(header) &&
+              !isFacultyNameCell(header) &&
+              !isPlaceholderToken(header)
+            )) || '';
+          };
 
           for (let c = 0; c < headerNames.length; c++) {
             if (c === regNoColIndex || c === nameColIndex) continue;
 
-            let rawHeader = String(headerNames[c] || '').trim();
+            // University uploads retain their original direct-column detection.
+            // Multi-row header discovery is needed only by CIE/Model sheets.
+            const rawHeader = sourceSlot === 'univ'
+              ? String(headerNames[c] || '').trim()
+              : getSubjectHeader(c);
             let cleanHeader = rawHeader.toLowerCase();
 
             if (
@@ -1047,17 +1075,19 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
             const isName = c === nameColIndex || /^(name|student|student_name|candidate|name of the student)/i.test(cleanHeader);
             const isDept = c === deptColIndex || /^(dept|department|branch)/i.test(cleanHeader);
             const isRegu = c === reguColIndex || /^(regulation)/i.test(cleanHeader);
+            const isMinorIdentityColumn = sourceSlot !== 'univ' && /minor.*(?:code|(?:subject\s*)?name|title)/i.test(cleanHeader);
             const isNonSubHeader = nonSubjectHeaders.some((ik) => {
               const cleanIk = ik.trim().toLowerCase().replace(/[\s_.-]+/g, '');
               const cleanK = cleanHeader.replace(/[\s_.-]+/g, '');
               return cleanK === cleanIk || cleanK.includes(cleanIk);
             }) || /ar?rear|rank|gpa|cgpa|total|credit|cerdit|d\/h|t\/e/i.test(cleanHeader);
 
-            if (isReg || isName || isDept || isRegu || isNonSubHeader) {
+            if (isReg || isName || isDept || isRegu || isMinorIdentityColumn || isNonSubHeader) {
               continue;
             }
 
             candidateCols.push(c);
+            subjectHeadersByColumn.set(c, rawHeader);
           }
 
           candidateCols.forEach((c, idx) => {
@@ -1069,14 +1099,14 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
               finalCode = excelSubjectList[idx].code;
               rawTitle = excelSubjectList[idx].title;
             } else {
-              const rawHeader = String(headerNames[c] || '').trim();
+              const rawHeader = subjectHeadersByColumn.get(c) || String(headerNames[c] || '').trim();
               const baseCode = rawHeader.toUpperCase();
               finalCode = baseCode;
               rawTitle = excelSubjectMaster[baseCode] || rawHeader;
             }
 
             const finalTitle = resolveSubjectTitle(finalCode, rawTitle);
-            directSubjectCols.push({ colIndex: c, code: finalCode, title: finalTitle });
+            directSubjectCols.push({ colIndex: c, code: finalCode, title: finalTitle, header: subjectHeadersByColumn.get(c) || '' });
           });
         }
 
@@ -1087,6 +1117,30 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
         Object.keys(excelSubjectMaster).forEach((k) => knownSubjectCodes.add(k.toUpperCase()));
         excelSubjectList.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
         directSubjectCols.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
+
+        // Minor Degree Code/Name can sit in a different header row in consolidated CIE sheets.
+        // Locate their columns from the sheet header area once; their values are still read per student row.
+        const findMinorColumnIndex = (candidates: string[]): number => {
+          const currentHeaderMatch = findColIndex(headerNames, candidates);
+          if (currentHeaderMatch !== -1) return currentHeaderMatch;
+
+          for (let headerRowIndex = 0; headerRowIndex < studentDataStartRowIndex; headerRowIndex++) {
+            const headerMatch = findColIndex(
+              (rawMatrix[headerRowIndex] || []).map((cell) => String(cell || '').trim()),
+              candidates,
+            );
+            if (headerMatch !== -1) return headerMatch;
+          }
+
+          return -1;
+        };
+
+        const minorCodeColIdx = findMinorColumnIndex([
+          'minor_code', 'minor code', 'minor subject code', 'minor degree subject code', 'minor course code', 'minor_course_code', 'minor_sub_code', 'minor deg code', 'minor degree code'
+        ]);
+        const minorTitleColIdx = findMinorColumnIndex([
+          'minor_title', 'minor title', 'minor subject name', 'minor course name', 'minor_subject_name', 'minor_course_name', 'minor subject', 'minor_subject', 'minor name', 'minor_name', 'minor deg name', 'minor degree name', 'minor degree subject name'
+        ]);
 
         for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
           const rowCells = rawMatrix[r] || [];
@@ -1188,6 +1242,16 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const universityResults: SubjectResult[] = [];
           const internalEvalResults: InternalEvalResult[] = [];
 
+          const isMinorSubject = (colIdx: number, code: string = '', title: string = ''): boolean => {
+            const header = colIdx !== -1 ? String(headerNames[colIdx] || '').toLowerCase() : '';
+            return (
+              /minor/i.test(header) ||
+              /minor/i.test(code) ||
+              /minor/i.test(title) ||
+              (colIdx !== -1 && (colIdx === minorCodeColIdx || colIdx === minorTitleColIdx))
+            );
+          };
+
           // 1. University Results Table: Read ONLY Code_1..N, Subject_1..N, Grade_1..N, Pass_1..N, Mark_1..N
           sortedUnivSpecs.forEach((spec) => {
             const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
@@ -1223,13 +1287,24 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           // 2. CIE / Model Results Table: Read CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, Model_Marks_1..N
           if (sortedCieSpecs.length > 0) {
             sortedCieSpecs.forEach((spec) => {
-              const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
-              const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
+              let codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
+              let titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
               const cie1MarksRaw = spec.cie1MarksCol !== -1 ? rowCells[spec.cie1MarksCol] : '';
               const cie2MarksRaw = spec.cie2MarksCol !== -1 ? rowCells[spec.cie2MarksCol] : '';
               const modelMarksRaw = spec.modelMarksCol !== -1 ? rowCells[spec.modelMarksCol] : '';
               const passRaw = spec.passCol !== -1 ? rowCells[spec.passCol] : '';
               const semRaw = spec.semCol !== -1 ? rowCells[spec.semCol] : '';
+
+              const isMinor = isMinorSubject(spec.codeCol, '', '') || isMinorSubject(spec.titleCol, '', '') || isMinorSubject(spec.cie1MarksCol, '', '');
+
+              if (isMinor) {
+                if (minorCodeColIdx !== -1 && rowCells[minorCodeColIdx] !== undefined && String(rowCells[minorCodeColIdx]).trim() !== '') {
+                  codeRaw = rowCells[minorCodeColIdx];
+                }
+                if (minorTitleColIdx !== -1 && rowCells[minorTitleColIdx] !== undefined && String(rowCells[minorTitleColIdx]).trim() !== '') {
+                  titleRaw = rowCells[minorTitleColIdx];
+                }
+              }
 
               const codeStr = String(codeRaw || '').trim().toUpperCase();
               let titleStr = String(titleRaw || '').trim();
@@ -1241,7 +1316,11 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
 
               if (!codeStr && !titleStr && !cie1MarksStr && !cie2MarksStr && !modelMarksStr && !passStr) return;
 
-              titleStr = resolveSubjectTitle(codeStr, titleStr);
+              if (titleStr && (isMinor || (spec.titleCol !== -1 && rowCells[spec.titleCol] !== undefined))) {
+                // Use current student row's own explicit subject title
+              } else {
+                titleStr = resolveSubjectTitle(codeStr, titleStr);
+              }
 
               const cie1Pf = evaluatePassFail(passStr, cie1MarksStr);
               const cie2Pf = evaluatePassFail(passStr, cie2MarksStr);
@@ -1265,6 +1344,20 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           // Fallback for Direct Column Mark Sheet format
           if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
             directSubjectCols.forEach((sub) => {
+              const isMinor = sourceSlot !== 'univ' && isMinorSubject(sub.colIndex, sub.code, sub.title);
+
+              let currentCode = sub.code;
+              let currentRawTitle = sub.title;
+
+              if (isMinor) {
+                if (minorCodeColIdx !== -1 && rowCells[minorCodeColIdx] !== undefined && String(rowCells[minorCodeColIdx]).trim() !== '') {
+                  currentCode = String(rowCells[minorCodeColIdx]).trim().toUpperCase();
+                }
+                if (minorTitleColIdx !== -1 && rowCells[minorTitleColIdx] !== undefined && String(rowCells[minorTitleColIdx]).trim() !== '') {
+                  currentRawTitle = String(rowCells[minorTitleColIdx]).trim();
+                }
+              }
+
               const cellVal = rowCells[sub.colIndex];
               let markNum: number | string = '';
               let grade = '';
@@ -1294,12 +1387,12 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
                 }
               }
 
-              // Resolve title using resolveSubjectTitle
-              const resolvedTitle = resolveSubjectTitle(sub.code, sub.title);
+              // Resolve title using resolveSubjectTitle, preserving student's own Minor title
+              const resolvedTitle = (isMinor && currentRawTitle) ? currentRawTitle : resolveSubjectTitle(currentCode, currentRawTitle);
 
               universityResults.push({
                 sem: extractedSemester || 'V',
-                code: sub.code,
+                code: currentCode,
                 title: resolvedTitle,
                 grade,
                 passFail,
@@ -1355,6 +1448,7 @@ export const parseExcelFile = (file: File): Promise<StudentRecord[]> => {
           const slotMeta = {
             academicYear: studentAcadYear || '',
             semester: studentSem || '',
+            term: extractedCieTerm,
             examSession: extractedExamSession || '',
             department: (studentDept || extractedDepartment || '').toUpperCase(),
           };
