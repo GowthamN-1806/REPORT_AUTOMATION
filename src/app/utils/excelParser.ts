@@ -73,8 +73,16 @@ const cleanSemesterValue = (val: any): string => {
   let str = String(val).trim().toUpperCase();
   if (!str) return '';
 
-  if (/\bEVEN\b/i.test(str)) return 'Even Sem';
-  if (/\bODD\b/i.test(str)) return 'Odd Sem';
+  // A metadata cell may contain both the academic term and an explicit
+  // "Semester: VI" value. For report rows, use the explicit semester.
+  const explicitSemester = str.match(/(?:^|\b)(?:SEMESTER|SEM)\s*[:.\-/]?\s*(?:SEM\s*)?(VIII|VII|VI|IV|V|III|II|I|0*[1-8])\b/i);
+  if (explicitSemester?.[1]) {
+    str = explicitSemester[1].toUpperCase();
+  } else if (/\bEVEN\b/i.test(str)) {
+    return 'Even Sem';
+  } else if (/\bODD\b/i.test(str)) {
+    return 'Odd Sem';
+  }
 
   const romanMap: Record<number, string> = {
     1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII'
@@ -641,6 +649,7 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
         let extractedDepartment = '';
         let extractedRegulation = '';
         let extractedSemester = '';
+        let explicitSemesterFromSheet = '';
         let extractedCieTerm: 'Odd Sem' | 'Even Sem' | undefined;
         let extractedExamSession = '';
 
@@ -649,6 +658,14 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
           for (let c = 0; c < rCells.length; c++) {
             const cellText = String(rCells[c] || '').trim();
             if (!cellText) continue;
+
+            // Capture only an explicitly labelled Semester value. This is
+            // distinct from the Odd/Even term that may appear in Academic Year.
+            const explicitSemesterMatch = cellText.match(/(?:^|\b)(?:semester|sem)\s*[:.\-/]?\s*(?:sem\s*)?(VIII|VII|VI|IV|V|III|II|I|0*[1-8])\b/i);
+            if (explicitSemesterMatch?.[1]) {
+              const semester = cleanSemesterValue(explicitSemesterMatch[1]);
+              if (semester) explicitSemesterFromSheet = semester;
+            }
 
             // Pattern 1: Inline "Department: IT" or "Dept: CSE" or "Branch: IT"
             const inlineMatch = cellText.match(/(?:department|dept|branch)\s*[:.-]\s*([^\n\r,]+)/i);
@@ -798,6 +815,12 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
               }
             }
           }
+        }
+
+        // The labelled Semester value in the Excel metadata is authoritative
+        // for the CIE, CIE 2, and Model report-row Semester column.
+        if (explicitSemesterFromSheet) {
+          extractedSemester = explicitSemesterFromSheet;
         }
 
         // Fallback 1: Deduce Department from File Name if not found in cells

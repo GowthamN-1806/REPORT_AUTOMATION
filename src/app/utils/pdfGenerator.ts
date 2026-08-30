@@ -571,7 +571,7 @@ export const generateCombinedPDF = async (
           let cx = margin;
           activeCols.forEach((col) => {
             let cellText = '';
-            if (col.id === 'sem') cellText = item.sem || student.currentSemester || 'V';
+            if (col.id === 'sem') cellText = targetCieSem || item.sem || student.currentSemester || 'V';
             else if (col.id === 'code') cellText = item.code || '';
             else if (col.id === 'title') cellText = (item.title || '').substring(0, 28);
             else if (col.id === 'cie1') cellText = item.cie1Marks !== undefined && item.cie1Marks !== null ? String(item.cie1Marks) : '';
