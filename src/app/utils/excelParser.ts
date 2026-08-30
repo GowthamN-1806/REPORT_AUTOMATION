@@ -1141,8 +1141,8 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
         excelSubjectList.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
         directSubjectCols.forEach((s) => knownSubjectCodes.add(s.code.toUpperCase()));
 
-        // Minor Degree Code/Name can sit in a different header row in consolidated CIE sheets.
-        // Locate their columns from the sheet header area once; their values are still read per student row.
+        // Minor Degree fields can sit in a different header row in consolidated sheets.
+        // Locate their columns once; values are always read from the current student row.
         const findMinorColumnIndex = (candidates: string[]): number => {
           const currentHeaderMatch = findColIndex(headerNames, candidates);
           if (currentHeaderMatch !== -1) return currentHeaderMatch;
@@ -1164,6 +1164,24 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
         const minorTitleColIdx = findMinorColumnIndex([
           'minor_title', 'minor title', 'minor subject name', 'minor course name', 'minor_subject_name', 'minor_course_name', 'minor subject', 'minor_subject', 'minor name', 'minor_name', 'minor deg name', 'minor degree name', 'minor degree subject name'
         ]);
+        const minorMarkColIdx = findMinorColumnIndex([
+          'minor mark', 'minor marks', 'minor score', 'minor grade', 'minor subject mark', 'minor subject marks', 'minor degree mark', 'minor degree marks', 'minor degree score', 'minor degree grade', 'minor_course_mark', 'minor_course_marks'
+        ]);
+        const resolvedMinorMarkColIdx = minorMarkColIdx !== -1
+          ? minorMarkColIdx
+          : (() => {
+            for (let headerRowIndex = 0; headerRowIndex < studentDataStartRowIndex; headerRowIndex++) {
+              const headerRowCells = rawMatrix[headerRowIndex] || [];
+              const columnIndex = headerRowCells.findIndex((cell) => {
+                const header = String(cell || '').trim().toLowerCase();
+                return /minor/.test(header) &&
+                  !/(code|name|title|subject)/.test(header) &&
+                  /(mark|score|grade|result|degree|deg)/.test(header);
+              });
+              if (columnIndex !== -1) return columnIndex;
+            }
+            return -1;
+          })();
 
         for (let r = studentDataStartRowIndex; r < rawMatrix.length; r++) {
           const rowCells = rawMatrix[r] || [];
@@ -1277,6 +1295,13 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
 
           // 1. University Results Table: Read ONLY Code_1..N, Subject_1..N, Grade_1..N, Pass_1..N, Mark_1..N
           sortedUnivSpecs.forEach((spec) => {
+            // Minor identity fields are mapped once from the current student's row below.
+            // Do not also treat their grouped columns as ordinary University subjects.
+            if (
+              sourceSlot === 'univ' &&
+              (spec.codeCol === minorCodeColIdx || spec.titleCol === minorTitleColIdx)
+            ) return;
+
             const codeRaw = spec.codeCol !== -1 ? rowCells[spec.codeCol] : '';
             const titleRaw = spec.titleCol !== -1 ? rowCells[spec.titleCol] : '';
             const gradeRaw = spec.gradeCol !== -1 ? rowCells[spec.gradeCol] : '';
@@ -1306,6 +1331,25 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
               mark: markStr,
             });
           });
+
+          // University Minor Degree: create exactly one row using the current student's
+          // dynamically located Code, Name, and Mark cells.
+          if (sourceSlot === 'univ') {
+            const minorCode = minorCodeColIdx !== -1 ? String(rowCells[minorCodeColIdx] ?? '').trim().toUpperCase() : '';
+            const minorTitle = minorTitleColIdx !== -1 ? String(rowCells[minorTitleColIdx] ?? '').trim() : '';
+            const minorMark = resolvedMinorMarkColIdx !== -1 ? String(rowCells[resolvedMinorMarkColIdx] ?? '').trim() : '';
+
+            if (minorCode || minorTitle || minorMark) {
+              universityResults.push({
+                sem: extractedSemester || 'V',
+                code: minorCode,
+                title: minorTitle,
+                grade: minorMark,
+                passFail: evaluatePassFail('', minorMark),
+                mark: minorMark,
+              });
+            }
+          }
 
           // 2. CIE / Model Results Table: Read CIE_Code_1..N, CIE_Subject_1..N, CIE1_Marks_1..N, CIE2_Marks_1..N, Model_Marks_1..N
           if (sortedCieSpecs.length > 0) {
@@ -1367,6 +1411,13 @@ export const parseExcelFile = (file: File, sourceSlot?: 'univ' | 'cie1' | 'cie2'
           // Fallback for Direct Column Mark Sheet format
           if (sortedUnivSpecs.length === 0 && sortedCieSpecs.length === 0) {
             directSubjectCols.forEach((sub) => {
+              const isUniversityMinorIdentity = sourceSlot === 'univ' && (
+                sub.colIndex === minorCodeColIdx ||
+                sub.colIndex === minorTitleColIdx ||
+                sub.colIndex === resolvedMinorMarkColIdx
+              );
+              if (isUniversityMinorIdentity) return;
+
               const isMinor = sourceSlot !== 'univ' && isMinorSubject(sub.colIndex, sub.code, sub.title);
 
               let currentCode = sub.code;
